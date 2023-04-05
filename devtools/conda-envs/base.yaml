@@ -1,0 +1,8 @@
+name: scipy
+channels:
+  - conda-forge
+
+dependencies:
+  - numpy>=1.18
+  - scipy>=1.9
+  - sympy

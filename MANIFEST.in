@@ -1,0 +1,11 @@
+recursive-include concordantmodes *.py
+recursive-include examples
+
+include setup.py
+include setup.cfg
+include README.md
+include LICENSE
+include MANIFEST.in
+
+include versioneer.py
+include concordantmodes/_version.py
