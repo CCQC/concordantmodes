@@ -205,7 +205,6 @@ class ConcordantModes(object):
                 indices,
                 self.options.energy_regex_init,
                 self.options.gradient_regex,
-                self.options.molly_regex_init,
                 self.options.success_regex_init,
                 deriv_level=self.options.deriv_level_init,
                 # disp_sym = init_disp.disp_sym
@@ -436,7 +435,6 @@ class ConcordantModes(object):
             algo.indices,
             self.options.energy_regex,
             self.options.gradient_regex,
-            self.options.molly_regex_init,
             self.options.success_regex,
             # disp_sym = transf_disp.disp_sym
         )

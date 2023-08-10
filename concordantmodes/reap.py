@@ -17,11 +17,15 @@ class Reap(object):
         indices,
         energy_regex,
         gradient_regex,
-        molly_regex,
         success_regex,
         deriv_level=0,
         disp_sym=None,
     ):
+        print("wtf is this in the right order")
+        print("energy grad suc")
+        print(energy_regex)
+        print(gradient_regex)
+        print(success_regex)
         self.prog_name = prog_name
         self.zmat = zmat
         self.disp_cart = disp_cart
@@ -32,11 +36,11 @@ class Reap(object):
         self.eigs = eigs
         self.energy_regex = energy_regex
         self.gradient_regex = gradient_regex
-        self.molly_regex = molly_regex
         self.success_regex = success_regex
         self.indices = indices
         self.deriv_level = deriv_level
-
+        #print(f"energy regex")
+        #print(self.energy_regex)
     def run(self):
         # Define energy/gradient search regex
         if not self.deriv_level:
@@ -44,10 +48,11 @@ class Reap(object):
             success_regex = re.compile(self.success_regex)
             self.energies = np.array([])
         else:
+            #print(f"This is the gradient regex {self.gradient_regex}")
+            #print(self.gradient_regex[0])
             grad_regex1 = re.compile(self.gradient_regex[0])
             grad_regex2 = re.compile(self.gradient_regex[1])
-            # molly_regex1  = re.compile(self.molly_regex[0])
-            # molly_regex2  = re.compile(self.molly_regex[1])
+            print(f"compiled {grad_regex1}")
         eigs = self.eigs
         if type(eigs) == int:
             size = eigs
@@ -66,6 +71,7 @@ class Reap(object):
                 os.chdir("./" + str(1))
                 with open("output.dat", "r") as file:
                     data = file.read()
+                print(f"Success regex {success_regex}")
                 if not re.search(success_regex, data):
                     print("Energy failed at " + str("ref"))
                     raise RuntimeError
@@ -181,7 +187,7 @@ class Reap(object):
                 # Sum += 1
                 # else:
                 # grad = self.reap_gradients(2 * index + 2 - Sum, grad_regex1, grad_regex2)
-                # m_grad_array = np.append(m_grad_array, grad, axis=0)
+                #m_grad_array = np.append(m_grad_array, grad, axis=0)
                 grad = self.reap_gradients(
                     2 * index + 2 - Sum, grad_regex1, grad_regex2
                 )
@@ -190,11 +196,15 @@ class Reap(object):
             self.m_grad_array = m_grad_array.reshape((-1, len(grad)))
             os.chdir("..")
 
-    def reap_molly(self, direc, molly1_regex, molly2_regex):
-        os.chdir("./" + str(direc))
+    def reap_molecule(self, direc):
+        molly1_regex = "\s*NR\s*ATOM"
+        molly2_regex = "\s*Bond\s*lengths"
+        print("inside reap_molecule")
+        
+        #os.chdir("./" + str(direc))
         with open("output.dat", "r") as file:
             datta = file.read()
-        # try to grab init geom
+        # try to grab init geom, capture first item in input with open brackets (as indexed by initmol[0])
         initmolreg = r"\s*\{([^}]+)\}"
         reggie = re.compile(initmolreg)
         initmol = re.findall(initmolreg, datta)
@@ -223,27 +233,40 @@ class Reap(object):
             if molly1:
                 beg_molly = i + 1
                 break
+        print(f"This is beg molly {beg_molly}")
         for i in range(len(data) - beg_molly):
             molly2 = re.search(molly2_regex, data[i + beg_molly])
             if molly2:
                 end_molly = i + beg_molly
                 break
+        print(f"This is end molly {end_molly}")
         label_xyz = r"(\s*.*(\s*-?\d+\.\d+){3})+"
         molly_array = np.array([])
         for line in data[beg_molly:end_molly]:
             if re.search(label_xyz, line):
                 temp = line.split()[-3:]
                 molly_array = np.append(molly_array, np.array(temp))
-
+        
         molly_array = molly_array.astype("float64")
         molly_array = np.split(molly_array, len(molly_array) / 3)
+        print(len(molly_array))
+        for line in molly_array:
+            print(line)
+        print(len(molly_init))
+        for line2 in molly_init:
+            print(line2)
+         
+        #print(f"This is molly array {molly_array}")
         rearrange = []
+                
         for i, initial in enumerate(molly_init):
             for j, final in enumerate(molly_array):
                 if sum(np.abs(initial - final)) < 1e-6:
 
                     rearrange.append(j)
-        os.chdir("..")
+        #os.chdir("..")
+        print(f"This is rearrange {rearrange}")
+        print(f"This is insertion {insertion}")
         return rearrange, insertion
 
     def reap_energies(self, direc, success_regex, energy_regex):
@@ -271,7 +294,8 @@ class Reap(object):
     def reap_gradients(self, direc, grad_regex1, grad_regex2):
         os.chdir("./" + str(direc))
         grad_array = []
-        with open("output.dat", "r") as file:
+        with open("output.xml", "r") as file:
+        #with open("output.dat", "r") as file:
             data = file.readlines()
         for i in range(len(data)):
             grad1 = re.search(grad_regex1, data[i])
@@ -279,6 +303,7 @@ class Reap(object):
                 beg_grad = i + 1
                 break
         for i in range(len(data) - beg_grad):
+            print(data[i + beg_grad])
             grad2 = re.search(grad_regex2, data[i + beg_grad])
             if grad2:
                 end_grad = i + beg_grad
@@ -304,4 +329,55 @@ class Reap(object):
         os.chdir("..")
         # raise RuntimeError
 
+        return grad_array
+    #reaps gradients and corrects for atom reording 
+    def reap_gradients_molpro(self, direc, grad_regex1, grad_regex2):
+        os.chdir("./" + str(direc))
+        grad_array = []
+        with open("output.xml", "r") as file:
+        #with open("output.dat", "r") as file:
+            data = file.readlines()
+        rearrange, insertion = self.reap_molecule(direc)
+        for i in range(len(data)):
+            grad1 = re.search(grad_regex1, data[i])
+            if grad1:
+                beg_grad = i + 1
+                break
+        for i in range(len(data) - beg_grad):
+            print(data[i + beg_grad])
+            grad2 = re.search(grad_regex2, data[i + beg_grad])
+            if grad2:
+                end_grad = i + beg_grad
+                break
+        label_xyz = r"(\s*.*(\s*-?\d+\.\d+){3})+"
+        for line in data[beg_grad:end_grad]:
+            if re.search(label_xyz, line):
+                temp = line.split()[-3:]
+                grad_array.append(temp)
+        print(f"the grad array {grad_array}") 
+        grad_array = np.array(grad_array)
+        grad_array = grad_array.astype("float64")
+        #print(f"before")
+        #print(grad_array) 
+        
+        print(f"Needs to be reshuffled like {rearrange}")
+        grad_array = grad_array[rearrange]
+        print(f"after")
+        print(grad_array) 
+        #if len(insertion) > 0:
+        #   counter = 0
+        #   for x in insertion:
+        #       grad_array = np.insert(grad_array, x, [0.0, 0.0, 0.0], axis = 0)
+        #       counter += 1
+        #       grad_array = np.reshape(grad_array, (-1, 3))
+        grad_array = grad_array.flatten()
+        #print("did we screw up?")
+        #print(grad_array)
+        if not grad1:
+            print("Gradient failed at " + os.getcwd())
+            raise RuntimeError
+        os.chdir("..")
+        # raise RuntimeError
+        #print("This is what we are returning")
+        #print(grad_array) 
         return grad_array
