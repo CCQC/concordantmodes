@@ -334,7 +334,8 @@ class ConcordantModes(object):
         TED_GF.run()
 
         initial_fc = TED_GF.eig_v
-        eigs = len(TED_GF.S)
+        #eigs = len(TED_GF.S)
+        eigs = len(TED_GF.eig_v)
 
         algo = Algorithm(eigs, initial_fc, self.options)
         # algo.options.off_diag_bands = 2
