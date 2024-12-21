@@ -2,6 +2,7 @@ import os
 import shutil
 import numpy as np
 from concordantmodes.ted import TED
+from concordantmodes.int2cart import Int2Cart
 from numpy.linalg import inv
 from numpy import linalg as LA
 
@@ -18,13 +19,14 @@ class SVectors(object):
         self.s_2center_dict = {}
         self.s_3center_dict = {}
         self.s_4center_dict = {}
-        self.bond_indices = np.array(zmat.bond_indices).astype(int)
-        self.angle_indices = np.array(zmat.angle_indices).astype(int)
-        self.torsion_indices = np.array(zmat.torsion_indices).astype(int)
-        self.oop_indices = np.array(zmat.oop_indices).astype(int)
-        self.lin_indices = np.array(zmat.lin_indices).astype(int)
-        self.linx_indices = np.array(zmat.linx_indices).astype(int)
-        self.liny_indices = np.array(zmat.liny_indices).astype(int)
+        self.s_ncenter_dict = {}
+        self.bond_indices = zmat.bond_indices
+        self.angle_indices = zmat.angle_indices
+        self.torsion_indices = zmat.torsion_indices
+        self.oop_indices = zmat.oop_indices
+        self.lin_indices = zmat.lin_indices
+        self.linx_indices = zmat.linx_indices
+        self.liny_indices = zmat.liny_indices
         self.options = options
         self.variable_dict = variable_dict
         self.zmat = zmat
@@ -33,6 +35,7 @@ class SVectors(object):
         self.proj = proj
         # Initialize the cartesian coordinates
         self.carts = carts
+        self.int2cart = Int2Cart(self.zmat)
         # So, first things first I'll have to code up the
         # proper equations for the first order B-Tensors
         # for:
@@ -43,352 +46,457 @@ class SVectors(object):
         # Linear Bends
         # LinX Bends
         # LinY Bends
-        # Toggle this to convert from bohr to angstrom
-        # self.carts = 0.5291772085936*self.carts
 
         # First, bonds.
         if len(self.bond_indices) > 0:
             for i in range(len(self.bond_indices)):
+                indies = self.bond_indices[i]
+                Len = len(np.array(indies[0]).shape)
+                if Len:
+                    x1 = [0.0, 0.0, 0.0]
+                    for j in indies[0]:
+                        x1 += self.carts[int(j) - 1]
+                    x1 /= len(indies[0])
+                    x2 = [0.0, 0.0, 0.0]
+                    for j in indies[1]:
+                        x2 += self.carts[int(j) - 1]
+                    x2 /= len(indies[1])
+                else:
+                    x1 = self.carts[int(indies[0]) - 1]
+                    x2 = self.carts[int(indies[1]) - 1]
+
                 self.s_2center_dict["B" + str(i + 1)] = self.carts.copy()
                 self.s_2center_dict["B" + str(i + 1)] = (
                     0 * self.s_2center_dict["B" + str(i + 1)]
                 )
-                r = self.compute_r(
-                    self.carts, self.bond_indices[i][0] - 1, self.bond_indices[i][1] - 1
-                )
-                self.s_2center_dict["B" + str(i + 1)][
-                    self.bond_indices[i][0] - 1
-                ] = self.compute_e(
-                    self.carts,
-                    self.bond_indices[i][0] - 1,
-                    self.bond_indices[i][1] - 1,
-                    r,
-                )
-                self.s_2center_dict["B" + str(i + 1)][
-                    self.bond_indices[i][1] - 1
-                ] = -self.s_2center_dict["B" + str(i + 1)][self.bond_indices[i][0] - 1]
+                b_1 = self.compute_e(x1, x2)
+                b_2 = -b_1
+                if Len:
+                    for j in indies[0]:
+                        self.s_2center_dict["B" + str(i + 1)][int(j) - 1] += b_1 / len(
+                            indies[0]
+                        )
+                    for j in indies[1]:
+                        self.s_2center_dict["B" + str(i + 1)][int(j) - 1] += b_2 / len(
+                            indies[1]
+                        )
+                else:
+                    self.s_2center_dict["B" + str(i + 1)][int(indies[0]) - 1] = b_1
+                    self.s_2center_dict["B" + str(i + 1)][int(indies[1]) - 1] = b_2
+
         # Next, angles.
         if len(self.angle_indices) > 0:
             for i in range(len(self.angle_indices)):
+                indies = self.angle_indices[i]
+                Len = len(np.array(indies[0]).shape)
+                if Len:
+                    x1 = [0.0, 0.0, 0.0]
+                    L = len(indies[0])
+                    for j in indies[0]:
+                        x1 += self.carts[int(j) - 1]
+                    x1 /= L
+                    x2 = [0.0, 0.0, 0.0]
+                    L = len(indies[1])
+                    for j in indies[1]:
+                        x2 += self.carts[int(j) - 1]
+                    x2 /= L
+                    x3 = [0.0, 0.0, 0.0]
+                    L = len(indies[2])
+                    for j in indies[2]:
+                        x3 += self.carts[int(j) - 1]
+                    x3 /= L
+                else:
+                    x1 = self.carts[int(indies[0]) - 1]
+                    x2 = self.carts[int(indies[1]) - 1]
+                    x3 = self.carts[int(indies[2]) - 1]
+
                 self.s_3center_dict["A" + str(i + 1)] = self.carts.copy()
                 self.s_3center_dict["A" + str(i + 1)] = (
                     0 * self.s_3center_dict["A" + str(i + 1)]
                 )
-                r_1 = self.compute_r(
-                    self.carts,
-                    self.angle_indices[i][0] - 1,
-                    self.angle_indices[i][1] - 1,
-                )
-                r_2 = self.compute_r(
-                    self.carts,
-                    self.angle_indices[i][1] - 1,
-                    self.angle_indices[i][2] - 1,
-                )
-                e_1 = self.compute_e(
-                    self.carts,
-                    self.angle_indices[i][0] - 1,
-                    self.angle_indices[i][1] - 1,
-                    r_1,
-                )
-                e_2 = self.compute_e(
-                    self.carts,
-                    self.angle_indices[i][2] - 1,
-                    self.angle_indices[i][1] - 1,
-                    r_2,
-                )
+                r_1 = self.compute_r(x1, x2)
+                r_2 = self.compute_r(x2, x3)
+                e_1 = self.compute_e(x1, x2)
+                e_2 = self.compute_e(x3, x2)
                 phi = self.compute_phi(e_1, e_2)
                 a_1 = self.compute_BEND(e_1, e_2, phi, r_1)
-                a_2 = self.compute_BEND(e_2, e_1, phi, r_2)
-                self.s_3center_dict["A" + str(i + 1)][
-                    self.angle_indices[i][0] - 1
-                ] = a_1
-                self.s_3center_dict["A" + str(i + 1)][
-                    self.angle_indices[i][2] - 1
-                ] = a_2
-                self.s_3center_dict["A" + str(i + 1)][self.angle_indices[i][1] - 1] = (
-                    -a_1 - a_2
-                )
+                a_3 = self.compute_BEND(e_2, e_1, phi, r_2)
+                a_2 = -a_1 - a_3
+
+                if Len:
+                    for j in indies[0]:
+                        self.s_3center_dict["A" + str(i + 1)][int(j) - 1] += a_1 / len(
+                            indies[0]
+                        )
+                    for j in indies[1]:
+                        self.s_3center_dict["A" + str(i + 1)][int(j) - 1] += a_2 / len(
+                            indies[1]
+                        )
+                    for j in indies[2]:
+                        self.s_3center_dict["A" + str(i + 1)][int(j) - 1] += a_3 / len(
+                            indies[2]
+                        )
+                else:
+                    self.s_3center_dict["A" + str(i + 1)][int(indies[0]) - 1] = a_1
+                    self.s_3center_dict["A" + str(i + 1)][int(indies[1]) - 1] = a_2
+                    self.s_3center_dict["A" + str(i + 1)][int(indies[2]) - 1] = a_3
+
         # Next, torsions.
         if len(self.torsion_indices) > 0:
             for i in range(len(self.torsion_indices)):
+                indies = self.torsion_indices[i]
+                Len = len(np.array(indies[0]).shape)
+                if Len:
+                    x1 = [0.0, 0.0, 0.0]
+                    for j in indies[0]:
+                        x1 += self.carts[int(j) - 1]
+                    x1 /= len(indies[0])
+                    x2 = [0.0, 0.0, 0.0]
+                    for j in indies[1]:
+                        x2 += self.carts[int(j) - 1]
+                    x2 /= len(indies[1])
+                    x3 = [0.0, 0.0, 0.0]
+                    for j in indies[2]:
+                        x3 += self.carts[int(j) - 1]
+                    x3 /= len(indies[2])
+                    x4 = [0.0, 0.0, 0.0]
+                    for j in indies[3]:
+                        x4 += self.carts[int(j) - 1]
+                    x4 /= len(indies[3])
+                else:
+                    x1 = self.carts[int(indies[0]) - 1]
+                    x2 = self.carts[int(indies[1]) - 1]
+                    x3 = self.carts[int(indies[2]) - 1]
+                    x4 = self.carts[int(indies[3]) - 1]
+
                 self.s_4center_dict["D" + str(i + 1)] = self.carts.copy()
                 self.s_4center_dict["D" + str(i + 1)] = (
                     0 * self.s_4center_dict["D" + str(i + 1)]
                 )
-                r_1 = self.compute_r(
-                    self.carts,
-                    self.torsion_indices[i][0] - 1,
-                    self.torsion_indices[i][1] - 1,
-                )
-                r_2 = self.compute_r(
-                    self.carts,
-                    self.torsion_indices[i][1] - 1,
-                    self.torsion_indices[i][2] - 1,
-                )
-                r_3 = self.compute_r(
-                    self.carts,
-                    self.torsion_indices[i][2] - 1,
-                    self.torsion_indices[i][3] - 1,
-                )
-                e_1 = self.compute_e(
-                    self.carts,
-                    self.torsion_indices[i][0] - 1,
-                    self.torsion_indices[i][1] - 1,
-                    r_1,
-                )
-                e_2 = self.compute_e(
-                    self.carts,
-                    self.torsion_indices[i][1] - 1,
-                    self.torsion_indices[i][2] - 1,
-                    r_2,
-                )
-                e_3 = self.compute_e(
-                    self.carts,
-                    self.torsion_indices[i][2] - 1,
-                    self.torsion_indices[i][3] - 1,
-                    r_3,
-                )
+
+                r_1 = self.compute_r(x1, x2)
+                r_2 = self.compute_r(x2, x3)
+                r_3 = self.compute_r(x3, x4)
+                e_1 = self.compute_e(x1, x2)
+                e_2 = self.compute_e(x2, x3)
+                e_3 = self.compute_e(x3, x4)
                 phi_1 = self.compute_phi(e_1, -e_2)
                 phi_2 = self.compute_phi(e_2, -e_3)
+
                 t_1 = self.compute_TORS1(e_1, -e_2, phi_1, r_1)
                 t_4 = self.compute_TORS1(-e_3, e_2, phi_2, r_3)
                 t_2 = self.compute_TORS2(e_1, -e_2, -e_3, phi_1, phi_2, r_1, r_2)
-                self.s_4center_dict["D" + str(i + 1)][
-                    self.torsion_indices[i][0] - 1
-                ] = t_1
-                self.s_4center_dict["D" + str(i + 1)][
-                    self.torsion_indices[i][3] - 1
-                ] = t_4
-                self.s_4center_dict["D" + str(i + 1)][
-                    self.torsion_indices[i][1] - 1
-                ] = t_2
-                self.s_4center_dict["D" + str(i + 1)][
-                    self.torsion_indices[i][2] - 1
-                ] = (-t_1 - t_2 - t_4)
+                t_3 = -t_1 - t_2 - t_4
+
+                if Len:
+                    for j in indies[0]:
+                        self.s_4center_dict["D" + str(i + 1)][int(j) - 1] += t_1 / len(
+                            indies[0]
+                        )
+                    for j in indies[1]:
+                        self.s_4center_dict["D" + str(i + 1)][int(j) - 1] += t_2 / len(
+                            indies[1]
+                        )
+                    for j in indies[2]:
+                        self.s_4center_dict["D" + str(i + 1)][int(j) - 1] += t_3 / len(
+                            indies[2]
+                        )
+                    for j in indies[3]:
+                        self.s_4center_dict["D" + str(i + 1)][int(j) - 1] += t_4 / len(
+                            indies[3]
+                        )
+                else:
+                    self.s_4center_dict["D" + str(i + 1)][int(indies[0]) - 1] = t_1
+                    self.s_4center_dict["D" + str(i + 1)][int(indies[1]) - 1] = t_2
+                    self.s_4center_dict["D" + str(i + 1)][int(indies[2]) - 1] = t_3
+                    self.s_4center_dict["D" + str(i + 1)][int(indies[3]) - 1] = t_4
 
         # Now, out of plane bending.
         if len(self.oop_indices) > 0:
             for i in range(len(self.oop_indices)):
+                indies = self.oop_indices[i]
+                Len = len(np.array(indies[0]).shape)
+                if Len:
+                    x1 = [0.0, 0.0, 0.0]
+                    for j in indies[0]:
+                        x1 += self.carts[int(j) - 1]
+                    x1 /= len(indies[0])
+                    x2 = [0.0, 0.0, 0.0]
+                    for j in indies[1]:
+                        x2 += self.carts[int(j) - 1]
+                    x2 /= len(indies[1])
+                    x3 = [0.0, 0.0, 0.0]
+                    for j in indies[2]:
+                        x3 += self.carts[int(j) - 1]
+                    x3 /= len(indies[2])
+                    x4 = [0.0, 0.0, 0.0]
+                    for j in indies[3]:
+                        x4 += self.carts[int(j) - 1]
+                    x4 /= len(indies[3])
+                else:
+                    x1 = self.carts[int(indies[0]) - 1]
+                    x2 = self.carts[int(indies[1]) - 1]
+                    x3 = self.carts[int(indies[2]) - 1]
+                    x4 = self.carts[int(indies[3]) - 1]
+
                 self.s_4center_dict["O" + str(i + 1)] = self.carts.copy()
                 self.s_4center_dict["O" + str(i + 1)] = (
                     0 * self.s_4center_dict["O" + str(i + 1)]
                 )
-                r_1 = self.compute_r(
-                    self.carts, self.oop_indices[i][0] - 1, self.oop_indices[i][1] - 1
-                )
-                r_2 = self.compute_r(
-                    self.carts, self.oop_indices[i][2] - 1, self.oop_indices[i][1] - 1
-                )
-                r_3 = self.compute_r(
-                    self.carts, self.oop_indices[i][3] - 1, self.oop_indices[i][1] - 1
-                )
-                e_1 = self.compute_e(
-                    self.carts,
-                    self.oop_indices[i][0] - 1,
-                    self.oop_indices[i][1] - 1,
-                    r_1,
-                )
-                e_2 = self.compute_e(
-                    self.carts,
-                    self.oop_indices[i][2] - 1,
-                    self.oop_indices[i][1] - 1,
-                    r_2,
-                )
-                e_3 = self.compute_e(
-                    self.carts,
-                    self.oop_indices[i][3] - 1,
-                    self.oop_indices[i][1] - 1,
-                    r_3,
-                )
-                phi = self.compute_phi(e_2, e_3)
 
-                theta = self.calc_OOP(
-                    self.carts[self.oop_indices[i][0] - 1],
-                    self.carts[self.oop_indices[i][1] - 1],
-                    self.carts[self.oop_indices[i][2] - 1],
-                    self.carts[self.oop_indices[i][3] - 1],
-                )
+                r_1 = self.compute_r(x1, x2)
+                r_2 = self.compute_r(x3, x2)
+                r_3 = self.compute_r(x4, x2)
+                e_1 = self.compute_e(x1, x2)
+                e_2 = self.compute_e(x3, x2)
+                e_3 = self.compute_e(x4, x2)
+                phi = self.compute_phi(e_2, e_3)
+                theta = self.calc_OOP(x1, x2, x3, x4)
+
                 o_1 = self.compute_OOP1(e_1, e_2, e_3, r_1, theta, phi)
                 o_3 = self.compute_OOP2(e_1, e_2, e_3, r_2, theta, phi)
                 o_4 = self.compute_OOP2(-e_1, e_3, e_2, r_3, theta, phi)
-                self.s_4center_dict["O" + str(i + 1)][self.oop_indices[i][0] - 1] = o_1
-                self.s_4center_dict["O" + str(i + 1)][self.oop_indices[i][2] - 1] = o_3
-                self.s_4center_dict["O" + str(i + 1)][self.oop_indices[i][3] - 1] = o_4
-                self.s_4center_dict["O" + str(i + 1)][self.oop_indices[i][1] - 1] = (
-                    -o_1 - o_3 - o_4
-                )
+                o_2 = -o_1 - o_3 - o_4
+
+                if Len:
+                    for j in indies[0]:
+                        self.s_4center_dict["O" + str(i + 1)][int(j) - 1] += o_1 / len(
+                            indies[0]
+                        )
+                    for j in indies[1]:
+                        self.s_4center_dict["O" + str(i + 1)][int(j) - 1] += o_2 / len(
+                            indies[1]
+                        )
+                    for j in indies[2]:
+                        self.s_4center_dict["O" + str(i + 1)][int(j) - 1] += o_3 / len(
+                            indies[2]
+                        )
+                    for j in indies[3]:
+                        self.s_4center_dict["O" + str(i + 1)][int(j) - 1] += o_4 / len(
+                            indies[3]
+                        )
+                else:
+                    self.s_4center_dict["O" + str(i + 1)][int(indies[0]) - 1] = o_1
+                    self.s_4center_dict["O" + str(i + 1)][int(indies[1]) - 1] = o_2
+                    self.s_4center_dict["O" + str(i + 1)][int(indies[2]) - 1] = o_3
+                    self.s_4center_dict["O" + str(i + 1)][int(indies[3]) - 1] = o_4
 
         # Linear bending.
         if len(self.lin_indices) > 0:
             for i in range(len(self.lin_indices)):
+                indies = self.lin_indices[i]
+                Len = len(np.array(indies[0]).shape)
+                if Len:
+                    x1 = [0.0, 0.0, 0.0]
+                    for j in indies[0]:
+                        x1 += self.carts[int(j) - 1]
+                    x1 /= len(indies[0])
+                    x2 = [0.0, 0.0, 0.0]
+                    for j in indies[1]:
+                        x2 += self.carts[int(j) - 1]
+                    x2 /= len(indies[1])
+                    x3 = [0.0, 0.0, 0.0]
+                    for j in indies[2]:
+                        x3 += self.carts[int(j) - 1]
+                    x3 /= len(indies[2])
+                    x4 = [0.0, 0.0, 0.0]
+                    for j in indies[3]:
+                        x4 += self.carts[int(j) - 1]
+                    x4 /= len(indies[3])
+                else:
+                    x1 = self.carts[int(indies[0]) - 1]
+                    x2 = self.carts[int(indies[1]) - 1]
+                    x3 = self.carts[int(indies[2]) - 1]
+                    x4 = self.carts[int(indies[3]) - 1]
+
                 self.s_4center_dict["L" + str(i + 1)] = self.carts.copy()
                 self.s_4center_dict["L" + str(i + 1)] = (
                     0 * self.s_4center_dict["L" + str(i + 1)]
                 )
-                r_1 = self.compute_r(
-                    self.carts, self.lin_indices[i][0] - 1, self.lin_indices[i][1] - 1
-                )
-                r_2 = self.compute_r(
-                    self.carts, self.lin_indices[i][2] - 1, self.lin_indices[i][1] - 1
-                )
-                r_3 = self.compute_r(
-                    self.carts, self.lin_indices[i][3] - 1, self.lin_indices[i][1] - 1
-                )
-                e_1 = self.compute_e(
-                    self.carts,
-                    self.lin_indices[i][0] - 1,
-                    self.lin_indices[i][1] - 1,
-                    r_1,
-                )
-                e_2 = self.compute_e(
-                    self.carts,
-                    self.lin_indices[i][2] - 1,
-                    self.lin_indices[i][1] - 1,
-                    r_2,
-                )
-                e_3 = self.compute_e(
-                    self.carts,
-                    self.lin_indices[i][3] - 1,
-                    self.lin_indices[i][1] - 1,
-                    r_3,
-                )
-                theta = self.calc_Lin(
-                    self.carts[self.lin_indices[i][0] - 1],
-                    self.carts[self.lin_indices[i][1] - 1],
-                    self.carts[self.lin_indices[i][2] - 1],
-                    self.carts[self.lin_indices[i][3] - 1],
-                )
+                r_1 = self.compute_r(x1, x2)
+                r_2 = self.compute_r(x3, x2)
+                r_3 = self.compute_r(x4, x2)
+                e_1 = self.compute_e(x1, x2)
+                e_2 = self.compute_e(x3, x2)
+                e_3 = self.compute_e(x4, x2)
+                theta = self.calc_Lin(x1, x2, x3, x4)
+
                 l_1 = self.compute_LIN(e_1, e_2, e_3, r_1, theta)
                 l_3 = self.compute_LIN(e_2, e_3, e_1, r_2, theta)
-                l_4 = self.compute_LIN(e_3, e_1, e_2, r_3, theta)
-                self.s_4center_dict["L" + str(i + 1)][self.lin_indices[i][0] - 1] = l_1
-                self.s_4center_dict["L" + str(i + 1)][self.lin_indices[i][2] - 1] = l_3
-                self.s_4center_dict["L" + str(i + 1)][self.lin_indices[i][3] - 1] = l_4
-                self.s_4center_dict["L" + str(i + 1)][self.lin_indices[i][1] - 1] = (
-                    -l_1 - l_3 - l_4
-                )
+                l_2 = -l_1 - l_3
+
+                if Len:
+                    for j in indies[0]:
+                        self.s_4center_dict["L" + str(i + 1)][int(j) - 1] += l_1 / len(
+                            indies[0]
+                        )
+                    for j in indies[1]:
+                        self.s_4center_dict["L" + str(i + 1)][int(j) - 1] += l_2 / len(
+                            indies[1]
+                        )
+                    for j in indies[2]:
+                        self.s_4center_dict["L" + str(i + 1)][int(j) - 1] += l_3 / len(
+                            indies[2]
+                        )
+                else:
+                    self.s_4center_dict["L" + str(i + 1)][int(indies[0]) - 1] = l_1
+                    self.s_4center_dict["L" + str(i + 1)][int(indies[1]) - 1] = l_2
+                    self.s_4center_dict["L" + str(i + 1)][int(indies[2]) - 1] = l_3
 
         # LinX bending.
         if len(self.linx_indices) > 0:
             for i in range(len(self.linx_indices)):
+                indies = self.linx_indices[i]
+                Len = len(np.array(indies[0]).shape)
+                if Len:
+                    x1 = [0.0, 0.0, 0.0]
+                    for j in indies[0]:
+                        x1 += self.carts[int(j) - 1]
+                    x1 /= len(indies[0])
+                    x2 = [0.0, 0.0, 0.0]
+                    for j in indies[1]:
+                        x2 += self.carts[int(j) - 1]
+                    x2 /= len(indies[1])
+                    x3 = [0.0, 0.0, 0.0]
+                    for j in indies[2]:
+                        x3 += self.carts[int(j) - 1]
+                    x3 /= len(indies[2])
+                    x4 = [0.0, 0.0, 0.0]
+                    for j in indies[3]:
+                        x4 += self.carts[int(j) - 1]
+                    x4 /= len(indies[3])
+                else:
+                    x1 = self.carts[int(indies[0]) - 1]
+                    x2 = self.carts[int(indies[1]) - 1]
+                    x3 = self.carts[int(indies[2]) - 1]
+                    x4 = self.carts[int(indies[3]) - 1]
+
                 self.s_4center_dict["Lx" + str(i + 1)] = self.carts.copy()
                 self.s_4center_dict["Lx" + str(i + 1)] = (
                     0 * self.s_4center_dict["Lx" + str(i + 1)]
                 )
-                r_1 = self.compute_r(
-                    self.carts, self.linx_indices[i][1] - 1, self.linx_indices[i][0] - 1
-                )
-                r_2 = self.compute_r(
-                    self.carts, self.linx_indices[i][2] - 1, self.linx_indices[i][1] - 1
-                )
-                r_3 = self.compute_r(
-                    self.carts, self.linx_indices[i][3] - 1, self.linx_indices[i][2] - 1
-                )
-                e_1 = self.compute_e(
-                    self.carts,
-                    self.linx_indices[i][0] - 1,
-                    self.linx_indices[i][1] - 1,
-                    r_1,
-                )
-                e_2 = self.compute_e(
-                    self.carts,
-                    self.linx_indices[i][1] - 1,
-                    self.linx_indices[i][2] - 1,
-                    r_2,
-                )
-                e_3 = self.compute_e(
-                    self.carts,
-                    self.linx_indices[i][2] - 1,
-                    self.linx_indices[i][3] - 1,
-                    r_3,
-                )
+                r_1 = self.compute_r(x2, x1)
+                r_2 = self.compute_r(x3, x2)
+                r_3 = self.compute_r(x4, x3)
+                e_1 = self.compute_e(x1, x2)
+                e_2 = self.compute_e(x2, x3)
+                e_3 = self.compute_e(x3, x4)
                 ax = self.calc_alpha_x(e_1, e_2, e_3)
                 phi_1 = self.compute_phi(-e_1, e_2)
                 phi_2 = self.compute_phi(-e_2, e_3)
+
                 lx_1 = self.compute_LINX1(e_1, e_2, e_3, r_1, phi_1, phi_2, ax)
                 lx_2 = self.compute_LINX2(e_1, e_2, e_3, r_1, r_2, phi_1, phi_2, ax)
                 lx_4 = self.compute_LINX4(e_1, e_2, e_3, r_3, phi_1, ax)
-                self.s_4center_dict["Lx" + str(i + 1)][
-                    self.linx_indices[i][0] - 1
-                ] = lx_1
-                self.s_4center_dict["Lx" + str(i + 1)][
-                    self.linx_indices[i][1] - 1
-                ] = lx_2
-                self.s_4center_dict["Lx" + str(i + 1)][
-                    self.linx_indices[i][3] - 1
-                ] = lx_4
-                self.s_4center_dict["Lx" + str(i + 1)][self.linx_indices[i][2] - 1] = (
-                    -lx_1 - lx_2 - lx_4
-                )
+                lx_3 = -lx_1 - lx_2 - lx_4
+
+                if Len:
+                    for j in indies[0]:
+                        self.s_4center_dict["Lx" + str(i + 1)][
+                            int(j) - 1
+                        ] += lx_1 / len(indies[0])
+                    for j in indies[1]:
+                        self.s_4center_dict["Lx" + str(i + 1)][
+                            int(j) - 1
+                        ] += lx_2 / len(indies[1])
+                    for j in indies[2]:
+                        self.s_4center_dict["Lx" + str(i + 1)][
+                            int(j) - 1
+                        ] += lx_3 / len(indies[2])
+                    for j in indies[3]:
+                        self.s_4center_dict["Lx" + str(i + 1)][
+                            int(j) - 1
+                        ] += lx_4 / len(indies[3])
+                else:
+                    self.s_4center_dict["Lx" + str(i + 1)][int(indies[0]) - 1] = lx_1
+                    self.s_4center_dict["Lx" + str(i + 1)][int(indies[1]) - 1] = lx_2
+                    self.s_4center_dict["Lx" + str(i + 1)][int(indies[2]) - 1] = lx_3
+                    self.s_4center_dict["Lx" + str(i + 1)][int(indies[3]) - 1] = lx_4
 
         # LinY bending.
         if len(self.liny_indices) > 0:
             for i in range(len(self.liny_indices)):
+                indies = self.liny_indices[i]
+                Len = len(np.array(indies[0]).shape)
+                if Len:
+                    x1 = [0.0, 0.0, 0.0]
+                    for j in indies[0]:
+                        x1 += self.carts[int(j) - 1]
+                    x1 /= len(indies[0])
+                    x2 = [0.0, 0.0, 0.0]
+                    for j in indies[1]:
+                        x2 += self.carts[int(j) - 1]
+                    x2 /= len(indies[1])
+                    x3 = [0.0, 0.0, 0.0]
+                    for j in indies[2]:
+                        x3 += self.carts[int(j) - 1]
+                    x3 /= len(indies[2])
+                    x4 = [0.0, 0.0, 0.0]
+                    for j in indies[3]:
+                        x4 += self.carts[int(j) - 1]
+                    x4 /= len(indies[3])
+                else:
+                    x1 = self.carts[int(indies[0]) - 1]
+                    x2 = self.carts[int(indies[1]) - 1]
+                    x3 = self.carts[int(indies[2]) - 1]
+                    x4 = self.carts[int(indies[3]) - 1]
+
                 self.s_4center_dict["Ly" + str(i + 1)] = self.carts.copy()
                 self.s_4center_dict["Ly" + str(i + 1)] = (
                     0 * self.s_4center_dict["Ly" + str(i + 1)]
                 )
-                r_1 = self.compute_r(
-                    self.carts, self.liny_indices[i][1] - 1, self.liny_indices[i][0] - 1
-                )
-                r_2 = self.compute_r(
-                    self.carts, self.liny_indices[i][2] - 1, self.liny_indices[i][1] - 1
-                )
-                r_3 = self.compute_r(
-                    self.carts, self.liny_indices[i][3] - 1, self.liny_indices[i][2] - 1
-                )
-                e_1 = self.compute_e(
-                    self.carts,
-                    self.liny_indices[i][0] - 1,
-                    self.liny_indices[i][1] - 1,
-                    r_1,
-                )
-                e_2 = self.compute_e(
-                    self.carts,
-                    self.liny_indices[i][1] - 1,
-                    self.liny_indices[i][2] - 1,
-                    r_2,
-                )
-                e_3 = self.compute_e(
-                    self.carts,
-                    self.liny_indices[i][2] - 1,
-                    self.liny_indices[i][3] - 1,
-                    r_3,
-                )
+                r_1 = self.compute_r(x2, x1)
+                r_2 = self.compute_r(x3, x2)
+                r_3 = self.compute_r(x4, x3)
+                e_1 = self.compute_e(x1, x2)
+                e_2 = self.compute_e(x2, x3)
+                e_3 = self.compute_e(x3, x4)
                 ay = self.calc_alpha_y(e_1, e_2, e_3)
                 phi_1 = self.compute_phi(-e_1, e_2)
                 phi_2 = self.compute_phi(-e_2, e_3)
+
                 ly_1 = self.compute_LINY1(e_1, e_2, e_3, r_1, phi_1, ay)
                 ly_2 = self.compute_LINY2(e_1, e_2, e_3, r_1, r_2, phi_1, ay)
                 ly_4 = self.compute_LINY4(e_1, e_2, e_3, r_2, r_3, phi_1, ay)
-                self.s_4center_dict["Ly" + str(i + 1)][
-                    self.liny_indices[i][0] - 1
-                ] = ly_1
-                self.s_4center_dict["Ly" + str(i + 1)][
-                    self.liny_indices[i][1] - 1
-                ] = ly_2
-                self.s_4center_dict["Ly" + str(i + 1)][
-                    self.liny_indices[i][3] - 1
-                ] = ly_4
-                self.s_4center_dict["Ly" + str(i + 1)][self.liny_indices[i][2] - 1] = (
-                    -ly_1 - ly_2 - ly_4
-                )
+                ly_3 = -ly_1 - ly_2 - ly_4
+
+                if Len:
+                    for j in indies[0]:
+                        self.s_4center_dict["Ly" + str(i + 1)][
+                            int(j) - 1
+                        ] += ly_1 / len(indies[0])
+                    for j in indies[1]:
+                        self.s_4center_dict["Ly" + str(i + 1)][
+                            int(j) - 1
+                        ] += ly_2 / len(indies[1])
+                    for j in indies[2]:
+                        self.s_4center_dict["Ly" + str(i + 1)][
+                            int(j) - 1
+                        ] += ly_3 / len(indies[2])
+                    for j in indies[3]:
+                        self.s_4center_dict["Ly" + str(i + 1)][
+                            int(j) - 1
+                        ] += ly_4 / len(indies[3])
+                else:
+                    self.s_4center_dict["Ly" + str(i + 1)][int(indies[0]) - 1] = ly_1
+                    self.s_4center_dict["Ly" + str(i + 1)][int(indies[1]) - 1] = ly_2
+                    self.s_4center_dict["Ly" + str(i + 1)][int(indies[2]) - 1] = ly_3
+                    self.s_4center_dict["Ly" + str(i + 1)][int(indies[3]) - 1] = ly_4
 
         # The last step will be to concatenate all of the s-vectors into a singular B-tensor, in order of stretches, then bends, then torsions.
         # Note: I am going to modify this to hold all 2-center, 3-center, and 4-center internal coordinates.
         self.B = np.array([self.s_2center_dict["B1"].flatten()])
-        # print("B-time Baby:")
-        # print(self.B.shape)
-        # print(self.B)
+
         # Append stretches
-        for i in range(len(self.s_2center_dict) - 1):
+        for i in range(len(self.bond_indices) - 1):
             self.B = np.append(
                 self.B,
                 np.array([self.s_2center_dict["B" + str(i + 2)].flatten()]),
                 axis=0,
             )
+
         # Append bends
-        for i in range(len(self.s_3center_dict)):
+        for i in range(len(self.angle_indices)):
             self.B = np.append(
                 self.B,
                 np.array([self.s_3center_dict["A" + str(i + 1)].flatten()]),
@@ -429,14 +537,11 @@ class SVectors(object):
                 np.array([self.s_4center_dict["Ly" + str(i + 1)].flatten()]),
                 axis=0,
             )
-        # raise RuntimeError
+
         tol = 1e-4
         # Now we acquire a linearly independant set of internal coordinates from the diagonalized
         # BB^T Matrix
         if not self.options.man_proj:
-            # if self.options.man_proj:
-            # if True:
-            # print("just this once bb")
             if self.options.coords.upper() != "ZMAT":
                 proj, eigs, _ = LA.svd(self.B)
                 proj[np.abs(proj) < tol] = 0
@@ -446,10 +551,9 @@ class SVectors(object):
                     proj_array = np.array(np.where(np.abs(eigs) > tol))
                     self.proj = proj.T[: len(proj_array[0])]
                     self.proj = self.proj.T
-                    # for i in range(len(self.proj.T)):
-                    # self.proj.T[i][np.abs(self.proj.T[i]) < np.max(np.abs(self.proj.T[i]))*proj_tol] = 0
             else:
                 self.proj = np.eye(len(self.B))
+
         # self.proj may be used to transfrom from full set of internal
         # coords to symmetrized internal coords. self.proj.T may be used
         # to transform from the symmetrized set to the full set of internal
@@ -459,30 +563,27 @@ class SVectors(object):
         # the A-matrix. You lose information.
 
         # Option to run numerical second order B-tensor here.
-        # Update: I differentiated along internal coordinate when I should have differentiated along cartesians.
-        # I will need to update this code
-        # if second_order:
-        # B2 = self.second_order_B()
-        # B2[np.abs(B2) < 1e-10] = 0
-        # np.set_printoptions(precision=2, linewidth=2000)
+        if second_order:
+            Proj = self.proj.copy()
+            self.B2 = self.second_order_B()
+            self.B2[np.abs(self.B2) < 1e-14] = 0
+            np.set_printoptions(precision=2, linewidth=2000)
 
-        # # Average the off-diagonal elements to mitigate the numerical errors
-        # for i in range(len(B2[0][0])):
-        # for j in range(len(B2)):
-        # for k in range(j):
-        # if j != k:
-        # B2[j,k,i] = (B2[j,k,i] + B2[k,j,i]) / 2
-        # B2[k,j,i] = B2[j,k,i]
+            # Average the off-diagonal elements to mitigate the numerical errors
+            for i in range(len(self.B2)):
+                for j in range(len(self.B2[0]) - 1):
+                    for k in range(j):
+                        self.B2[i, j + 1, k] = (
+                            self.B2[i, j + 1, k] + self.B2[i, k, j + 1]
+                        ) / 2
+                        self.B2[i, k, j + 1] = self.B2[i, j + 1, k]
+            self.B2 = self.B2.astype(float)
+            print(self.B2.shape)
+            print(self.B2)
+            self.proj = Proj
 
-        # print(B2.shape)
-        # print(B2)
-
-        # raise RuntimeError
-
-        # Once we have confirmed these second order B-tensors are good, we can then project them in our standard fashion.
-
-    def compute_STRE(self, bond_indices, carts, r):
-        s = (carts[bond_indices[0] - 1] - carts[bond_indices[1] - 1]) / r
+    def compute_STRE(self, x1, x2):
+        s = (x1 - x2) / self.compute_r(x1, x2)
         return s
 
     def compute_BEND(self, e_1, e_2, phi, r):
@@ -610,12 +711,13 @@ class SVectors(object):
         theta = np.arcsin(np.dot(e4, np.cross(e3, e1)))
         return theta
 
-    def compute_e(self, carts, ind1, ind2, r):
-        e = (carts[ind1] - carts[ind2]) / r
+    def compute_e(self, x1, x2):
+        r = self.compute_r(x1, x2)
+        e = (x1 - x2) / r
         return e
 
-    def compute_r(self, carts, ind1, ind2):
-        r = LA.norm(carts[ind1] - carts[ind2])
+    def compute_r(self, x1, x2):
+        r = LA.norm(x1 - x2)
         return r
 
     def compute_phi(self, e_1, e_2):
@@ -628,32 +730,32 @@ class SVectors(object):
         return phi
 
     def calc_alpha_x(self, e_1, e_2, e_3):
-        # e_1 = (x1 - x2) / self.calc_bond(x1, x2)
-        # e_2 = (x3 - x2) / self.calc_bond(x2, x3)
-        # e_3 = (x4 - x3) / self.calc_bond(x3, x4)
         theta = self.compute_phi(e_1, e_2)
         s = np.dot(np.cross(e_1, e_2), np.cross(-e_2, e_3))
         ax = s / np.sin(theta)
         return ax
 
     def calc_alpha_y(self, e_1, e_2, e_3):
-        # e_1 = (x1 - x2) / self.calc_bond(x1, x2)
-        # e_2 = (x3 - x2) / self.calc_bond(x2, x3)
-        # e_3 = (x4 - x3) / self.calc_bond(x3, x4)
         theta = self.compute_phi(e_1, e_2)
         s = np.dot(e_1, np.cross(-e_2, e_3))
         ay = s / np.sin(theta)
         return ay
 
+    def calc_r_com(self, cart1, cart2, mass1, mass2):
+        rc1 = self.int2cart.COM(cart1, mass1)
+        rc2 = self.int2cart.COM(cart2, mass2)
+        print(rc1)
+        print(rc2)
+        rc = rc1 - rc2
+        rc = LA.norm(rc)
+        print(rc)
+        return rc
+
     def num_differentiate(self, B_list_p, B_list_m):
         disp_size = self.options.disp
 
         # Numerical first derivative
-        B = np.array([(B_list_p[0] - B_list_m[0]) / 2 * disp_size])
-        for i in range(len(B_list_p) - 1):
-            B = np.append(
-                B, [(B_list_p[i + 1] - B_list_m[i + 1]) / 2 * disp_size], axis=0
-            )
+        B = (B_list_p - B_list_m) / (2 * disp_size)
 
         return B
 
@@ -675,13 +777,14 @@ class SVectors(object):
             TED_obj,
             self.options,
             np.arange(len(self.B)),
+            coord_type="cartesian",
             deriv_level=1,
         )
 
         B_disp.run()
-        self.run(B_disp.p_disp[0], False, second_order=False)
+        self.run(B_disp.p_disp[0], False, proj=self.proj, second_order=False)
         B_list_p = np.array([self.B], dtype=object)
-        self.run(B_disp.m_disp[0], False, second_order=False)
+        self.run(B_disp.m_disp[0], False, proj=self.proj, second_order=False)
         B_list_m = np.array([self.B], dtype=object)
 
         for i in range(len(B_disp.p_disp) - 1):
@@ -692,5 +795,9 @@ class SVectors(object):
 
         # And differentiate
         B2 = self.num_differentiate(B_list_p, B_list_m)
+
+        # Put B-tensor in canonical order and average out the numerical fuzz
+        B2 = np.swapaxes(B2, 0, 1)
+        B2 = (B2 + np.swapaxes(B2, 1, 2)) / 2
 
         return B2

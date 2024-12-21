@@ -11,7 +11,7 @@ class GFMethod(object):
     TODO: Insert standard uncertainties of amu_elmass and HARTREE_WAVENUM
     """
 
-    def __init__(self, G, F, tol, proj_tol, zmat, ted, cma=None):
+    def __init__(self, G, F, tol, proj_tol, zmat, ted, cma=None, sym_sort=[]):
         self.G = G
         self.F = F
         self.tol = tol
@@ -34,26 +34,7 @@ class GFMethod(object):
         self.L = np.real(self.L)
         L = np.absolute(self.L)
         L_p = np.real(self.L_p)
-        # S_p = np.dot(np.absolute(LA.inv(L_p)), np.absolute(L_p))
         self.L_p = L_p
-        # make sure the correct "primed" or unprimed version is being saved in each instance
-        # if self.cma:
-        # with open("L_full.npy", "wb") as z:
-        # np.save(z, L)
-        # # if self.cma == False:
-        # #    with open("L_intermediate.npy", "wb") as z:
-        # #        np.save(z, L)
-        # if self.cma is None:
-        # with open("L_0.npy", "wb") as z:
-        # np.save(z, L)
-        # if self.cma == "init":
-        # with open("S_p.npy", "wb") as z:
-        # np.save(z, S_p)
-        # Construct the normal mode overlap matrix. Will be useful for off-diagonal diagnostics.
-        L = np.absolute(np.real(self.L))
-        L_inv = LA.inv(L)
-        S = np.dot(L.T, L)
-        self.S = S
 
         self.L[np.abs(self.L) < self.tol] = 0
         # Compute the frequencies by the square root of the eigenvalues.
@@ -65,11 +46,10 @@ class GFMethod(object):
             else:
                 self.freq[i] = -np.imag(self.freq[i])
 
-        # # This seems to fix the constant warning I get about casting out imaginary values from the complex numbers,
-        # # however I will need to test it on transition states to see if it captures the imaginary frequencies.
-        # self.freq = np.real(self.freq)
-        # print(self.freq)
+        # This seems to fix the constant warning I get about casting out imaginary values from the complex numbers,
+        # however I will need to test it on transition states to see if it captures the imaginary frequencies.
         self.freq = self.freq.astype(float)
+
         # Convert from Hartrees to wavenumbers.
         self.freq *= self.HARTREE_WAVENUM
         for i in range(len(self.freq)):
@@ -80,7 +60,6 @@ class GFMethod(object):
                 + "{:10.2f}".format(self.freq[i])
             )
         # Compute and then print the TED.
-        # np.set_printoptions(suppress=True)
         print("////////////////////////////////////////////")
         print("//{:^40s}//".format("Total Energy Distribution (TED)"))
         print("////////////////////////////////////////////")

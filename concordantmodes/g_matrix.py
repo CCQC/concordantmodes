@@ -28,6 +28,5 @@ class GMatrix(object):
                 u[i] = 1.0 / u[i]
         u = np.repeat(u, 3)
         u = np.diag(u)
-        # u = inv(u)
         self.G = B.dot(u.dot(B.T))
         self.G[np.abs(self.G) < tol] = 0

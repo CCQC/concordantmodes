@@ -41,10 +41,8 @@ class Submit(object):
             processes = []
             print(os.getcwd())
             for z in range(len(self.disp_list)):
-                # path = 'Disps' + '/' +  str(z + 1) + '/'
                 path = str(z + 1) + "/"
                 pipe = subprocess.PIPE
-                # process = Popen(['sh',  './sub.sh'], cwd = path, stdout=pipe, stderr=pipe, shell = True)
                 job = subprocess.run(
                     ["sbatch", "./optstep.sh"], cwd=path, stdout=pipe, stderr=pipe
                 )

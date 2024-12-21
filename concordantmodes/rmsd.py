@@ -404,7 +404,6 @@ class RMSD(object):
             )
             bars = np.dot(grud, np.linalg.inv(huss))
             if self.norm(grud) < 1e-12:
-
                 print("Optimization of Euler-angles optimization has converged")
                 print(f"Norm of gradient is {self.norm(grud)}")
                 break

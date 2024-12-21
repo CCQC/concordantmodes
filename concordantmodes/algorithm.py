@@ -6,14 +6,13 @@ from scipy import stats
 
 class Algorithm(object):
     """
-    The purpose of this class is to return a list of indicies by which the force constants of the CMA method
+    The purpose of this class is to return a list of indices by which the force constants of the CMA method
     will be computed. These indices will be determined by user input or by a scoring function which takes into
     consideration the overlap of the normal coordinates and the difference in force constants for a particular normal
     mode.
     """
 
     def __init__(self, eigs, initial_fc, options):
-
         self.eigs = eigs
         self.options = options
         self.initial_fc = initial_fc
@@ -22,8 +21,8 @@ class Algorithm(object):
         initial_fc = self.initial_fc
 
         tolerance = 5e-32
-        print(self.eigs)
         a = self.eigs
+        self.options.mode_coupling_check = False
         if self.options.mode_coupling_check:
             self.indices = self.coupling_diagnostic(a, initial_fc, tolerance)
         else:
@@ -39,7 +38,6 @@ class Algorithm(object):
             self.indices = self.loop(a, off_diag, lim)
 
     def loop(self, a, off_diag, lim):
-
         a = self.eigs
         indices = []
         Sum = 2
@@ -61,20 +59,14 @@ class Algorithm(object):
     def coupling_diagnostic(self, a, initial_fc, tolerance):
         indices = []
         diag = np.zeros((a, a))
-        # with open("S_p.npy", "rb") as x:
-        # S = np.load(x)
         for x in range(a):
             for y in range(a):
                 if x == y:
                     diag[x, x] = 0
                 elif x != y:
                     diag[x, y] = S[x, y] / (initial_fc[x] - initial_fc[y])
-        # print(diag, "printing diag")
         diag = np.absolute(diag)
         print(diag)
-        # with open("D.npy", "wb") as q:
-        # np.save(q, diag)
-        # diag[np.abs(diag) < 1e-31] = 1e-30
         data = np.abs(diag)
         hist, bin_edges = np.histogram(data, bins=a)
         for index, i in np.ndenumerate(data):
@@ -85,7 +77,5 @@ class Algorithm(object):
             if index[1] > index[0]:
                 indices_new.append(index)
         indices = indices_new
-        # if self.options.clean_house:
-        # os.system("rm D.npy  S_p.npy")
 
         return indices

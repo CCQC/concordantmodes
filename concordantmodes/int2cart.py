@@ -4,7 +4,7 @@ from . import masses
 
 
 class Int2Cart(object):
-    def __init__(self, zmat, var_dict):
+    def __init__(self, zmat, var_dict=None):
         self.zmat = zmat
         self.var_dict = var_dict
         self.masses = [masses.get_mass(label) for label in zmat.atom_list]

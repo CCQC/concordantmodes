@@ -244,4 +244,3 @@ def test_compute_B():
     s_vec.run(suite.ZMAT.cartesians_init, True)
 
     assert np.allclose(s_vec.B, B_ref_INTDER, rtol=0.0, atol=1e-8)
-
