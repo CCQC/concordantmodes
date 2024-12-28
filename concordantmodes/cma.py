@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import time
 import numpy as np
+import copy
 from numpy import linalg as LA
 from numpy.linalg import inv
 from scipy.linalg import fractional_matrix_power
@@ -22,6 +23,7 @@ from concordantmodes.reap import Reap
 from concordantmodes.rmsd import RMSD
 from concordantmodes.s_vectors import SVectors
 from concordantmodes.submit import Submit
+from concordantmodes.symmetry import Symmetry
 from concordantmodes.ted import TED
 from concordantmodes.transf_disp import TransfDisp
 from concordantmodes.vulcan_template import VulcanTemplate
@@ -56,6 +58,11 @@ class ConcordantModes(object):
         self.zmat_obj.run()
         if self.options.geom_check:
             raise RuntimeError
+        
+        #Do we want to use symmetry? Default is True
+        if self.options.symmetry:
+            self.symm_obj = Symmetry(self.zmat_obj, self.options)
+            self.symm_obj.run()
 
         # Compute the initial s-vectors
         s_vec = SVectors(
@@ -79,6 +86,10 @@ class ConcordantModes(object):
                 True,
                 second_order=self.options.second_order,
             )
+        if self.options.symmetry:
+            self.symm_obj.make_proj(s_vec)
+            s_vec.proj = copy.deepcopy(self.symm_obj.magic_proj)
+        
         self.TED_obj = TED(s_vec.proj, self.zmat_obj)
 
         # Print out the percentage composition of the projected coordinates
@@ -119,9 +130,17 @@ class ConcordantModes(object):
             if not self.options.deriv_level_init:
                 indices = np.triu_indices(len(eigs_init))
                 indices = np.array(indices).T
+                if not self.options.symmetry:
+                    algo = Algorithm(eigs_init.shape[0], False, self.options, None)
+                else:
+                    algo = Algorithm(eigs_init.shape[0], False, self.options, self.symm_obj.proj_irreps)
+                algo.run()
             else:
                 indices = np.arange(len(eigs_init))
-            
+                algo = Algorithm(eigs_init.shape[0], True, self.options, self.symm_obj.proj_irreps)
+                algo.run()
+            print(algo.indices)
+            print(algo.indices_by_irrep)
             init_disp = TransfDisp(
                 s_vec,
                 self.zmat_obj,
@@ -131,7 +150,7 @@ class ConcordantModes(object):
                 self.options.disp_tol,
                 self.TED_obj,
                 self.options,
-                indices,
+                algo.indices,
                 coord_type=coord_type,
                 deriv_level=self.options.deriv_level_init,
             )
@@ -155,7 +174,8 @@ class ConcordantModes(object):
                     init_disp.p_disp,
                     init_disp.m_disp,
                     self.options,
-                    indices,
+                    algo.indices,
+                    #indices,
                     "templateInit.dat",
                     "DispsInit",
                     deriv_level=self.options.deriv_level_init,
@@ -216,7 +236,8 @@ class ConcordantModes(object):
                 self.options,
                 # init_disp.n_coord,
                 eigs_init,
-                indices,
+                #indices,
+                algo.indices,
                 self.options.energy_regex_init,
                 self.options.gradient_regex,
                 self.options.success_regex_init,
@@ -259,7 +280,8 @@ class ConcordantModes(object):
                 m_array_init,
                 ref_en_init,
                 self.options,
-                indices,
+                #indices,
+                algo.indices,
                 deriv_level=deriv_level,
             )
             fc_init.run()
@@ -311,6 +333,8 @@ class ConcordantModes(object):
             self.options.proj_tol,
             self.zmat_obj,
             self.TED_obj,
+            self.options,
+            self.symm_obj.symtext,
             cma="init",
         )
         init_GF.run()
@@ -329,6 +353,8 @@ class ConcordantModes(object):
             self.options.proj_tol,
             self.zmat_obj,
             self.TED_obj,
+            self.options,
+            self.symm_obj.symtext,
             cma=False,
         )
         TED_GF.run()
@@ -336,8 +362,8 @@ class ConcordantModes(object):
         initial_fc = TED_GF.eig_v
         #eigs = len(TED_GF.S)
         eigs = len(TED_GF.eig_v)
-
-        algo = Algorithm(eigs, initial_fc, self.options)
+        algo = Algorithm(eigs_init.shape[0], True, self.options, self.symm_obj.proj_irreps)
+        #algo = Algorithm(eigs, initial_fc, self.options)
         # algo.options.off_diag_bands = 2
         # algo.options.off_diag_limit = False
         # algo.options.off_diag = True

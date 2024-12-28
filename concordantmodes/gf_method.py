@@ -11,7 +11,7 @@ class GFMethod(object):
     TODO: Insert standard uncertainties of amu_elmass and HARTREE_WAVENUM
     """
 
-    def __init__(self, G, F, tol, proj_tol, zmat, ted, cma=None, sym_sort=[]):
+    def __init__(self, G, F, tol, proj_tol, zmat, ted, options, symtext = None, cma=None, sym_sort=[]):
         self.G = G
         self.F = F
         self.tol = tol
@@ -20,7 +20,9 @@ class GFMethod(object):
         self.AMU_ELMASS = 5.48579909065 * (10 ** (-4))
         self.HARTREE_WAVENUM = 219474.6313708
         self.ted = ted
+        self.symtext = symtext
         self.cma = cma
+        self.options = options
 
     def run(self):
         # Construct the orthogonalizer
@@ -63,5 +65,8 @@ class GFMethod(object):
         print("////////////////////////////////////////////")
         print("//{:^40s}//".format("Total Energy Distribution (TED)"))
         print("////////////////////////////////////////////")
-        self.ted.run(self.L, self.freq, rect_print=False)
+        if self.options.symmetry:
+            self.ted.run(self.L, self.freq, self.symtext, rect_print=False)
+        else:
+            self.ted.run(self.L, self.freq, rect_print=False)
         self.ted_breakdown = self.ted.ted_breakdown
