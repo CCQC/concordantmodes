@@ -1,0 +1,12 @@
+
+***********************************************************************
+ Starting job:
+
+    Name:              Concordant
+    ID:                1218059
+    Hostname:          n049
+    Working directory: /home/vulcan/nlk36701/github/concordantmodes/examples/1_H2O/molpro/CMA1/DispsInit
+
+    Submitted using:   Concordant Modes Approach 
+***********************************************************************
+module load  molpro-2010.1.67-intel-16.0.1-rs4emkdxvcklcpznszgidjjdjc24vnpp

@@ -59,10 +59,17 @@ class ConcordantModes(object):
         if self.options.geom_check:
             raise RuntimeError
         
-        #Do we want to use symmetry? Default is True
+        #Do we want to use symmetry? Default is False
+        self.symm_obj = Symmetry(self.zmat_obj, self.options)
         if self.options.symmetry:
-            self.symm_obj = Symmetry(self.zmat_obj, self.options)
             self.symm_obj.run()
+        else:
+            """
+            We won't run the symmetry code, but we'll create a dummy object to be passed as an argument.
+            #TODO: This is a hacky way to do this, but it's a quick fix for now. Maybe reincorporate symmetry as a s_vector obj?
+            """
+            self.symm_obj.dummy_obj()
+            self.symm_obj.symtext = None 
 
         # Compute the initial s-vectors
         s_vec = SVectors(
@@ -88,7 +95,7 @@ class ConcordantModes(object):
             )
         if self.options.symmetry:
             self.symm_obj.make_proj(s_vec)
-            s_vec.proj = copy.deepcopy(self.symm_obj.magic_proj)
+            s_vec.proj = copy.deepcopy(self.symm_obj.salc_proj)
         
         self.TED_obj = TED(s_vec.proj, self.zmat_obj)
 
@@ -132,15 +139,21 @@ class ConcordantModes(object):
                 indices = np.array(indices).T
                 if not self.options.symmetry:
                     algo = Algorithm(eigs_init.shape[0], False, self.options, None)
+                    algo.run()
+                    indices = algo.indices
                 else:
                     algo = Algorithm(eigs_init.shape[0], False, self.options, self.symm_obj.proj_irreps)
-                algo.run()
+                    algo.run()
+                    indices = algo.indices
             else:
-                indices = np.arange(len(eigs_init))
+                #indices = np.arange(len(eigs_init))
                 algo = Algorithm(eigs_init.shape[0], True, self.options, self.symm_obj.proj_irreps)
                 algo.run()
-            print(algo.indices)
-            print(algo.indices_by_irrep)
+                indices = algo.indices
+            #print(algo.indices)
+            #print(algo.indices_by_irrep)
+            #print(type(algo.indices))
+            #print(stop)
             init_disp = TransfDisp(
                 s_vec,
                 self.zmat_obj,
@@ -150,7 +163,7 @@ class ConcordantModes(object):
                 self.options.disp_tol,
                 self.TED_obj,
                 self.options,
-                algo.indices,
+                indices,
                 coord_type=coord_type,
                 deriv_level=self.options.deriv_level_init,
             )
@@ -362,7 +375,10 @@ class ConcordantModes(object):
         initial_fc = TED_GF.eig_v
         #eigs = len(TED_GF.S)
         eigs = len(TED_GF.eig_v)
-        algo = Algorithm(eigs_init.shape[0], True, self.options, self.symm_obj.proj_irreps)
+        if self.options.symmetry:
+            algo = Algorithm(eigs_init.shape[0], True, self.options, self.symm_obj.proj_irreps)
+        else:
+            algo = Algorithm(eigs_init.shape[0], True, self.options, None)
         #algo = Algorithm(eigs, initial_fc, self.options)
         # algo.options.off_diag_bands = 2
         # algo.options.off_diag_limit = False
@@ -371,7 +387,6 @@ class ConcordantModes(object):
         algo.run()
         if len(self.extra_indices):
             algo.indices = np.append(algo.indices, self.extra_indices, axis=0)
-        print(algo.indices)
 
         # Generate higher order indices here. Migrate to algorithm.py when properly prototyped.
         # Cubics first
@@ -552,6 +567,8 @@ class ConcordantModes(object):
             self.options.proj_tol,
             self.zmat_obj,
             self.TED_obj,
+            self.options,
+            self.symm_obj.symtext,
             cma=cma,
         )
         final_GF.run()
@@ -562,7 +579,7 @@ class ConcordantModes(object):
         print("////////////////////////////////////////////")
         print("//{:^40s}//".format(" Final TED"))
         print("////////////////////////////////////////////")
-        self.TED_obj.run(np.dot(init_GF.L, final_GF.L), final_GF.freq)
+        self.TED_obj.run(np.dot(init_GF.L, final_GF.L), final_GF.freq, self.symm_obj.symtext)
 
         # This code prints out the frequencies in order of energy as well
         # as the ZPVE in several different units.
@@ -700,13 +717,11 @@ class ConcordantModes(object):
 
             algo = Algorithm(eigs, initial_fc, self.options)
             algo.run()
-            print("printing algo indices", algo.indices)
             diagnostic_indices = algo.indices
             self.options.mode_coupling_check = False
             algo = Algorithm(eigs, initial_fc, self.options)
             algo.run()
             newlist = algo.indices + diagnostic_indices
-            print(newlist)
 
             for index in newlist:
                 i, j = index[0], index[1]

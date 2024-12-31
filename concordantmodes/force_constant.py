@@ -57,6 +57,7 @@ class ForceConstant(object):
                 cart_disp[i] = disp.disp
             disp.disp = cart_disp
         dim = self.p_array.shape[0]
+        self.gradient = np.zeros((dim))
         self.FC = np.zeros((dim, dim))
         if not self.deriv_level:
             if not self.anharm:
@@ -70,6 +71,7 @@ class ForceConstant(object):
                     e_pp, e_mm = p_en_array[i, j], m_en_array[i, j]
                     if i == j:
                         self.FC[i, i] = self.diag_fc(e_pi, e_mi, e_r, disp.disp[i])
+                        self.gradient[i] = self.first_deriv(e_pi, e_mi, disp.disp[i])
                     elif i != j:
                         self.FC[i, j] = self.off_diag_fc(
                             e_pp,
@@ -288,8 +290,8 @@ class ForceConstant(object):
             raise RuntimeError
 
     # I might want to shift the above computation in the deriv_level == 1 down here, though it is only one line
-    def first_deriv(self):
-        pass
+    def first_deriv(self, e_p, e_m, disp):
+        return (e_p - e_m) / (2 * disp)
 
     # Functions for computing the diagonal and off-diagonal force constants
     def diag_fc(self, e_p, e_m, e_r, disp):

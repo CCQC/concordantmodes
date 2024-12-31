@@ -7,9 +7,8 @@ from scipy import stats
 class Algorithm(object):
     """
     The purpose of this class is to return a list of indices by which the force constants of the CMA method
-    will be computed. These indices will be determined by user input or by a scoring function which takes into
-    consideration the overlap of the normal coordinates and the difference in force constants for a particular normal
-    mode.
+    will be computed. These indices will be determined by user input where nonabelian symmetry can be 
+    exploited.
     """
 
     def __init__(self, eigs, level_A, options, proj_irreps):
@@ -26,6 +25,8 @@ class Algorithm(object):
                 self.loop_symmetry()
         else:
             self.loop()
+
+    #Indices for high level A looping or deriv_level_init == 1
     def loop_symmetry_diagonal(self):
         self.indices = []
         self.indices_by_irrep = []
@@ -54,6 +55,7 @@ class Algorithm(object):
         self.indices = [item for sublist in self.indices for item in sublist]
 
 
+    #Indices for level B where deriv_leevel_init == 0
     def loop_symmetry(self):
         self.indices = []
         self.indices_by_irrep = []
@@ -82,15 +84,14 @@ class Algorithm(object):
             else:
                 self.indices.append(irrep_ind)
         self.indices = [item for sublist in self.indices for item in sublist]
-
+    
+    #Generates level B indices where no symmetry is being used
     def loop(self):
-        print("algorithm loop, no symmetry please")
         if self.level_A:
             addem = 1
         else:
             addem = self.eigs
         self.indices = []
-        #print(f"num modes {self.eigs}")
         for i in range(self.eigs):
             for j in range(i, i + addem):
                 if j > self.eigs - 1:

@@ -519,6 +519,17 @@ class TransfDisp(object):
             )
             raise RuntimeError
 
+    #function useful for CMA geometry optimizer
+    def eigs_inv(self):
+        proj_tol = 1.0e-3
+        self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Sym internals (S) )
+        for i in range(len(self.eig_inv)):
+            self.eig_inv[i] = self.eig_inv[i] / LA.norm(self.eig_inv[i])
+            self.eig_inv[i][
+                np.abs(self.eig_inv[i]) < np.max(np.abs(self.eig_inv[i])) * proj_tol
+            ] = 0
+
+
     def int_c(self, carts, eig_inv, proj):
         # This is a function that computes all currently implemented and
         # specified internal coordinates from the desired cartesian

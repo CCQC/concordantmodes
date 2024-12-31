@@ -58,7 +58,7 @@ class Options(object):
         self.success_regex = kwargs.pop("success_regex", "")
         self.success_regex_init = kwargs.pop("success_regex_init", "")
         self.success_regex_init_anharm = kwargs.pop("success_regex_init_anharm", "")
-        self.symmetry = kwargs.pop("symmetry", True)
+        self.symmetry = kwargs.pop("symmetry", False)
         self.tight_disp = kwargs.pop("tight_disp", False)
         self.tol = kwargs.pop("tol", 1.0e-14)
         self.topo_analysis = kwargs.pop("topo_analysis", False)

@@ -2,7 +2,8 @@ import numpy as np
 from numpy.linalg import inv
 from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
-
+from scipy.linalg import block_diag
+import copy
 
 class GFMethod(object):
     """
@@ -30,7 +31,14 @@ class GFMethod(object):
 
         # Symmetrize F, diagonalize, then backtransform the eigenvectors.
         self.F_O = np.dot(np.dot(self.G_O, self.F), self.G_O)
-        self.eig_v, self.L_p = LA.eigh(self.F_O)
+   
+        if self.options.symmetry:
+            #allows the block diagonalization of the GF matrix so normal modes stay
+            #in the assumed ordering for the level A displacements (Within their symmetry blocks)
+            self.block_GF()
+        else:
+            self.eig_v, self.L_p = LA.eigh(self.F_O)
+        
         self.L_p[np.abs(self.L_p) < self.tol] = 0
         self.L = np.dot(self.G_O, self.L_p)
         self.L = np.real(self.L)
@@ -70,3 +78,24 @@ class GFMethod(object):
         else:
             self.ted.run(self.L, self.freq, rect_print=False)
         self.ted_breakdown = self.ted.ted_breakdown
+
+    def block_GF(self):
+        self.eigvals, self.eigvecs = [], []
+        offset_h = 0
+        for hi, h in enumerate(self.symtext.salcblocks):
+            
+            #Extract the block from the supermatrix
+            fo = self.extract(self.F_O, offset_h, h.shape[0])
+            eig_v_h, L_p_h = LA.eigh(fo)
+            self.eigvals.append(eig_v_h)
+            self.eigvecs.append(L_p_h)
+
+            # UPDATE OFFSET
+            offset_h += h.shape[0] 
+        self.eigvals = [item for sublist in self.eigvals for item in sublist]
+        self.eig_v = np.asarray(self.eigvals)
+        self.L_p = block_diag(*self.eigvecs)
+  
+     #function to extract bd matrices from supermatrix
+    def extract(self, A, offset, size):
+        return A[offset:offset+size, offset:offset+size]
