@@ -329,13 +329,11 @@ class Reap(object):
             if molly1:
                 beg_molly = i + 1
                 break
-        print(f"This is beg molly {beg_molly}")
         for i in range(len(data) - beg_molly):
             molly2 = re.search(molly2_regex, data[i + beg_molly])
             if molly2:
                 end_molly = i + beg_molly
                 break
-        print(f"This is end molly {end_molly}")
         label_xyz = r"(\s*.*(\s*-?\d+\.\d+){3})+"
         molly_array = np.array([])
         for line in data[beg_molly:end_molly]:
@@ -345,12 +343,6 @@ class Reap(object):
         
         molly_array = molly_array.astype("float64")
         molly_array = np.split(molly_array, len(molly_array) / 3)
-        print(len(molly_array))
-        for line in molly_array:
-            print(line)
-        print(len(molly_init))
-        for line2 in molly_init:
-            print(line2)
          
         #print(f"This is molly array {molly_array}")
         rearrange = []
