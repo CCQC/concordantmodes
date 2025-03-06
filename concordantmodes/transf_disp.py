@@ -31,10 +31,8 @@ class TransfDisp(object):
         self,
         s_vectors,
         zmat,
-        disp,
         eigs,
         conv,
-        disp_tol,
         ted,
         options,
         indices,
@@ -44,17 +42,17 @@ class TransfDisp(object):
         quartic_indices=np.array([]),
         anharm=False,
     ):
-        self.disp_tol = disp_tol
+        self.options = options
+        self.disp_tol = self.options.disp_tol
         self.conv = conv
         self.s_vectors = s_vectors
         self.zmat = zmat
         self.ref_carts = zmat.cartesians_final.copy()
         self.ref_carts = np.array(self.ref_carts).astype(float)
         self.u = np.identity(3 * len(zmat.atom_list))
-        self.disp = disp
+        self.disp = self.options.disp
         self.ted = ted
         self.eigs = eigs
-        self.options = options
         self.disp_cart = {}
         self.disp_cart["ref"] = self.ref_carts.copy()
         self.indices = indices

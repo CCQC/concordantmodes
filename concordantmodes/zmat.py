@@ -241,9 +241,7 @@ class Zmat(object):
                     1,
                     self,
                     1,
-                    1,
                     False,
-                    self.disp_tol,
                     np.array([]),
                     self.options,
                     indices,
@@ -649,7 +647,7 @@ class Zmat(object):
         # coordinates.
         indices = []
         transdisp = TransfDisp(
-            1, self, 1, 1, False, self.disp_tol, np.array([]), self.options, indices
+            1, self, 1, False, np.array([]), self.options, indices
         )
         I = np.eye(
             len(self.bond_indices)

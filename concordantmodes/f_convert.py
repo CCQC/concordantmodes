@@ -16,16 +16,21 @@ class FcConv(object):
     BOHR_ANG: Standard uncertainty of 0.00000000080
     """
 
-    def __init__(self, fc_mat, s_vec, zmat, coord, print_f, ted, units, second_order):
+    def __init__(self, fc_mat, s_vec, zmat, coord, print_f, ted, options):
         self.coord = coord
         # self.F_read = F_read
         self.F = fc_mat
-        self.second_order = second_order
+        #self.second_order = second_order
         self.print_f = print_f
         self.s_vec = s_vec
         self.ted = ted
-        self.units = units
+        #self.units = units
         self.zmat = zmat
+        self.options = options
+
+        #self.units = self.options.units
+        #self.second_order = self.options.second_order        
+
 
         self.MDYNE_HART = 4.3597447222071
         self.BOHR_ANG = 0.529177210903
@@ -43,13 +48,13 @@ class FcConv(object):
             self.A_T = np.dot(LA.inv(G), B)
             if self.ted.proj is not None:
                 self.A_T = np.dot(self.ted.proj, self.A_T)
-            if self.units == "MdyneAng":
+            if self.options.units == "MdyneAng":
                 self.F /= self.BOHR_ANG
                 self.F *= self.MDYNE_HART
             self.F = np.einsum("pi,rj,ij->pr", self.A_T, self.A_T, self.F)
             # Non-stationary, gradient correction to internal coordinate force constants
             V2 = self.F.copy() * 0
-            if len(grad) and self.second_order:
+            if len(grad) and self.options.second_order:
                 # Note: I may want to use projected A_T to reduce the size of the
                 # internal coordinate basis, thus speeding up the computation.
                 # The basis will eventually need to be projected anyways.

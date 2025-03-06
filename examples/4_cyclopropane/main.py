@@ -13,6 +13,10 @@ options_kwargs = {
     "success_regex_init": r"Variable memory released",
     "symmetry" : True,
     "autosalcs" : True,
+    #"gen_disps_init" : False,
+    #"calc_init" : False,
+    #"gen_disps" :False,
+    #"calc" : False,
 }
 options_obj = Options(**options_kwargs)
 

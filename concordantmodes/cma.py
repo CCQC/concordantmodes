@@ -53,6 +53,9 @@ class ConcordantModes(object):
 
         rootdir = os.getcwd()
 
+        #string value to access "state" of CMA program. Are we in level A, B, C, etc...
+        cma_level = "B"
+
         # Parse the output to get all pertinent ZMAT info
         self.zmat_obj = Zmat(self.options)
         self.zmat_obj.run()
@@ -97,7 +100,7 @@ class ConcordantModes(object):
             self.symm_obj.make_proj(s_vec)
             s_vec.proj = copy.deepcopy(self.symm_obj.salc_proj)
         
-        self.TED_obj = TED(s_vec.proj, self.zmat_obj)
+        self.TED_obj = TED(s_vec.proj, self.zmat_obj, self.options)
 
         # Print out the percentage composition of the projected coordinates
         if self.options.coords != "ZMAT":
@@ -135,21 +138,24 @@ class ConcordantModes(object):
                 eigs_init = np.eye(len(self.zmat_obj.cartesians_init.flatten()))
                 coord_type = "cartesian"
             if not self.options.deriv_level_init:
-                indices = np.triu_indices(len(eigs_init))
-                indices = np.array(indices).T
+                #indices = np.triu_indices(len(eigs_init))
+                #indices = np.array(indices).T
+                num_deg_free = s_vec.proj.shape[1]
                 if not self.options.symmetry:
-                    algo = Algorithm(eigs_init.shape[0], False, self.options, None)
+                    algo = Algorithm(num_deg_free, cma_level, self.options, None)
                     algo.run()
-                    indices = algo.indices
+                    #indices = algo.indices
                 else:
-                    algo = Algorithm(eigs_init.shape[0], False, self.options, self.symm_obj.proj_irreps)
+                    algo = Algorithm(num_deg_free, cma_level, self.options, self.symm_obj.proj_irreps)
                     algo.run()
-                    indices = algo.indices
+                    #indices = algo.indices
             else:
                 #indices = np.arange(len(eigs_init))
-                algo = Algorithm(eigs_init.shape[0], True, self.options, self.symm_obj.proj_irreps)
+                #trick algo into thinking cma_level = A so it only does diagonal disps
+                cma_level = "A"
+                algo = Algorithm(eigs_init.shape[0], cma_level, self.options, self.symm_obj.proj_irreps)
                 algo.run()
-                indices = algo.indices
+                #indices = algo.indices
             #print(algo.indices)
             #print(algo.indices_by_irrep)
             #print(type(algo.indices))
@@ -157,13 +163,11 @@ class ConcordantModes(object):
             init_disp = TransfDisp(
                 s_vec,
                 self.zmat_obj,
-                self.options.disp,
                 eigs_init,
                 True,
-                self.options.disp_tol,
                 self.TED_obj,
                 self.options,
-                indices,
+                algo.indices,
                 coord_type=coord_type,
                 deriv_level=self.options.deriv_level_init,
             )
@@ -183,7 +187,7 @@ class ConcordantModes(object):
                     prog_name_init,
                     self.zmat_obj,
                     init_disp,
-                    self.options.cart_insert_init,
+                    cma_level,
                     init_disp.p_disp,
                     init_disp.m_disp,
                     self.options,
@@ -251,9 +255,10 @@ class ConcordantModes(object):
                 eigs_init,
                 #indices,
                 algo.indices,
-                self.options.energy_regex_init,
-                self.options.gradient_regex,
-                self.options.success_regex_init,
+                #self.options.energy_regex_init,
+                #self.options.gradient_regex,
+                #self.options.success_regex_init,
+                cma_level,
                 deriv_level=self.options.deriv_level_init,
                 # disp_sym = init_disp.disp_sym
             )
@@ -272,7 +277,7 @@ class ConcordantModes(object):
                 ref_en_init = None
 
                 # Need to convert this array here from cartesians to internals using projected A-tensor
-                for i in indices:
+                for i in algo.indices:
                     grad_s_vec = SVectors(
                         self.zmat_obj,
                         self.options,
@@ -314,8 +319,7 @@ class ConcordantModes(object):
                 "internal",
                 False,
                 self.TED_obj,
-                self.options.units,
-                self.options.second_order,
+                self.options,
             )
             if self.options.second_order:
                 f_conv_obj.run(grad=g_read_obj.cart_grad)
@@ -342,8 +346,8 @@ class ConcordantModes(object):
         init_GF = GFMethod(
             g_mat.G.copy(),
             F.copy(),
-            self.options.tol,
-            self.options.proj_tol,
+            #self.options.tol,
+            #self.options.proj_tol,
             self.zmat_obj,
             self.TED_obj,
             self.options,
@@ -362,8 +366,8 @@ class ConcordantModes(object):
         TED_GF = GFMethod(
             self.G,
             self.F,
-            self.options.tol,
-            self.options.proj_tol,
+            #self.options.tol,
+            #self.options.proj_tol,
             self.zmat_obj,
             self.TED_obj,
             self.options,
@@ -374,11 +378,18 @@ class ConcordantModes(object):
 
         initial_fc = TED_GF.eig_v
         #eigs = len(TED_GF.S)
-        eigs = len(TED_GF.eig_v)
+        #TODO this needs to be defined with respect to the s_vector number degrees of freedom
+        #eigs = len(TED_GF.eig_v)
+        #print(f"The eigs {eigs}")
+        #print(f"The shape of s_vec {s_vec.proj.shape}")
+        #print(stop)
+
+        #Now switch state to cma_level = "A"
+        cma_level = "A"
         if self.options.symmetry:
-            algo = Algorithm(eigs_init.shape[0], True, self.options, self.symm_obj.proj_irreps)
+            algo = Algorithm(num_deg_free, cma_level, self.options, self.symm_obj.proj_irreps)
         else:
-            algo = Algorithm(eigs_init.shape[0], True, self.options, None)
+            algo = Algorithm(num_deg_free, cma_level, self.options, None)
         #algo = Algorithm(eigs, initial_fc, self.options)
         # algo.options.off_diag_bands = 2
         # algo.options.off_diag_limit = False
@@ -415,10 +426,8 @@ class ConcordantModes(object):
         transf_disp = TransfDisp(
             s_vec,
             self.zmat_obj,
-            self.options.disp,
             init_GF.L,
             True,
-            self.options.disp_tol,
             self.TED_obj,
             self.options,
             algo.indices,
@@ -446,7 +455,8 @@ class ConcordantModes(object):
                 progname,
                 self.zmat_obj,
                 transf_disp,
-                self.options.cart_insert,
+                cma_level,
+                #self.options.cart_insert,
                 p_disp,
                 m_disp,
                 self.options,
@@ -515,11 +525,12 @@ class ConcordantModes(object):
             # transf_disp.disp_cart,
             self.options,
             # transf_disp.n_coord,
-            eigs,
+            num_deg_free,
             algo.indices,
-            self.options.energy_regex,
-            self.options.gradient_regex,
-            self.options.success_regex,
+            cma_level,
+            #self.options.energy_regex,
+            #self.options.gradient_regex,
+            #self.options.success_regex,
         )
         reap_obj.run()
 
@@ -563,8 +574,8 @@ class ConcordantModes(object):
         final_GF = GFMethod(
             self.G,
             self.F,
-            self.options.tol,
-            self.options.proj_tol,
+            #self.options.tol,
+            #self.options.proj_tol,
             self.zmat_obj,
             self.TED_obj,
             self.options,
@@ -606,8 +617,9 @@ class ConcordantModes(object):
             "cartesian",
             True,
             self.TED_obj,
-            self.options.units,
-            self.options.second_order,
+            self.options,
+            #self.options.units,
+            #self.options.second_order,
         )
         cart_conv.run()
 
@@ -627,7 +639,7 @@ class ConcordantModes(object):
         print("This program took " + str(t2 - t1) + " seconds to run.")
 
         # after this point, you could loop through the full FC matrix and compute several other benchmark frequencies
-        if self.options.benchmark_full:
+        #if self.options.benchmark_full:
             # self.options.off_diag = True
             # # nate
             # with open("Full_fc_levelB.npy", "rb") as z:
@@ -709,59 +721,59 @@ class ConcordantModes(object):
             # print("//{:^40s}//".format(" END OF LOOP"))
             # print("////////////////////////////////////////////")
 
-            print("////////////////////////////////////////////")
-            print("//{:^40s}//".format("Begin Selective Diagnostic Benchmark"))
-            print("////////////////////////////////////////////")
-            self.options.off_diag = False
-            self.options.mode_coupling_check = True
+            #print("////////////////////////////////////////////")
+            #print("//{:^40s}//".format("Begin Selective Diagnostic Benchmark"))
+            #print("////////////////////////////////////////////")
+            #self.options.off_diag = False
+            #self.options.mode_coupling_check = True
 
-            algo = Algorithm(eigs, initial_fc, self.options)
-            algo.run()
-            diagnostic_indices = algo.indices
-            self.options.mode_coupling_check = False
-            algo = Algorithm(eigs, initial_fc, self.options)
-            algo.run()
-            newlist = algo.indices + diagnostic_indices
+            #algo = Algorithm(num_deg_free, initial_fc, self.options)
+            #algo.run()
+            #diagnostic_indices = algo.indices
+            #self.options.mode_coupling_check = False
+            #algo = Algorithm(num_deg_free, initial_fc, self.options)
+            #algo.run()
+            #newlist = algo.indices + diagnostic_indices
 
-            for index in newlist:
-                i, j = index[0], index[1]
-                self.F[i, j] = FC[i, j]
-            cf = np.triu_indices(a, 1)
-            il = (cf[1], cf[0])
-            self.F[il] = self.F[cf]
-            # Final GF Matrix run
-            print("Final Harmonic Frequencies:")
-            cma = False
-            final_GF = GFMethod(
-                self.G,
-                self.F,
-                self.options.tol,
-                self.options.proj_tol,
-                self.zmat_obj,
-                self.TED_obj,
-                cma=cma,
-            )
-            final_GF.run()
+            #for index in newlist:
+            #    i, j = index[0], index[1]
+            #    self.F[i, j] = FC[i, j]
+            #cf = np.triu_indices(a, 1)
+            #il = (cf[1], cf[0])
+            #self.F[il] = self.F[cf]
+            ## Final GF Matrix run
+            #print("Final Harmonic Frequencies:")
+            #cma = False
+            #final_GF = GFMethod(
+            #    self.G,
+            #    self.F,
+            #    self.options.tol,
+            #    self.options.proj_tol,
+            #    self.zmat_obj,
+            #    self.TED_obj,
+            #    cma=cma,
+            #)
+            #final_GF.run()
 
-            # This code below is a rudimentary table of the TED for the final
-            # frequencies. Actually right now it uses the initial L-matrix,
-            # which may need to be modified by the final L-matrix.
-            print("////////////////////////////////////////////")
-            print("//{:^40s}//".format(" Final TED"))
-            print("////////////////////////////////////////////")
-            self.TED_obj.run(np.dot(init_GF.L, final_GF.L), final_GF.freq)
+            ## This code below is a rudimentary table of the TED for the final
+            ## frequencies. Actually right now it uses the initial L-matrix,
+            ## which may need to be modified by the final L-matrix.
+            #print("////////////////////////////////////////////")
+            #print("//{:^40s}//".format(" Final TED"))
+            #print("////////////////////////////////////////////")
+            #self.TED_obj.run(np.dot(init_GF.L, final_GF.L), final_GF.freq)
 
-            # This code prints out the frequencies in order of energy as well
-            # as the ZPVE in several different units.
-            print(
-                "Final Harmonic ZPVE in: "
-                + "{:6.2f}".format(np.sum(final_GF.freq) / 2)
-                + " (cm^-1) "
-                + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 349.7550881133)
-                + " (kcal mol^-1) "
-                + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 219474.6313708)
-                + " (hartrees) "
-            )
+            ## This code prints out the frequencies in order of energy as well
+            ## as the ZPVE in several different units.
+            #print(
+            #    "Final Harmonic ZPVE in: "
+            #    + "{:6.2f}".format(np.sum(final_GF.freq) / 2)
+            #    + " (cm^-1) "
+            #    + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 349.7550881133)
+            #    + " (kcal mol^-1) "
+            #    + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 219474.6313708)
+            #    + " (hartrees) "
+            #)
 
         if self.options.anharm:
             cubic_indices = []
@@ -842,10 +854,10 @@ class ConcordantModes(object):
             anharm_transf_disp = TransfDisp(
                 s_vec,
                 self.zmat_obj,
-                self.options.disp,
+                #self.options.disp,
                 np.dot(init_GF.L, final_GF.L),
                 True,
-                self.options.disp_tol,
+                #self.options.disp_tol,
                 self.TED_obj,
                 self.options,
                 algo.indices,
@@ -877,7 +889,7 @@ class ConcordantModes(object):
                     progname,
                     self.zmat_obj,
                     anharm_transf_disp,
-                    self.options.cart_insert,
+                    #self.options.cart_insert,
                     p_disp,
                     m_disp,
                     self.options,
@@ -931,11 +943,11 @@ class ConcordantModes(object):
 
             reap_obj_anharm = Reap(
                 self.options,
-                eigs,
+                num_deg_free,
                 anharm_indices,  # Need cubic + quartic indices
-                self.options.energy_regex_init_anharm,
-                self.options.gradient_regex,
-                self.options.success_regex_init_anharm,
+                #self.options.energy_regex_init_anharm,
+                #self.options.gradient_regex,
+                #self.options.success_regex_init_anharm,
                 deriv_level=self.options.deriv_level_init,
                 anharm=True,
             )
@@ -971,7 +983,7 @@ class ConcordantModes(object):
                 m_en_array,
                 ref_en,
                 self.options,
-                indices,
+                algo.indices,
                 anharm=True,
                 anharm_indices=anharm_indices,
                 p_anharm=p_en_anharm,

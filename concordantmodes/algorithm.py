@@ -11,15 +11,15 @@ class Algorithm(object):
     exploited.
     """
 
-    def __init__(self, eigs, level_A, options, proj_irreps):
-        self.eigs = eigs
-        self.level_A = level_A
+    def __init__(self, num_deg_free, cma_level, options, proj_irreps):
+        self.num_deg_free = num_deg_free
+        self.cma_level = cma_level
         self.options = options
         self.proj_irreps = proj_irreps
 
     def run(self):
         if self.options.symmetry:
-            if self.level_A or self.options.deriv_level_init:
+            if self.cma_level == "A" or self.options.deriv_level_init:
                 self.loop_symmetry_diagonal()
             else:
                 self.loop_symmetry()
@@ -87,14 +87,14 @@ class Algorithm(object):
     
     #Generates level B indices where no symmetry is being used
     def loop(self):
-        if self.level_A:
+        if self.cma_level == "A":
             addem = 1
         else:
-            addem = self.eigs
+            addem = self.num_deg_free
         self.indices = []
-        for i in range(self.eigs):
+        for i in range(self.num_deg_free):
             for j in range(i, i + addem):
-                if j > self.eigs - 1:
+                if j > self.num_deg_free - 1:
                     break
                 else:
                     if i == j:

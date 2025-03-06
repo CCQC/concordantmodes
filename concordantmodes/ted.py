@@ -11,9 +11,10 @@ class TED(object):
     coordinates are utilized, projection matrices will be stored here.
     """
 
-    def __init__(self, proj, zmat):
+    def __init__(self, proj, zmat, options):
         self.proj = proj
         self.zmat = zmat
+        self.options = options
 
     def run(self, eigs, freq, symtext = None, rect_print=True):
         self.symtext = symtext

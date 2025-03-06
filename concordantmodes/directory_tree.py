@@ -11,7 +11,7 @@ class DirectoryTree(object):
         prog_name,
         zmat,
         disps,
-        insertion_index,
+        cma_level,
         p_disp,
         m_disp,
         options,
@@ -23,7 +23,6 @@ class DirectoryTree(object):
     ):
         self.prog_name = prog_name
         self.zmat = zmat
-        self.insertion_index = insertion_index
         self.dir_name = dir_name
         self.disps = disps  # This should be the 'TransfDisp' object
         self.p_disp = p_disp
@@ -33,6 +32,11 @@ class DirectoryTree(object):
         self.indices = indices
         self.deriv_level = deriv_level
         self.anharm = anharm
+        if cma_level == "B":
+            self.insertion_index = self.options.cart_insert_init
+        else:
+            self.insertion_index = self.options.cart_insert
+        #self.insertion_index = self.options.cart_insert_init if cma_level == "B" else self.options.cart_insert
 
     def run(self):
         disp_dict = {}

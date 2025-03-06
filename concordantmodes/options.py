@@ -41,6 +41,8 @@ class Options(object):
         self.off_diag = kwargs.pop("off_diag", False)
         self.off_diag_bands = kwargs.pop("off_diag_bands", 1)
         self.off_diag_limit = kwargs.pop("off_diag_limit", False)
+        self.output_init_name = kwargs.pop("output_init_name", "output")
+        self.output_name = kwargs.pop("output_name", "output")
         self.pert_off_diag = kwargs.pop("pert_off_diag", False)
         self.printout_rel_e = kwargs.pop("printout_rel_e", True)
         self.program = kwargs.pop("program", "molpro@2010.1.67+mpi")
