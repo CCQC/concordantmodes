@@ -153,13 +153,9 @@ class ConcordantModes(object):
                 #indices = np.arange(len(eigs_init))
                 #trick algo into thinking cma_level = A so it only does diagonal disps
                 cma_level = "A"
-                algo = Algorithm(eigs_init.shape[0], cma_level, self.options, self.symm_obj.proj_irreps)
+                algo = Algorithm(num_deg_free, cma_level, self.options, self.symm_obj.proj_irreps)
                 algo.run()
                 #indices = algo.indices
-            #print(algo.indices)
-            #print(algo.indices_by_irrep)
-            #print(type(algo.indices))
-            #print(stop)
             init_disp = TransfDisp(
                 s_vec,
                 self.zmat_obj,

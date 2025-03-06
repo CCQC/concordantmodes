@@ -42,7 +42,7 @@ class execute_suite(object):
         )
         self.s_vec.run(self.ZMAT.cartesians_init, True)
 
-        self.TED_obj = TED(self.s_vec.proj, self.ZMAT)
+        self.TED_obj = TED(self.s_vec.proj, self.ZMAT, self.options)
         self.g_mat = GMatrix(self.ZMAT, self.s_vec, self.options)
         self.g_mat.run()
         if self.s_vec_bool:
@@ -58,7 +58,7 @@ class execute_suite(object):
             "internal",
             False,
             self.TED_obj,
-            self.options.units,
+            self.options,
         )
         self.f_conv.run()
 
@@ -67,23 +67,20 @@ class execute_suite(object):
         self.GF = GFMethod(
             self.G,
             self.F,
-            self.options.tol,
-            self.options.proj_tol,
             self.ZMAT,
             self.TED_obj,
+            self.options,
         )
 
         self.GF.run()
-        self.algo = Algorithm(len(self.GF.L), None, self.options)
+        self.algo = Algorithm(len(self.GF.L), None, self.options, None)
         self.algo.run()
 
         self.disps = TransfDisp(
             self.s_vec,
             self.ZMAT,
-            self.options.disp,
             self.GF.L,
             True,
-            self.options.disp_tol,
             self.TED_obj,
             self.options,
             self.algo.indices,

@@ -25,17 +25,17 @@ def test_transf_disp():
     suite.run()
 
     errors = []
+    coord_type = "internal"
 
     disps = TransfDisp(
         suite.s_vec,
         suite.ZMAT,
-        suite.options.disp,
         suite.GF.L,
         True,
-        suite.options.disp_tol,
         suite.TED_obj,
         suite.options,
         suite.algo.indices,
+        coord_type
     )
     disps.run()
 
@@ -47,5 +47,4 @@ def test_transf_disp():
         [-2.1049748848658, -0.979121064823173, -1.6808319627150445],
         [1.941172931083388, -1.5774905865156932, -0.0019238478290682895],
     ]
-
     assert np.allclose(np.asarray(disp_ref), disps.p_disp[3][3], rtol=0.0, atol=1e-8)
