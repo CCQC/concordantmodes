@@ -647,7 +647,7 @@ class Zmat(object):
         # coordinates.
         indices = []
         transdisp = TransfDisp(
-            1, self, 1, False, np.array([]), self.options, indices
+            1, self, 1, False, np.array([]), self.options, indices, None
         )
         I = np.eye(
             len(self.bond_indices)

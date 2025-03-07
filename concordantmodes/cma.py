@@ -148,13 +148,14 @@ class ConcordantModes(object):
                 else:
                     algo = Algorithm(num_deg_free, cma_level, self.options, self.symm_obj.proj_irreps)
                     algo.run()
+                    self.symm_obj.indices_by_irrep = algo.indices_by_irrep
                     #indices = algo.indices
             else:
                 #indices = np.arange(len(eigs_init))
-                #trick algo into thinking cma_level = A so it only does diagonal disps
-                cma_level = "A"
+                #cma_level = "A" #remove this for now, just use other kwargs
                 algo = Algorithm(num_deg_free, cma_level, self.options, self.symm_obj.proj_irreps)
                 algo.run()
+                self.symm_obj.indices_by_irrep = algo.indices_by_irrep
                 #indices = algo.indices
             init_disp = TransfDisp(
                 s_vec,
@@ -164,6 +165,7 @@ class ConcordantModes(object):
                 self.TED_obj,
                 self.options,
                 algo.indices,
+                self.symm_obj,
                 coord_type=coord_type,
                 deriv_level=self.options.deriv_level_init,
             )
@@ -188,7 +190,7 @@ class ConcordantModes(object):
                     init_disp.m_disp,
                     self.options,
                     algo.indices,
-                    #indices,
+                    self.symm_obj,
                     "templateInit.dat",
                     "DispsInit",
                     deriv_level=self.options.deriv_level_init,
@@ -251,6 +253,7 @@ class ConcordantModes(object):
                 eigs_init,
                 #indices,
                 algo.indices,
+                self.symm_obj,
                 #self.options.energy_regex_init,
                 #self.options.gradient_regex,
                 #self.options.success_regex_init,
@@ -392,6 +395,8 @@ class ConcordantModes(object):
         # algo.options.off_diag = True
 
         algo.run()
+        if self.options.symmetry:
+            self.symm_obj.indices_by_irrep = algo.indices_by_irrep
         if len(self.extra_indices):
             algo.indices = np.append(algo.indices, self.extra_indices, axis=0)
 
@@ -427,6 +432,7 @@ class ConcordantModes(object):
             self.TED_obj,
             self.options,
             algo.indices,
+            self.symm_obj,
             # GF=TED_GF,
             # cubic_indices=cubic_indices,
             # quartic_indices=quartic_indices,
@@ -457,6 +463,7 @@ class ConcordantModes(object):
                 m_disp,
                 self.options,
                 algo.indices,
+                self.symm_obj,
                 "template.dat",
                 "Disps",
             )
@@ -523,6 +530,7 @@ class ConcordantModes(object):
             # transf_disp.n_coord,
             num_deg_free,
             algo.indices,
+            self.symm_obj,
             cma_level,
             #self.options.energy_regex,
             #self.options.gradient_regex,

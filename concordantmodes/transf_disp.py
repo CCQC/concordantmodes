@@ -36,6 +36,7 @@ class TransfDisp(object):
         ted,
         options,
         indices,
+        symm_obj,
         coord_type="internal",
         deriv_level=0,
         cubic_indices=np.array([]),
@@ -56,6 +57,7 @@ class TransfDisp(object):
         self.disp_cart = {}
         self.disp_cart["ref"] = self.ref_carts.copy()
         self.indices = indices
+        self.symm_obj = symm_obj
         self.deriv_level = deriv_level
         self.coord_type = coord_type
         self.cubic_indices = cubic_indices
@@ -122,35 +124,103 @@ class TransfDisp(object):
                 if not self.anharm:
                     p_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
                     m_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
-                    for index in self.indices:
-                        i, j = index[0], index[1]
-                        disp[i] = self.disp[i]
-                        disp[j] = self.disp[j]
-                        p_disp[i, j] = self.coord_convert(
-                            disp,
-                            self.n_coord.copy(),
-                            self.ref_carts.copy(),
-                            50,
-                            1.0e-7,
-                            self.A.copy(),
-                            False,
-                            self.zmat,
-                            self.options,
-                        )
-                        m_disp[i, j] = self.coord_convert(
-                            -disp,
-                            self.n_coord.copy(),
-                            self.ref_carts.copy(),
-                            50,
-                            1.0e-7,
-                            self.A.copy(),
-                            False,
-                            self.zmat,
-                            self.options,
-                        )
-                        disp = buff.copy()
-                    self.p_disp = p_disp
-                    self.m_disp = m_disp
+                    if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
+                        print("Molsym is being used. +/- displacements of non TSIR are equivalent.")
+                        if self.options.only_TSIR:
+                            for index in self.symm_obj.indices_by_irrep[0]:
+                                i, j = index[0], index[1]
+                                disp[i] = self.disp[i]
+                                disp[j] = self.disp[j]
+                                p_disp[i, j] = self.coord_convert(
+                                    disp,
+                                    self.n_coord.copy(),
+                                    self.ref_carts.copy(),
+                                    50,
+                                    1.0e-7,
+                                    self.A.copy(),
+                                    False,
+                                    self.zmat,
+                                    self.options,
+                                )
+                                m_disp[i, j] = self.coord_convert(
+                                    -disp,
+                                    self.n_coord.copy(),
+                                    self.ref_carts.copy(),
+                                    50,
+                                    1.0e-7,
+                                    self.A.copy(),
+                                    False,
+                                    self.zmat,
+                                    self.options,
+                                )
+                                disp = buff.copy()
+                            self.p_disp = p_disp
+                            self.m_disp = m_disp
+                        else:
+                            print("Generating displacements for all irreps. Only + displacements for non TSIR")
+                            for h, h_indices in enumerate(self.symm_obj.indices_by_irrep):
+                                for index in h_indices:
+                                    i, j = index[0], index[1]
+                                    disp[i] = self.disp[i]
+                                    disp[j] = self.disp[j]
+                                    p_disp[i, j] = self.coord_convert(
+                                        disp,
+                                        self.n_coord.copy(),
+                                        self.ref_carts.copy(),
+                                        50,
+                                        1.0e-7,
+                                        self.A.copy(),
+                                        False,
+                                        self.zmat,
+                                        self.options,
+                                    )
+                                    if h != 0:
+                                        pass
+                                    else:
+                                        m_disp[i, j] = self.coord_convert(
+                                            -disp,
+                                            self.n_coord.copy(),
+                                            self.ref_carts.copy(),
+                                            50,
+                                            1.0e-7,
+                                            self.A.copy(),
+                                            False,
+                                            self.zmat,
+                                            self.options,
+                                        )
+                                    disp = buff.copy()
+                                self.p_disp = p_disp
+                                self.m_disp = m_disp
+                    else:
+                        for index in self.indices:
+                            i, j = index[0], index[1]
+                            disp[i] = self.disp[i]
+                            disp[j] = self.disp[j]
+                            p_disp[i, j] = self.coord_convert(
+                                disp,
+                                self.n_coord.copy(),
+                                self.ref_carts.copy(),
+                                50,
+                                1.0e-7,
+                                self.A.copy(),
+                                False,
+                                self.zmat,
+                                self.options,
+                            )
+                            m_disp[i, j] = self.coord_convert(
+                                -disp,
+                                self.n_coord.copy(),
+                                self.ref_carts.copy(),
+                                50,
+                                1.0e-7,
+                                self.A.copy(),
+                                False,
+                                self.zmat,
+                                self.options,
+                            )
+                            disp = buff.copy()
+                        self.p_disp = p_disp
+                        self.m_disp = m_disp
                 else:
                     if len(self.cubic_indices):
                         self.p_disp_xxx = np.zeros(len(self.eigs), dtype=object)

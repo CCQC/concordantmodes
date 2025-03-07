@@ -11,6 +11,7 @@ class Reap(object):
         options,
         eigs,
         indices,
+        symm_obj,
         #energy_regex,
         #gradient_regex,
         #success_regex,
@@ -22,16 +23,26 @@ class Reap(object):
         self.options = options
         self.eigs = eigs
         self.indices = indices
+        self.symm_obj = symm_obj
         self.deriv_level = deriv_level
         self.anharm = anharm
         self.cma_level = cma_level
         if cma_level == "B":
-            self.energy_regex = self.options.energy_regex_init
-            self.success_regex = self.options.success_regex_init
-        else:
-            self.energy_regex = self.options.energy_regex
-            self.gradient_regex = self.options.gradient_regex
-            self.success_regex = self.options.success_regex
+            if self.deriv_level:
+                self.gradient_regex = self.options.gradient_regex
+                self.energy_regex = self.options.energy_regex_init
+                self.success_regex = self.options.success_regex_init
+            else:
+                self.energy_regex = self.options.energy_regex_init
+                self.success_regex = self.options.success_regex_init
+        else: #cma_level = "A"
+            if self.deriv_level:
+                self.gradient_regex = self.options.gradient_regex
+                self.energy_regex = self.options.energy_regex
+                self.success_regex = self.options.success_regex
+            else:
+                self.energy_regex = self.options.energy_regex
+                self.success_regex = self.options.success_regex
 
     def run(self):
         # Define energy/gradient search regex
@@ -120,67 +131,215 @@ class Reap(object):
                 absolute_energies = [[("ref", "ref"), "ref", ref_en, 1]]
 
                 direc = 2
-                for index in indices:
-                    i, j = index[0], index[1]
-                    if self.options.init_bool:
-                        p_en_array[i, j] = energy = self.reap_energies(
-                            direc, success_regex, energy_regex, True
-                        )
-                        print("p_en")
-                        print(energy)
-                        rel = energy - ref_en
-                        print(
-                            "Relative plus  "
-                            + "{:4d}".format(direc)
-                            + "{:4d}".format(i)
-                            + " "
-                            + "{:4d}".format(j)
-                            + ": "
-                            + "{: 10.9f}".format(rel)
-                        )
-                        rel_en_p[i, j] = rel
-                        relative_energies.append([(i, j), "plus", rel, direc])
-                        absolute_energies.append([(i, j), "plus", energy, direc])
-
-                        m_en_array[i, j] = energy = self.reap_energies(
-                            direc + 1, success_regex, energy_regex, True
-                        )
-                        print("m_en")
-                        print(energy)
-                        rel = energy - ref_en
-                        print(
-                            "Relative minus "
-                            + "{:4d}".format(direc + 1)
-                            + "{:4d}".format(i)
-                            + " "
-                            + "{:4d}".format(j)
-                            + ": "
-                            + "{: 10.9f}".format(rel)
-                        )
-                        rel_en_m[i, j] = rel
-                        relative_energies.append([(i, j), "minus", rel, direc + 1])
-                        absolute_energies.append([(i, j), "minus", energy, direc + 1])
-                        direc += 2
-                    elif len(self.options.energy_regex_add):
-                        p_en_array[i, j] = self.reap_energies(
-                            direc, success_regex, energy_regex, True
-                        )
-                        m_en_array[i, j] = self.reap_energies(
-                            direc + 1, success_regex, energy_regex, True
-                        )
-                        direc += 2
+                if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
+                    if self.options.only_TSIR:
+                        print("Reap only the TSIR displacements")
+                        for index in self.symm_obj.indices_by_irrep[0]:
+                            i, j = index[0], index[1]
+                            if self.options.init_bool:
+                                p_en_array[i, j] = energy = self.reap_energies(
+                                    direc, success_regex, energy_regex, True
+                                )
+                                print("p_en")
+                                print(energy)
+                                rel = energy - ref_en
+                                print(
+                                    "Relative plus  "
+                                    + "{:4d}".format(direc)
+                                    + "{:4d}".format(i)
+                                    + " "
+                                    + "{:4d}".format(j)
+                                    + ": "
+                                    + "{: 10.9f}".format(rel)
+                                )
+                                rel_en_p[i, j] = rel
+                                relative_energies.append([(i, j), "plus", rel, direc])
+                                absolute_energies.append([(i, j), "plus", energy, direc])
+                                
+                                m_en_array[i, j] = energy = self.reap_energies(
+                                    direc + 1, success_regex, energy_regex, True
+                                )
+                                print("m_en")
+                                print(energy)
+                                rel = energy - ref_en
+                                print(
+                                    "Relative minus "
+                                    + "{:4d}".format(direc + 1)
+                                    + "{:4d}".format(i)
+                                    + " "
+                                    + "{:4d}".format(j)
+                                    + ": "
+                                    + "{: 10.9f}".format(rel)
+                                )
+                                rel_en_m[i, j] = rel
+                                relative_energies.append([(i, j), "minus", rel, direc + 1])
+                                absolute_energies.append([(i, j), "minus", energy, direc + 1])
+                                direc += 2
+                            elif len(self.options.energy_regex_add):
+                                p_en_array[i, j] = self.reap_energies(
+                                    direc, success_regex, energy_regex, True
+                                )
+                                m_en_array[i, j] = self.reap_energies(
+                                    direc + 1, success_regex, energy_regex, True
+                                )
+                                direc += 2
+                            else:
+                                p_en_array[i, j] = self.reap_energies(
+                                    direc, success_regex, energy_regex, False
+                                )
+                                print("p_en")
+                                print(p_en_array[i, j])
+                                m_en_array[i, j] = energy = self.reap_energies(
+                                    direc + 1, success_regex, energy_regex, False
+                                )
+                                print("m_en")
+                                print(m_en_array[i, j])
+                                direc += 2
                     else:
-                        p_en_array[i, j] = self.reap_energies(
-                            direc, success_regex, energy_regex, False
-                        )
-                        print("p_en")
-                        print(p_en_array[i, j])
-                        m_en_array[i, j] = energy = self.reap_energies(
-                            direc + 1, success_regex, energy_regex, False
-                        )
-                        print("m_en")
-                        print(m_en_array[i, j])
-                        direc += 2
+                        print("Reap displacements from all irreps")
+                        for h, h_indices in enumerate(self.symm_obj.indices_by_irrep):
+                            for index in h_indices:
+                                i, j = index[0], index[1]
+                                if self.options.init_bool:
+                                    p_en_array[i, j] = energy = self.reap_energies(
+                                        direc, success_regex, energy_regex, True
+                                    )
+                                    print("p_en")
+                                    print(energy)
+                                    rel = energy - ref_en
+                                    print(
+                                        "Relative plus  "
+                                        + "{:4d}".format(direc)
+                                        + "{:4d}".format(i)
+                                        + " "
+                                        + "{:4d}".format(j)
+                                        + ": "
+                                        + "{: 10.9f}".format(rel)
+                                    )
+                                    rel_en_p[i, j] = rel
+                                    relative_energies.append([(i, j), "plus", rel, direc])
+                                    absolute_energies.append([(i, j), "plus", energy, direc])
+                                    if h != 0:
+                                        #pass off plus displacement energy for the minus
+                                        m_en_array[i, j] = energy = self.reap_energies(
+                                            direc, success_regex, energy_regex, True
+                                        )
+                                        direc += 1
+                                    else:
+                                        m_en_array[i, j] = energy = self.reap_energies(
+                                            direc + 1, success_regex, energy_regex, True
+                                        )
+                                        print("m_en")
+                                        print(energy)
+                                        rel = energy - ref_en
+                                        print(
+                                            "Relative minus "
+                                            + "{:4d}".format(direc + 1)
+                                            + "{:4d}".format(i)
+                                            + " "
+                                            + "{:4d}".format(j)
+                                            + ": "
+                                            + "{: 10.9f}".format(rel)
+                                        )
+                                        rel_en_m[i, j] = rel
+                                        relative_energies.append([(i, j), "minus", rel, direc + 1])
+                                        absolute_energies.append([(i, j), "minus", energy, direc + 1])
+                                        direc += 2
+                                elif len(self.options.energy_regex_add):
+                                    p_en_array[i, j] = self.reap_energies(
+                                        direc, success_regex, energy_regex, True
+                                    )
+                                    if h != 0:
+                                        m_en_array[i, j] = self.reap_energies(
+                                            direc, success_regex, energy_regex, True
+                                        )
+                                        direc += 1
+                                    else:
+                                        m_en_array[i, j] = self.reap_energies(
+                                            direc + 1, success_regex, energy_regex, True
+                                        )
+                                        direc += 2
+                                else:
+                                    p_en_array[i, j] = self.reap_energies(
+                                        direc, success_regex, energy_regex, False
+                                    )
+                                    print("p_en")
+                                    print(p_en_array[i, j])
+                                    if h != 0:
+                                        m_en_array[i, j] = self.reap_energies(
+                                            direc, success_regex, energy_regex, False
+                                        )
+                                        direc += 1
+                                    else:
+                                        m_en_array[i, j] = energy = self.reap_energies(
+                                            direc + 1, success_regex, energy_regex, False
+                                        )
+                                        print("m_en")
+                                        print(m_en_array[i, j])
+                                        direc += 2
+                else:
+                    for index in indices:
+                        i, j = index[0], index[1]
+                        if self.options.init_bool:
+                            p_en_array[i, j] = energy = self.reap_energies(
+                                direc, success_regex, energy_regex, True
+                            )
+                            print("p_en")
+                            print(energy)
+                            rel = energy - ref_en
+                            print(
+                                "Relative plus  "
+                                + "{:4d}".format(direc)
+                                + "{:4d}".format(i)
+                                + " "
+                                + "{:4d}".format(j)
+                                + ": "
+                                + "{: 10.9f}".format(rel)
+                            )
+                            rel_en_p[i, j] = rel
+                            relative_energies.append([(i, j), "plus", rel, direc])
+                            absolute_energies.append([(i, j), "plus", energy, direc])
+
+                            m_en_array[i, j] = energy = self.reap_energies(
+                                direc + 1, success_regex, energy_regex, True
+                            )
+                            print("m_en")
+                            print(energy)
+                            rel = energy - ref_en
+                            print(
+                                "Relative minus "
+                                + "{:4d}".format(direc + 1)
+                                + "{:4d}".format(i)
+                                + " "
+                                + "{:4d}".format(j)
+                                + ": "
+                                + "{: 10.9f}".format(rel)
+                            )
+                            rel_en_m[i, j] = rel
+                            relative_energies.append([(i, j), "minus", rel, direc + 1])
+                            absolute_energies.append([(i, j), "minus", energy, direc + 1])
+                            direc += 2
+                        elif len(self.options.energy_regex_add):
+                            p_en_array[i, j] = self.reap_energies(
+                                direc, success_regex, energy_regex, True
+                            )
+                            m_en_array[i, j] = self.reap_energies(
+                                direc + 1, success_regex, energy_regex, True
+                            )
+                            direc += 2
+                        else:
+                            p_en_array[i, j] = self.reap_energies(
+                                direc, success_regex, energy_regex, False
+                            )
+                            print("p_en")
+                            print(p_en_array[i, j])
+                            m_en_array[i, j] = energy = self.reap_energies(
+                                direc + 1, success_regex, energy_regex, False
+                            )
+                            print("m_en")
+                            print(m_en_array[i, j])
+                            direc += 2
+                        
 
                 self.p_en_array = p_en_array
                 self.m_en_array = m_en_array
