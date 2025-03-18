@@ -11,11 +11,13 @@ class TED(object):
     coordinates are utilized, projection matrices will be stored here.
     """
 
-    def __init__(self, proj, zmat):
+    def __init__(self, proj, zmat, options):
         self.proj = proj
         self.zmat = zmat
+        self.options = options
 
-    def run(self, eigs, freq, rect_print=True):
+    def run(self, eigs, freq, symtext = None, rect_print=True):
+        self.symtext = symtext
         proj_eigs = eigs
         if len(np.shape(self.proj)) > 2 and np.shape(self.proj)[0] > 1:
             proj_buff = self.proj[0]
@@ -59,6 +61,16 @@ class TED(object):
         for l in range(n):
             table_output += "--------"
         table_output += "\n"
+        if self.symtext is not None:
+            table_output += "Point Group " + str(self.symtext.pg) + "           "
+            for ir, h in enumerate(self.symtext.salcblocks):
+                for s in range(h.shape[0]):
+                    if self.symtext.irreps[ir].d == 1: 
+                        table_output += "{:>8}".format(str(self.symtext.irreps[ir].symbol))
+                    else:
+                        dim = self.symtext.irreps[ir].d 
+                        table_output += "{:>8}".format(str(dim) + " x " + str(self.symtext.irreps[ir].symbol))
+            table_output += "\n"
         table_output += "{:>26s}".format("frequency: ")
         for l in range(n):
             table_output += " " + "{:7.1f}".format(freq[l])

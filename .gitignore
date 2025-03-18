@@ -1,4 +1,5 @@
 concordantmodes.egg-info/
 concordantmodes/__pycache__/
 concordantmodes.*pyc
+concordantmodes/tests/__pycache__/
 

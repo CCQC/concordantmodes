@@ -31,33 +31,33 @@ class TransfDisp(object):
         self,
         s_vectors,
         zmat,
-        disp,
         eigs,
         conv,
-        disp_tol,
         ted,
         options,
         indices,
+        symm_obj,
         coord_type="internal",
         deriv_level=0,
         cubic_indices=np.array([]),
         quartic_indices=np.array([]),
         anharm=False,
     ):
-        self.disp_tol = disp_tol
+        self.options = options
+        self.disp_tol = self.options.disp_tol
         self.conv = conv
         self.s_vectors = s_vectors
         self.zmat = zmat
         self.ref_carts = zmat.cartesians_final.copy()
         self.ref_carts = np.array(self.ref_carts).astype(float)
         self.u = np.identity(3 * len(zmat.atom_list))
-        self.disp = disp
+        self.disp = self.options.disp
         self.ted = ted
         self.eigs = eigs
-        self.options = options
         self.disp_cart = {}
         self.disp_cart["ref"] = self.ref_carts.copy()
         self.indices = indices
+        self.symm_obj = symm_obj
         self.deriv_level = deriv_level
         self.coord_type = coord_type
         self.cubic_indices = cubic_indices
@@ -124,35 +124,103 @@ class TransfDisp(object):
                 if not self.anharm:
                     p_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
                     m_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
-                    for index in self.indices:
-                        i, j = index[0], index[1]
-                        disp[i] = self.disp[i]
-                        disp[j] = self.disp[j]
-                        p_disp[i, j] = self.coord_convert(
-                            disp,
-                            self.n_coord.copy(),
-                            self.ref_carts.copy(),
-                            50,
-                            1.0e-7,
-                            self.A.copy(),
-                            False,
-                            self.zmat,
-                            self.options,
-                        )
-                        m_disp[i, j] = self.coord_convert(
-                            -disp,
-                            self.n_coord.copy(),
-                            self.ref_carts.copy(),
-                            50,
-                            1.0e-7,
-                            self.A.copy(),
-                            False,
-                            self.zmat,
-                            self.options,
-                        )
-                        disp = buff.copy()
-                    self.p_disp = p_disp
-                    self.m_disp = m_disp
+                    if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
+                        print("Molsym is being used. +/- displacements of non TSIR are equivalent.")
+                        if self.options.only_TSIR:
+                            for index in self.symm_obj.indices_by_irrep[0]:
+                                i, j = index[0], index[1]
+                                disp[i] = self.disp[i]
+                                disp[j] = self.disp[j]
+                                p_disp[i, j] = self.coord_convert(
+                                    disp,
+                                    self.n_coord.copy(),
+                                    self.ref_carts.copy(),
+                                    50,
+                                    1.0e-7,
+                                    self.A.copy(),
+                                    False,
+                                    self.zmat,
+                                    self.options,
+                                )
+                                m_disp[i, j] = self.coord_convert(
+                                    -disp,
+                                    self.n_coord.copy(),
+                                    self.ref_carts.copy(),
+                                    50,
+                                    1.0e-7,
+                                    self.A.copy(),
+                                    False,
+                                    self.zmat,
+                                    self.options,
+                                )
+                                disp = buff.copy()
+                            self.p_disp = p_disp
+                            self.m_disp = m_disp
+                        else:
+                            print("Generating displacements for all irreps. Only + displacements for non TSIR")
+                            for h, h_indices in enumerate(self.symm_obj.indices_by_irrep):
+                                for index in h_indices:
+                                    i, j = index[0], index[1]
+                                    disp[i] = self.disp[i]
+                                    disp[j] = self.disp[j]
+                                    p_disp[i, j] = self.coord_convert(
+                                        disp,
+                                        self.n_coord.copy(),
+                                        self.ref_carts.copy(),
+                                        50,
+                                        1.0e-7,
+                                        self.A.copy(),
+                                        False,
+                                        self.zmat,
+                                        self.options,
+                                    )
+                                    if h != 0:
+                                        pass
+                                    else:
+                                        m_disp[i, j] = self.coord_convert(
+                                            -disp,
+                                            self.n_coord.copy(),
+                                            self.ref_carts.copy(),
+                                            50,
+                                            1.0e-7,
+                                            self.A.copy(),
+                                            False,
+                                            self.zmat,
+                                            self.options,
+                                        )
+                                    disp = buff.copy()
+                                self.p_disp = p_disp
+                                self.m_disp = m_disp
+                    else:
+                        for index in self.indices:
+                            i, j = index[0], index[1]
+                            disp[i] = self.disp[i]
+                            disp[j] = self.disp[j]
+                            p_disp[i, j] = self.coord_convert(
+                                disp,
+                                self.n_coord.copy(),
+                                self.ref_carts.copy(),
+                                50,
+                                1.0e-7,
+                                self.A.copy(),
+                                False,
+                                self.zmat,
+                                self.options,
+                            )
+                            m_disp[i, j] = self.coord_convert(
+                                -disp,
+                                self.n_coord.copy(),
+                                self.ref_carts.copy(),
+                                50,
+                                1.0e-7,
+                                self.A.copy(),
+                                False,
+                                self.zmat,
+                                self.options,
+                            )
+                            disp = buff.copy()
+                        self.p_disp = p_disp
+                        self.m_disp = m_disp
                 else:
                     if len(self.cubic_indices):
                         self.p_disp_xxx = np.zeros(len(self.eigs), dtype=object)
@@ -518,6 +586,17 @@ class TransfDisp(object):
                 "Please input a displacement coordinate type of either cartesian or internal."
             )
             raise RuntimeError
+
+    #function useful for CMA geometry optimizer
+    def eigs_inv(self):
+        proj_tol = 1.0e-3
+        self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Sym internals (S) )
+        for i in range(len(self.eig_inv)):
+            self.eig_inv[i] = self.eig_inv[i] / LA.norm(self.eig_inv[i])
+            self.eig_inv[i][
+                np.abs(self.eig_inv[i]) < np.max(np.abs(self.eig_inv[i])) * proj_tol
+            ] = 0
+
 
     def int_c(self, carts, eig_inv, proj):
         # This is a function that computes all currently implemented and

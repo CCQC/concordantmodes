@@ -21,7 +21,7 @@ class Zmat(object):
 
         # Process the read in information
         self.zmat_process(zmat_output)
-
+       
         # Calculate internal coordinate values from reference cartesian coordinates
         self.zmat_calc()
 
@@ -89,10 +89,8 @@ class Zmat(object):
         s = r"([A-Za-z]+[0-9]*)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s*\n"
         self.cartesian_atom_regex = re.compile(s)
         self.divider_regex = re.compile(r"^\s*\-\-\-\s*\n")
-
         with open(zmat_name, "r") as file:
             output = file.readlines()
-
         # Read in the input cartesian coordinates
         self.cartesians_init = []
         self.cartesians_final = []
@@ -110,7 +108,8 @@ class Zmat(object):
             if end_cart:
                 cart_range.append(i + cart_range[0])
                 break
-
+        
+        self.cart_range = cart_range
         cart_output = output[cart_range[0] : cart_range[1]].copy()
 
         for i in range(len(cart_output)):
@@ -242,9 +241,7 @@ class Zmat(object):
                     1,
                     self,
                     1,
-                    1,
                     False,
-                    self.disp_tol,
                     np.array([]),
                     self.options,
                     indices,
@@ -650,7 +647,7 @@ class Zmat(object):
         # coordinates.
         indices = []
         transdisp = TransfDisp(
-            1, self, 1, 1, False, self.disp_tol, np.array([]), self.options, indices
+            1, self, 1, False, np.array([]), self.options, indices, None
         )
         I = np.eye(
             len(self.bond_indices)

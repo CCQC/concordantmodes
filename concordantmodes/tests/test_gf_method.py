@@ -26,10 +26,9 @@ def test_gf_method():
     GF = GFMethod(
         suite.G,
         suite.F,
-        suite.options.tol,
-        suite.options.proj_tol,
         suite.ZMAT,
         suite.TED_obj,
+        suite.options,
     )
 
     GF.run()
@@ -48,5 +47,4 @@ def test_gf_method():
         3134.79345416958,
         3837.8500878962245,
     ]
-
     assert np.allclose(GF.freq, np.asarray(ref_freq), rtol=0.0, atol=1e-10)
