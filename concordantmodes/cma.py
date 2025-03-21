@@ -158,14 +158,14 @@ class ConcordantModes(object):
                 self.symm_obj.indices_by_irrep = algo.indices_by_irrep
                 #indices = algo.indices
             init_disp = TransfDisp(
-                s_vec,
+                s_vec.B,
                 self.zmat_obj,
                 eigs_init,
                 True,
                 self.TED_obj,
                 self.options,
                 algo.indices,
-                self.symm_obj,
+                symm_obj=self.symm_obj,
                 coord_type=coord_type,
                 deriv_level=self.options.deriv_level_init,
             )
@@ -425,14 +425,14 @@ class ConcordantModes(object):
         s_vec.run(self.zmat_obj.cartesians_final, False, proj=self.TED_obj.proj)
 
         transf_disp = TransfDisp(
-            s_vec,
+            s_vec.B,
             self.zmat_obj,
             init_GF.L,
             True,
             self.TED_obj,
             self.options,
             algo.indices,
-            self.symm_obj,
+            symm_obj=self.symm_obj,
             # GF=TED_GF,
             # cubic_indices=cubic_indices,
             # quartic_indices=quartic_indices,
@@ -856,7 +856,7 @@ class ConcordantModes(object):
             quartic_indices.append(temp_indices)
 
             anharm_transf_disp = TransfDisp(
-                s_vec,
+                s_vec.B,
                 self.zmat_obj,
                 #self.options.disp,
                 np.dot(init_GF.L, final_GF.L),
