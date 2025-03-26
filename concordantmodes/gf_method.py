@@ -68,8 +68,8 @@ class GFMethod(object):
                 + "{:3d}".format(i + 1)
                 + ": "
                 + "{:10.2f}".format(self.freq[i])
-                + " {}x".format(self.irrep_degen[i])
-                + "{}".format(self.irrep_labels[i])
+                + " {}".format(self.irrep_degen[i])
+                + " x {}".format(self.irrep_labels[i])
             )
         # Compute and then print the TED.
         print("////////////////////////////////////////////")
