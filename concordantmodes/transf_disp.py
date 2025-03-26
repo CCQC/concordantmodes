@@ -29,14 +29,15 @@ class TransfDisp(object):
 
     def __init__(
         self,
-        s_vectors,
+        B,
+        # s_vectors,
         zmat,
         eigs,
         conv,
         ted,
         options,
         indices,
-        symm_obj,
+        symm_obj=None,
         coord_type="internal",
         deriv_level=0,
         cubic_indices=np.array([]),
@@ -44,11 +45,13 @@ class TransfDisp(object):
         anharm=False,
     ):
         self.options = options
-        self.disp_tol = self.options.disp_tol
+        # self.disp_tol = self.options.disp_tol
         self.conv = conv
-        self.s_vectors = s_vectors
+        self.B = B
+        print(zmat)
         self.zmat = zmat
-        self.ref_carts = zmat.cartesians_final.copy()
+        print(self.zmat.cartesians_final)
+        self.ref_carts = self.zmat.cartesians_final.copy()
         self.ref_carts = np.array(self.ref_carts).astype(float)
         self.u = np.identity(3 * len(zmat.atom_list))
         self.disp = self.options.disp
@@ -65,7 +68,7 @@ class TransfDisp(object):
         self.anharm = anharm
 
     def run(self, fc=np.array([])):
-        self.B = self.s_vectors.B.copy()  # (redundant internals (s) x cartesians (3N))
+        # self.B = self.s_vectors.B.copy()  # (redundant internals (s) x cartesians (3N))
         # Invert the L-matrix and then normalize the rows.
         proj_tol = 1.0e-3
         self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Sym internals (S) )
@@ -78,7 +81,7 @@ class TransfDisp(object):
         # Compute the A-matrix to convert from normal coordinates to cartesians
         
         self.A = self.compute_A(
-            self.s_vectors.B.copy(), self.ted.proj, self.eig_inv, self.zmat.mass_weight
+            self.B.copy(), self.ted.proj, self.eig_inv, self.zmat.mass_weight
         )
 
         # Generate the normal coordinate values for the reference structure
