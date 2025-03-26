@@ -762,18 +762,18 @@ class SVectors(object):
     def second_order_B(self):
         # Set some initial necessary variables
         B_buff = self.B.copy()
-        TED_obj = TED(np.eye(len(self.B)), self.zmat)
+        TED_obj = TED(np.eye(len(self.B)), self.zmat, self.options)
 
         # Initialize then generate the internal coordinate displacements
         from concordantmodes.transf_disp import TransfDisp
 
+        print(self.zmat.cartesians_final)
         B_disp = TransfDisp(
-            self,
+            # self,
+            self.B,
             self.zmat,
-            self.options.disp,
             np.eye(len(self.B)),
             True,
-            self.options.disp_tol,
             TED_obj,
             self.options,
             np.arange(len(self.B)),
