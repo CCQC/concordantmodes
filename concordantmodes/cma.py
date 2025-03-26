@@ -361,7 +361,7 @@ class ConcordantModes(object):
         self.F = np.dot(np.dot(init_GF.L.T, F), init_GF.L)
         self.F[np.abs(self.F) < self.options.tol] = 0
 
-        print("TED Frequencies:")
+        print("TED Frequencies: Degeneracy x Irrep")
         TED_GF = GFMethod(
             self.G,
             self.F,

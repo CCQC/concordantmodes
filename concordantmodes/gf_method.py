@@ -68,6 +68,8 @@ class GFMethod(object):
                 + "{:3d}".format(i + 1)
                 + ": "
                 + "{:10.2f}".format(self.freq[i])
+                + " {}x".format(self.irrep_degen[i])
+                + "{}".format(self.irrep_labels[i])
             )
         # Compute and then print the TED.
         print("////////////////////////////////////////////")
@@ -83,6 +85,8 @@ class GFMethod(object):
         self.eigvals, self.eigvecs = [], []
         offset_h = 0
         self.block_fo = []
+        self.irrep_labels = []
+        self.irrep_degen = []
         for hi, h in enumerate(self.symtext.salcblocks):
             
             #Extract the block from the supermatrix
@@ -91,6 +95,9 @@ class GFMethod(object):
             eig_v_h, L_p_h = LA.eigh(fo)
             self.eigvals.append(eig_v_h)
             self.eigvecs.append(L_p_h)
+            for i in range(len(eig_v_h)):
+                self.irrep_labels.append(self.symtext.irreps[hi].symbol)
+                self.irrep_degen.append(self.symtext.irreps[hi].d)
 
             # UPDATE OFFSET
             offset_h += h.shape[0]
