@@ -62,15 +62,24 @@ class GFMethod(object):
 
         # Convert from Hartrees to wavenumbers.
         self.freq *= self.HARTREE_WAVENUM
-        for i in range(len(self.freq)):
-            print(
-                "frequency #"
-                + "{:3d}".format(i + 1)
-                + ": "
-                + "{:10.2f}".format(self.freq[i])
-                + " {}".format(self.irrep_degen[i])
-                + " x {}".format(self.irrep_labels[i])
-            )
+        if self.options.symmetry:
+            for i in range(len(self.freq)):
+                print(
+                    "frequency #"
+                    + "{:3d}".format(i + 1)
+                    + ": "
+                    + "{:10.2f}".format(self.freq[i])
+                    + " {}".format(self.irrep_degen[i])
+                    + " x {}".format(self.irrep_labels[i])
+                )
+        else:
+            for i in range(len(self.freq)):
+                print(
+                    "frequency #"
+                    + "{:3d}".format(i + 1)
+                    + ": "
+                    + "{:10.2f}".format(self.freq[i])
+                )
         # Compute and then print the TED.
         print("////////////////////////////////////////////")
         print("//{:^40s}//".format("Total Energy Distribution (TED)"))

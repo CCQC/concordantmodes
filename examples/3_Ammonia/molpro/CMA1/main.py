@@ -11,13 +11,13 @@ options_kwargs = {
     "coords": "Custom",
     "success_regex": r"Variable memory released",
     "success_regex_init": r"Variable memory released",
-    "symmetry" : False,
+    #"symmetry" : False,
     "symmetry" : True,
     "autosalcs" : True,
-    #"calc_init" :False,
-    #"gen_disps_init" :False,
-    #"calc" : False,
-    #"gen_disps": False,
+    "calc_init" :False,
+    "gen_disps_init" :False,
+    "calc" : False,
+    "gen_disps": False,
 }
 options_obj = Options(**options_kwargs)
 

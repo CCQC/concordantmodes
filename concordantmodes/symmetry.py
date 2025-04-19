@@ -8,43 +8,56 @@ import scipy
 
 class Symmetry(object):
     
-    def __init__(self, zmat, options):
+    def __init__(self, zmat, options, proj):
         self.zmat = zmat
         self.options = options
+        self.proj = proj
     
     def dummy_obj(self):
         pass
 
     def run(self):
-        if self.options.autosalcs:
-            try:
-                import molsym
-                from molsym.salcs.internal_coordinates import InternalCoordinates
-                from molsym.salcs.projection_op import ProjectionOp
-            except ImportError:
-                raise ImportError('MolSym library not detected in your environment')
-            zmat_coords = self.zmat.bond_variables + self.zmat.angle_variables + self.zmat.torsion_variables + self.zmat.oop_variables + self.zmat.linx_variables + self.zmat.liny_variables
-            schema = self.make_schema()
-            self.ic_list = []
-            for var in self.zmat.variables:
-                new_coord = self.remove_one(self.zmat.index_dictionary[var])
-                self.ic_list.append(new_coord)
+        try:
+            import molsym
+            from molsym.salcs.internal_coordinates import InternalCoordinates
+            from molsym.salcs.projection_op import ProjectionOp
+        except ImportError:
+            raise ImportError('MolSym library not detected in your environment')
+        zmat_coords = self.zmat.bond_variables + self.zmat.angle_variables + self.zmat.torsion_variables + self.zmat.oop_variables + self.zmat.linx_variables + self.zmat.liny_variables
+        schema = self.make_schema()
+        self.ic_list = []
+        for var in self.zmat.variables:
+            new_coord = self.remove_one(self.zmat.index_dictionary[var])
+            self.ic_list.append(new_coord)
 
 
-            ics = []
-            for i in range(len(self.ic_list)):
-                ics.append([self.ic_list[i], zmat_coords[i]])
-            print(f"The Internal Coordinates for MolSym {ics}")
-            mol = molsym.Molecule.from_schema(schema)
-            self.symtext = molsym.Symtext.from_molecule(mol)
+        ics = []
+        for i in range(len(self.ic_list)):
+            ics.append([self.ic_list[i], zmat_coords[i]])
+        print(f"The Internal Coordinates for MolSym {ics}")
+        mol = molsym.Molecule.from_schema(schema)
+        self.symtext = molsym.Symtext.from_molecule(mol)
+        if not self.options.man_proj:
             ICs = InternalCoordinates(self.symtext, ics)
             self.salcs = ProjectionOp(self.symtext, ICs)
             self.salcs.sort_to("blocks")
             self.nbfxns = len(ics)
 
             self.package_salcs()
+            #print(self.salcs)
+            #print(vars(self.salcs))
+            #print(self.salcs.salc_sets[2])
+            
+            #self.salcs, list_salc_ids = ProjectionOp(self.symtext, ICs, False, self.salcs.salc_sets[2])
         else:
             print("Make your own salcs via manual projection matrix")
+            ICs = InternalCoordinates(self.symtext, ics)
+            self.salcs, list_salc_ids = ProjectionOp(self.symtext, ICs, False, self.proj.T)
+            sym_sort = []
+            for ir, irrep in enumerate(self.symtext.irreps):
+                if irrep.symbol in list_salc_ids:
+                    sym_sort.append([i for i, x in enumerate(list_salc_ids) if x == irrep.symbol])
+            self.sym_sort = sym_sort 
 
     def make_schema(self):
         qc_obj = {
@@ -79,7 +92,7 @@ class Symmetry(object):
                 fxn_list.append([1 for i in range(0, (len(ir_salcs) // self.symtext.irreps[ir].d))])
 
         self.irreplength = []
-        if self.options.exploit_degen:
+        if self.options.exploit_degen and not self.options.partner_functions:
             for s, SET in enumerate(self.salcs.salc_sets):
                 degen = self.symtext.irreps[s].d
                 if SET.shape[0] == 0:
@@ -99,7 +112,6 @@ class Symmetry(object):
         for h, block in enumerate(self.b):
             proj, eigs, _ = LA.svd(block)
             proj[np.abs(proj) < tol] = 0
-            print(f"Symmetric singular value decomposition eigenvalues for irrep {self.symtext.irreps[h].symbol} {eigs}")
             proj_array = np.array(np.where(np.abs(eigs) > tol))
             newproj = proj.T[: len(proj_array[0])]
             newproj = newproj.T

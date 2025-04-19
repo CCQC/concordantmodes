@@ -45,6 +45,7 @@ class Options(object):
         self.only_TSIR = kwargs.pop("only_TSIR", False)
         self.output_init_name = kwargs.pop("output_init_name", "output")
         self.output_name = kwargs.pop("output_name", "output")
+        self.partner_functions = kwargs.pop("partner_functions", True)
         self.pert_off_diag = kwargs.pop("pert_off_diag", False)
         self.printout_rel_e = kwargs.pop("printout_rel_e", True)
         self.program = kwargs.pop("program", "molpro@2010.1.67+mpi")

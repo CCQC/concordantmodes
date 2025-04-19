@@ -5,6 +5,7 @@ from concordantmodes.ted import TED
 from concordantmodes.int2cart import Int2Cart
 from numpy.linalg import inv
 from numpy import linalg as LA
+#np.set_printoptions(threshold=np.inf, precision=4)
 
 
 class SVectors(object):

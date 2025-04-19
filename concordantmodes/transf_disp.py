@@ -195,6 +195,7 @@ class TransfDisp(object):
                                 self.p_disp = p_disp
                                 self.m_disp = m_disp
                     else:
+                        print("Molsym is being used, but generate all +/- displacements of non TSIR.")
                         for index in self.indices:
                             i, j = index[0], index[1]
                             disp[i] = self.disp[i]

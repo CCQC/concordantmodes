@@ -1,9 +1,3 @@
-The zmat_name is zmat
-/home/vulcan/nlk36701/github/concordantmodes/examples/3_Ammonia/molpro/CMA1
-The output is ['ZMAT begin\n', '1 2\n', '1 3\n', '1 4\n', '2 1 3\n', '3 1 4\n', '4 1 2\n', '2 1 3 4 O\n', '3 1 4 2 O\n', '4 1 2 3 O\n', 'ZMAT end\n', '\n', 'cart begin\n', 'N       0.00000000     0.00000000     0.13335323\n', 'H       0.88154765    -1.52688532    -0.61761883\n', 'H       0.88154765     1.52688532    -0.61761883\n', 'H      -1.76309531     0.00000000    -0.61761883\n', 'cart end \n', '\n']
-[12, 17]
-The bond indices are [('1', '2'), ('1', '3'), ('1', '4')]
-the angle indices are [('2', '1', '3'), ('3', '1', '4'), ('4', '1', '2')]
 Initial Geometric Internal Coordinate Values:
 ('1', '2') R1 = 1.916367416377316
 ('1', '3') R2 = 1.916367416377316
@@ -35,116 +29,8 @@ O1 = 0.0
 O2 = 0.0
 O3 = 0.0
 The Internal Coordinates for MolSym [[[0, 1], 'R1'], [[0, 2], 'R2'], [[0, 3], 'R3'], [[1, 0, 2], 'A1'], [[2, 0, 3], 'A2'], [[3, 0, 1], 'A3'], [[1, 0, 2, 3], 'O1'], [[2, 0, 3, 1], 'O2'], [[3, 0, 1, 2], 'O3']]
-the ic [0, 1]
-the ic [0, 1]
-the ic [0, 1]
-the ic [0, 1]
-the ic [0, 1]
-the ic [0, 1]
-the ic [0, 2]
-the ic [0, 2]
-the ic [0, 2]
-the ic [0, 2]
-the ic [0, 2]
-the ic [0, 2]
-the ic [0, 3]
-the ic [0, 3]
-the ic [0, 3]
-the ic [0, 3]
-the ic [0, 3]
-the ic [0, 3]
-the ic [1, 0, 2]
-this be and angle
-mapped on
-the ic [1, 0, 2]
-this be and angle
-mapped on
-the ic [1, 0, 2]
-this be and angle
-mapped on
-the ic [1, 0, 2]
-this be and angle
-reversed
-the ic [1, 0, 2]
-this be and angle
-reversed
-the ic [1, 0, 2]
-this be and angle
-reversed
-the ic [2, 0, 3]
-this be and angle
-mapped on
-the ic [2, 0, 3]
-this be and angle
-mapped on
-the ic [2, 0, 3]
-this be and angle
-mapped on
-the ic [2, 0, 3]
-this be and angle
-reversed
-the ic [2, 0, 3]
-this be and angle
-reversed
-the ic [2, 0, 3]
-this be and angle
-reversed
-the ic [3, 0, 1]
-this be and angle
-mapped on
-the ic [3, 0, 1]
-this be and angle
-mapped on
-the ic [3, 0, 1]
-this be and angle
-mapped on
-the ic [3, 0, 1]
-this be and angle
-reversed
-the ic [3, 0, 1]
-this be and angle
-reversed
-the ic [3, 0, 1]
-this be and angle
-reversed
-the ic [1, 0, 2, 3]
-the ic [1, 0, 2, 3]
-the ic [1, 0, 2, 3]
--1.0
-the ic [1, 0, 2, 3]
--1.0
-the ic [1, 0, 2, 3]
--1.0
-the ic [1, 0, 2, 3]
-the ic [2, 0, 3, 1]
-the ic [2, 0, 3, 1]
-the ic [2, 0, 3, 1]
--1.0
-the ic [2, 0, 3, 1]
--1.0
-the ic [2, 0, 3, 1]
--1.0
-the ic [2, 0, 3, 1]
-the ic [3, 0, 1, 2]
-the ic [3, 0, 1, 2]
-the ic [3, 0, 1, 2]
--1.0
-the ic [3, 0, 1, 2]
--1.0
-the ic [3, 0, 1, 2]
--1.0
-the ic [3, 0, 1, 2]
 proj singular values:
 [2.649 1.733 1.733 1.033 0.951 0.951 0.    0.    0.   ]
-[[-0.4600097259  0.7967602178  0.3918726929  0.4600097259 -0.7967602178 -0.3918726929  0.            0.           -0.           -0.            0.           -0.          ]
- [-0.4600097259 -0.7967602178  0.3918726929  0.           -0.           -0.            0.4600097259  0.7967602178 -0.3918726929 -0.            0.           -0.          ]
- [ 0.920019453   0.            0.3918726911  0.           -0.           -0.            0.            0.           -0.           -0.920019453  -0.           -0.3918726911]
- [ 0.6329894201  0.           -0.5392304872 -0.3164947101 -0.3153338869  0.2696152436 -0.3164947101  0.3153338869  0.2696152436 -0.            0.           -0.          ]
- [-0.3164947115  0.5481849168 -0.5392304851  0.           -0.           -0.            0.4313345121 -0.116425516   0.2696152428 -0.1148398006 -0.4317594008  0.2696152423]
- [-0.3164947115 -0.5481849168 -0.5392304851  0.4313345121  0.116425516   0.2696152428  0.            0.           -0.           -0.1148398006  0.4317594008  0.2696152423]
- [ 0.1777430633 -0.3078600195 -1.1374240926  0.1022436231 -0.1770911483  0.480085105  -0.1399933434  0.2424755843  0.3286694944 -0.139993343   0.2424755835  0.3286694932]
- [ 0.1777430633  0.3078600195 -1.1374240926 -0.1399933434 -0.2424755843  0.3286694944  0.1022436231  0.1770911483  0.480085105  -0.139993343  -0.2424755835  0.3286694932]
- [-0.3554861333 -0.           -1.1374240912  0.2799866881  0.            0.328669494   0.2799866881  0.            0.328669494  -0.2044872429  0.            0.4800851032]]
 Project out redundent coordinates to make the nonredundant set
 Symmetric singular value decomposition eigenvalues for irrep A_1 [2.64942203 1.03282891 0.        ]
 Symmetric singular value decomposition eigenvalues for irrep A_2 []
@@ -178,13 +64,218 @@ Normal Coordinate #1   : -1.20799
 Normal Coordinate #2   :  3.11326
 Normal Coordinate #3   : -0.00000
 Normal Coordinate #4   :  0.00000
-The indices [[0, 0], [0, 1], [1, 1], [2, 2], [2, 3], [3, 3]]
-<class 'list'>
-Traceback (most recent call last):
-  File "/home/vulcan/nlk36701/github/concordantmodes/examples/3_Ammonia/molpro/CMA1/main.py", line 28, in <module>
-    CMA_obj.run()
-  File "/home/vulcan/nlk36701/github/concordantmodes/concordantmodes/cma.py", line 170, in run
-    init_disp.run()
-  File "/home/vulcan/nlk36701/github/concordantmodes/concordantmodes/transf_disp.py", line 129, in run
-    print(stop)
-NameError: name 'stop' is not defined
+If something looks wrong with the final frequencies, check these energies!
+(Job number 1 == Reference energy) :D
+/home/vulcan/nlk36701/github/concordantmodes/examples/3_Ammonia/molpro/CMA1/DispsInit
+Success regex re.compile('Variable memory released')
+If something looks wrong with the final frequencies, check these energies!
+(Job number 1 == Reference energy) :D
+/home/vulcan/nlk36701/github/concordantmodes/examples/3_Ammonia/molpro/CMA1/DispsInit
+Reference energy: -56.402290463397
+p_en
+-56.402224960445
+Relative plus     2   0    0:  0.000065503
+m_en
+-56.402352053321
+Relative minus    3   0    0: -0.000061590
+p_en
+-56.402356189365
+Relative plus     4   0    1: -0.000065726
+m_en
+-56.402192911334
+Relative minus    5   0    1:  0.000097552
+p_en
+-56.402412847908
+Relative plus     6   1    1: -0.000122385
+m_en
+-56.402122334225
+Relative minus    7   1    1:  0.000168129
+p_en
+-56.402273470286
+Relative plus     8   2    2:  0.000016993
+m_en
+-56.402273600798
+Relative minus    9   2    2:  0.000016863
+p_en
+-56.402278016422
+Relative plus    10   2    3:  0.000012447
+m_en
+-56.402278164039
+Relative minus   11   2    3:  0.000012299
+p_en
+-56.402277045667
+Relative plus    12   3    3:  0.000013418
+m_en
+-56.402277041215
+Relative minus   13   3    3:  0.000013422
+Relative energies plus-displacements on the diagonal and plus/plus-displacements on the off-diagonal elements
+[[ 0. -0.  0.  0.]
+ [ 0. -0.  0.  0.]
+ [ 0.  0.  0.  0.]
+ [ 0.  0.  0.  0.]]
+Relative energies minus-displacements on the diagonal and minus/minus-displacements on the off-diagonal elements
+[[-0.  0.  0.  0.]
+ [ 0.  0.  0.  0.]
+ [ 0.  0.  0.  0.]
+ [ 0.  0.  0.  0.]]
+Computed Force Constants:
+[[ 0.04 -0.09  0.    0.  ]
+ [-0.09  0.46  0.    0.  ]
+ [ 0.    0.    0.34 -0.18]
+ [ 0.    0.   -0.18  0.27]]
+Initial Frequencies:
+The irrep_labels ['A_1', 'A_1', 'E', 'E']
+The irrep_degn [1, 1, 2, 2]
+/home/vulcan/nlk36701/github/concordantmodes/concordantmodes/gf_method.py:61: ComplexWarning: Casting complex values to real discards the imaginary part
+  self.freq = self.freq.astype(float)
+frequency #  1:    1103.76
+frequency #  2:    3575.03
+frequency #  3:    1691.05
+frequency #  4:    3720.09
+////////////////////////////////////////////
+//    Total Energy Distribution (TED)     //
+////////////////////////////////////////////
+The eigenvectors (check these for phase):
+[[-0.03 -0.01  0.   -0.  ]
+ [-0.01  0.02  0.   -0.  ]
+ [ 0.    0.   -0.01 -0.02]
+ [ 0.   -0.   -0.02  0.01]]
+             frequency #:        1       2       3       4
+----------------------------------------------------------
+Point Group C3v                A_1     A_1   2 x E   2 x E
+               frequency:   1103.8  3575.0  1691.0  3720.1
+----------------------------------------------------------
+               Mode #  1      95.2     4.8    -0.0    -0.0
+               Mode #  2       4.8    95.2    -0.0    -0.0
+               Mode #  3      -0.0     0.0    34.6    65.4
+               Mode #  4      -0.0    -0.0    65.4    34.6
+
+TED Frequencies:
+The irrep_labels ['A_1', 'A_1', 'E', 'E']
+The irrep_degn [1, 1, 2, 2]
+frequency #  1:    1103.76
+frequency #  2:    3575.03
+frequency #  3:    1691.05
+frequency #  4:    3720.09
+////////////////////////////////////////////
+//    Total Energy Distribution (TED)     //
+////////////////////////////////////////////
+The eigenvectors (check these for phase):
+[[1. 0. 0. 0.]
+ [0. 1. 0. 0.]
+ [0. 0. 1. 0.]
+ [0. 0. 0. 1.]]
+             frequency #:        1       2       3       4
+----------------------------------------------------------
+Point Group C3v                A_1     A_1   2 x E   2 x E
+               frequency:   1103.8  3575.0  1691.0  3720.1
+----------------------------------------------------------
+               Mode #  1     100.0     0.0     0.0     0.0
+               Mode #  2       0.0   100.0     0.0     0.0
+               Mode #  3       0.0     0.0   100.0     0.0
+               Mode #  4       0.0     0.0     0.0   100.0
+
+proj singular values:
+[2.65 1.73 1.73 1.03 0.95 0.95 0.   0.   0.  ]
+Normal Coordinate Values:
+Normal Coordinate #1   :  0.43025
+Normal Coordinate #2   :  3.29299
+Normal Coordinate #3   : -0.00000
+Normal Coordinate #4   :  0.00000
+If something looks wrong with the final frequencies, check these energies!
+(Job number 1 == Reference energy) :D
+/home/vulcan/nlk36701/github/concordantmodes/examples/3_Ammonia/molpro/CMA1/Disps
+Success regex re.compile('Variable memory released')
+If something looks wrong with the final frequencies, check these energies!
+(Job number 1 == Reference energy) :D
+/home/vulcan/nlk36701/github/concordantmodes/examples/3_Ammonia/molpro/CMA1/Disps
+Reference energy: -56.473197239087
+p_en
+-56.473196173552
+m_en
+-56.473196187561
+p_en
+-56.473174955016
+m_en
+-56.47317466626
+p_en
+-56.473191230683
+m_en
+-56.473191174216
+p_en
+-56.473174628324
+m_en
+-56.473174417516
+Relative energies plus-displacements on the diagonal and plus/plus-displacements on the off-diagonal elements
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+Relative energies minus-displacements on the diagonal and minus/minus-displacements on the off-diagonal elements
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+Computed Force Constants:
+[[0.02 0.   0.   0.  ]
+ [0.   0.45 0.   0.  ]
+ [0.   0.   0.12 0.  ]
+ [0.   0.   0.   0.45]]
+Final Harmonic Frequencies:
+The irrep_labels ['A_1', 'A_1', 'E', 'E']
+The irrep_degn [1, 1, 2, 2]
+frequency #  1:    1109.52
+frequency #  2:    3471.86
+frequency #  3:    1688.02
+frequency #  4:    3597.59
+////////////////////////////////////////////
+//    Total Energy Distribution (TED)     //
+////////////////////////////////////////////
+The eigenvectors (check these for phase):
+[[ 0.03  0.    0.    0.  ]
+ [ 0.    0.02 -0.   -0.  ]
+ [-0.    0.   -0.02  0.  ]
+ [ 0.   -0.    0.    0.02]]
+             frequency #:        1       2       3       4
+----------------------------------------------------------
+Point Group C3v                A_1     A_1   2 x E   2 x E
+               frequency:   1109.5  3471.9  1688.0  3597.6
+----------------------------------------------------------
+               Mode #  1     100.0    -0.0    -0.0    -0.0
+               Mode #  2      -0.0   100.0    -0.0    -0.0
+               Mode #  3      -0.0    -0.0   100.0    -0.0
+               Mode #  4      -0.0    -0.0    -0.0   100.0
+
+////////////////////////////////////////////
+//                Final TED               //
+////////////////////////////////////////////
+The eigenvectors (check these for phase):
+[[ 0.  0.  0. -0.]
+ [ 0.  0.  0. -0.]
+ [ 0.  0. -0.  0.]
+ [-0.  0. -0.  0.]
+ [-0.  0.  0. -0.]
+ [-0.  0.  0. -0.]
+ [-0.  0. -0.  0.]
+ [-0.  0. -0.  0.]
+ [-0.  0.  0. -0.]]
+             frequency #:        1       2       3       4
+----------------------------------------------------------
+Point Group C3v                A_1     A_1   2 x E   2 x E
+               frequency:   1109.5  3471.9  1688.0  3597.6
+----------------------------------------------------------
+               B1   STRE:      0.0    33.3    -0.0    16.7
+               B2   STRE:      0.0    33.3    -0.0    16.7
+               B3   STRE:      0.0    33.3    -0.1    66.8
+               A1   BEND:      6.1     0.0    50.7    -0.1
+               A2   BEND:      6.1     0.0    12.7    -0.0
+               A3   BEND:      6.1     0.0    12.7    -0.0
+               O1    OOP:     27.2     0.0     4.0    -0.0
+               O2    OOP:     27.2     0.0     4.0    -0.0
+               O3    OOP:     27.2     0.0    16.0    -0.0
+
+Final Harmonic ZPVE in: 4933.49 (cm^-1)  14.11 (kcal mol^-1)   0.02 (hartrees) 
+print_const has run
+Frequency Shift (cm^-1): 
+[   5.76 -103.17   -3.03 -122.5 ]
+This program took 0.41256237030029297 seconds to run.

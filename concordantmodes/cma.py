@@ -63,7 +63,7 @@ class ConcordantModes(object):
             raise RuntimeError
         
         #Do we want to use symmetry? Default is False
-        self.symm_obj = Symmetry(self.zmat_obj, self.options)
+        self.symm_obj = Symmetry(self.zmat_obj, self.options, self.proj)
         if self.options.symmetry:
             self.symm_obj.run()
         else:
