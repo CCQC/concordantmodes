@@ -32,7 +32,7 @@ class GFMethod(object):
         # Symmetrize F, diagonalize, then backtransform the eigenvectors.
         self.F_O = np.dot(np.dot(self.G_O, self.F), self.G_O)
    
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             #allows the block diagonalization of the GF matrix so normal modes stay
             #in the assumed ordering for the level A displacements (Within their symmetry blocks)
             self.block_GF()
@@ -62,7 +62,7 @@ class GFMethod(object):
 
         # Convert from Hartrees to wavenumbers.
         self.freq *= self.HARTREE_WAVENUM
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             for i in range(len(self.freq)):
                 print(
                     "frequency #"
@@ -84,7 +84,7 @@ class GFMethod(object):
         print("////////////////////////////////////////////")
         print("//{:^40s}//".format("Total Energy Distribution (TED)"))
         print("////////////////////////////////////////////")
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             self.ted.run(self.L, self.freq, self.symtext, rect_print=False)
         else:
             self.ted.run(self.L, self.freq, self.symtext, rect_print=False)

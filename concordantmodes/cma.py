@@ -48,7 +48,7 @@ class ConcordantModes(object):
         self.proj = proj
         self.extra_indices = extra_indices
 
-    def run(self):
+    def run(self, sym_sort = []):
         t1 = time.time()
 
         rootdir = os.getcwd()
@@ -62,9 +62,9 @@ class ConcordantModes(object):
         if self.options.geom_check:
             raise RuntimeError
         
-        #Do we want to use symmetry? Default is False
+        #Do we want to use molsym_symmetry or "manual" symmetry via sym_sort?
         self.symm_obj = Symmetry(self.zmat_obj, self.options, self.proj)
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             self.symm_obj.run()
         else:
             """
@@ -72,7 +72,10 @@ class ConcordantModes(object):
             #TODO: This is a hacky way to do this, but it's a quick fix for now. Maybe reincorporate symmetry as a s_vector obj?
             """
             self.symm_obj.dummy_obj()
-            self.symm_obj.symtext = None 
+            self.symm_obj.symtext = None
+            #check if sym_sort object was passed in. If so, intialize sym_sort objects 
+            if len(sym_sort) > 1:
+                self.symm_obj.create_flat_sym_sort(sym_sort)
 
         # Compute the initial s-vectors
         s_vec = SVectors(
@@ -96,7 +99,7 @@ class ConcordantModes(object):
                 True,
                 second_order=self.options.second_order,
             )
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             self.symm_obj.make_proj(s_vec)
             s_vec.proj = copy.deepcopy(self.symm_obj.salc_proj)
         
@@ -141,10 +144,13 @@ class ConcordantModes(object):
                 #indices = np.triu_indices(len(eigs_init))
                 #indices = np.array(indices).T
                 num_deg_free = s_vec.proj.shape[1]
-                if not self.options.symmetry:
+                if not self.options.molsym_symmetry:
                     algo = Algorithm(num_deg_free, cma_level, self.options, None)
                     algo.run()
                     #indices = algo.indices
+                    print("symmetric displacements:")
+                    if len(sym_sort) > 1:
+                        indices = self.symm_obj.create_sym_sort_disps(sym_sort, algo.indices)
                 else:
                     algo = Algorithm(num_deg_free, cma_level, self.options, self.symm_obj.proj_irreps)
                     algo.run()
@@ -339,6 +345,9 @@ class ConcordantModes(object):
         g_mat.G[np.abs(g_mat.G) < self.options.tol] = 0
         # print(F)
         # print(g_mat.G / (5.48579909065 * (10 ** (-4))))
+        
+        if len(sym_sort) > 1:
+            F, g_mat.G = self.symm_obj.GF_sym_sort(F, g_mat, sym_sort)
 
         # Run the GF matrix method with the internal F-Matrix and computed G-Matrix!
         print("Initial Frequencies:")
@@ -354,6 +363,36 @@ class ConcordantModes(object):
             cma="init",
         )
         init_GF.run()
+        ted_b = init_GF.ted.TED
+        #more sym_sort stuff
+        if len(sym_sort):
+            self.irreps_init,flat_sym_freqs = self.symm_obj.mode_symmetry_sort(init_GF.ted.TED,sym_sort,init_GF.freq)
+            self.ref_init = np.array(flat_sym_freqs)
+            #### this block could probably be moved inside the symmetry.py module? 
+            flat_sym_modes_b = [
+                x
+                for xs in self.irreps_init
+                for x in xs
+            ]
+            print(flat_sym_modes_b)
+            del_list = []
+            for i in range(len(self.irreps_init)):
+                if len(self.irreps_init[i]) == 1:
+                    del_list.append(self.irreps_init[i][0])
+            # del_list.reverse()
+            if len(del_list):
+                print(del_list)
+            del_list2 = []
+            for i in del_list:
+                print(i)
+                print(np.where(np.array(flat_sym_modes_b)==i)[0][0])
+                del_list2.append(np.where(np.array(flat_sym_modes_b)==i)[0][0])
+            flat_sym_modes_b = np.delete(np.array(flat_sym_modes_b),del_list2)
+            ted_b = ted_b.T
+            ted_b = ted_b[flat_sym_modes_b]
+            ted_b = ted_b.T
+            #### end of block that could probably be moved inside the symmetry.py module? 
+
 
         # Now for the TED check.
         self.G = np.dot(np.dot(LA.inv(init_GF.L), g_mat.G), LA.inv(init_GF.L).T)
@@ -385,7 +424,7 @@ class ConcordantModes(object):
 
         #Now switch state to cma_level = "A"
         cma_level = "A"
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             algo = Algorithm(num_deg_free, cma_level, self.options, self.symm_obj.proj_irreps)
         else:
             algo = Algorithm(num_deg_free, cma_level, self.options, None)
@@ -395,7 +434,7 @@ class ConcordantModes(object):
         # algo.options.off_diag = True
 
         algo.run()
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             self.symm_obj.indices_by_irrep = algo.indices_by_irrep
         if len(self.extra_indices):
             algo.indices = np.append(algo.indices, self.extra_indices, axis=0)
