@@ -49,7 +49,11 @@ class Symmetry(object):
         self.CDsalcs = ProjectionOp(self.symtext, cart_coords, project_Eckart=False)
         self.CDsalcs.sort_to('blocks')
 
-    def molsym_salcs_ic(self):    
+    def molsym_salcs_ic(self):
+        print("""
+              Warning: A bug in MolSym has rendered the following code faulty if any
+              type of linear coordinate is used. See https://github.com/NASymmetry/MolSym/issues/47
+              """) 
         zmat_coords = self.zmat.bond_variables + self.zmat.angle_variables + self.zmat.torsion_variables + self.zmat.oop_variables + self.zmat.linx_variables + self.zmat.liny_variables
         self.ic_list = []
         for var in self.zmat.variables:
@@ -70,7 +74,11 @@ class Symmetry(object):
             self.package_salcs()
             
         else:
-            print("Make your own salcs via manual projection matrix")
+            """
+		Make your own salcs via manual projection matrix, which is passed into
+                the CMA code as "proj." The code below will pass it into MolSym's projection
+                operator and it will return a sym_sort for it.
+	    """
             ICs = InternalCoordinates(self.symtext, ics)
             self.salcs, list_salc_ids = ProjectionOp(self.symtext, ICs, False, self.proj.T)
             sym_sort = []

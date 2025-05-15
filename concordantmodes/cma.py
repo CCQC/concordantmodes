@@ -379,14 +379,6 @@ class ConcordantModes(object):
             for i in range(len(self.irreps_init)):
                 if len(self.irreps_init[i]) == 1:
                     del_list.append(self.irreps_init[i][0])
-            # del_list.reverse()
-            if len(del_list):
-                print(del_list)
-            del_list2 = []
-            for i in del_list:
-                print(i)
-                print(np.where(np.array(flat_sym_modes_b)==i)[0][0])
-                del_list2.append(np.where(np.array(flat_sym_modes_b)==i)[0][0])
             flat_sym_modes_b = np.delete(np.array(flat_sym_modes_b),del_list2)
             ted_b = ted_b.T
             ted_b = ted_b[flat_sym_modes_b]
