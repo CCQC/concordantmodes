@@ -18,7 +18,7 @@ class Algorithm(object):
         self.proj_irreps = proj_irreps
 
     def run(self):
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             if self.cma_level == "A" or self.options.deriv_level_init:
                 self.loop_symmetry_diagonal()
             else:

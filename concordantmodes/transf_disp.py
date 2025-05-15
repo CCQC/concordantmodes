@@ -4,9 +4,10 @@ from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
 from . import masses
 from concordantmodes.s_vectors import SVectors as s_vec
-
+np.set_printoptions(precision=8, linewidth=240)
 
 class TransfDisp(object):
+    np.set_printoptions(precision=8, linewidth=240)
     """
     The purpose of this script is to perform an iterative transformation
     between internal coordinate displacements and cartesian displacements,
@@ -68,6 +69,7 @@ class TransfDisp(object):
         self.anharm = anharm
 
     def run(self, fc=np.array([])):
+        np.set_printoptions(precision=8, linewidth=240)
         # self.B = self.s_vectors.B.copy()  # (redundant internals (s) x cartesians (3N))
         # Invert the L-matrix and then normalize the rows.
         proj_tol = 1.0e-3
@@ -195,6 +197,7 @@ class TransfDisp(object):
                                 self.p_disp = p_disp
                                 self.m_disp = m_disp
                     else:
+                        print("Molsym is being used, but generate all +/- displacements of non TSIR.")
                         for index in self.indices:
                             i, j = index[0], index[1]
                             disp[i] = self.disp[i]
@@ -545,8 +548,6 @@ class TransfDisp(object):
             if self.deriv_level == 1:
                 p_disp = np.zeros(len(self.ref_carts.flatten()), dtype=object)
                 m_disp = np.zeros(len(self.ref_carts.flatten()), dtype=object)
-                # print("THIS IS THE DISP SIZE")
-                # print(self.disp)
                 for i in range(len(self.ref_carts.flatten())):
                     p_disp[i] = self.ref_carts.flatten().copy()
                     m_disp[i] = self.ref_carts.flatten().copy()
@@ -558,31 +559,97 @@ class TransfDisp(object):
                 self.p_disp = p_disp
                 self.m_disp = m_disp
             elif not self.deriv_level:
-                p_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
-                m_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
-                # print("THIS IS THE DISP SIZE")
-                # print(self.disp)
-                for index in self.indices:
-                    i, j = index[0], index[1]
-                    if i == j:
-                        p_disp[i,i] = self.ref_carts.flatten().copy()
-                        m_disp[i,i] = self.ref_carts.flatten().copy()
-                        p_disp[i,i][i] += self.disp
-                        m_disp[i,i][i] -= self.disp
-                        p_disp[i,i] = np.reshape(p_disp[i,i], (-1, 3))
-                        m_disp[i,i] = np.reshape(m_disp[i,i], (-1, 3))
-                    else:
-                        p_disp[i,j] = self.ref_carts.flatten().copy()
-                        m_disp[i,j] = self.ref_carts.flatten().copy()
-                        p_disp[i,j][i] += self.disp
-                        p_disp[i,j][j] += self.disp
-                        m_disp[i,j][i] -= self.disp
-                        m_disp[i,j][j] -= self.disp
-                        p_disp[i,j] = np.reshape(p_disp[i,j], (-1, 3))
-                        m_disp[i,j] = np.reshape(m_disp[i,j], (-1, 3))
+                if self.options.molsym_symmetry:
+                    print("The ref geom")
+                    print(self.ref_carts)
+                    print(self.symm_obj.symtext.mol.coords)
+                    p_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
+                    m_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
+                    print(f"p disp {p_disp}")
+                    n_irrep = len(self.symm_obj.symtext.irreps)
+                    #salc_indices_pi = [[] for h in range(n_irrep)]
+                    salc_indices_pi = self.symm_obj.CDsalcs.salcs_by_irrep
+                    print("salc indices pi")
+                    print(salc_indices_pi)
+                    new_indices = []
+                    #for h in range(len(salc_indices_pi)):
+                    #for i in salc_indices_pi[h]:
+                    #    for j in salc_indices_pi[h]:
+                    for i in range(len(self.symm_obj.CDsalcs)):
+                        for j in range(len(self.symm_obj.CDsalcs)):
+                            print(f"i j pair {i,j}")
+                            pair = [i,j]
+                            disp_geom = self.displace_geom(pair)
+                            print("the disp geom")
+                            print(disp_geom)
+                            if i == j:
+                                #p_disp[i,i][i] += self.disp
+                                #m_disp[i,i][i] -= self.disp
+                                p_disp[i,i] += disp_geom
+                                m_disp[i,i] -= disp_geom
+                            else:
+                                #p_disp[i,j][i] += self.disp
+                                #p_disp[i,j][j] += self.disp
+                                #m_disp[i,j][i] -= self.disp
+                                #m_disp[i,j][j] -= self.disp
+                                p_disp[i,j] += disp_geom
+                                m_disp[i,j] -= disp_geom
+                    #print(stop)
+                    
+                    #for i in range(len(self.symm_obj.CDsalcs)):
+                    #    for j in range(len(self.symm_obj.CDsalcs)):
+                    #        if i <= j:
+                    #            salc_i = self.symm_obj.CDsalcs[i]
+                    #            salc_j = self.symm_obj.CDsalcs[j]
+                    #            print(f"the salc {i, j}")
+                    #            print(f"The disp {self.disp}")
+                    #            new_indices.append([i,j])
+                    #            #self.append_geoms(salc_i, salc_j)
+                    #            disp_geom = np.copy(self.symm_obj.symtext.mol.coords)
+                    #            for atom_idx in range(self.symm_obj.symtext.mol.natoms):
+                    #                for xyz_idx in range(3):
+                    #                    disp_geom[atom_idx, xyz_idx] += self.disp * salc_i.coeffs[atom_idx * 3 + xyz_idx] #/ np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
+                    #                    disp_geom[atom_idx, xyz_idx] += self.disp * salc_j.coeffs[atom_idx * 3 + xyz_idx] #/ np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
+                    #            print(f"The disp_geom {disp_geom}")
+                    #            if i == j:
+                    #                #p_disp[i,i][i] += self.disp
+                    #                #m_disp[i,i][i] -= self.disp
+                    #                p_disp[i,i] += disp_geom
+                    #                m_disp[i,i] -= disp_geom
+                    #            else:
+                    #                #p_disp[i,j][i] += self.disp
+                    #                #p_disp[i,j][j] += self.disp
+                    #                #m_disp[i,j][i] -= self.disp
+                    #                #m_disp[i,j][j] -= self.disp
+                    #                p_disp[i,j] += disp_geom
+                    #                m_disp[i,j] -= disp_geom
+                    self.p_disp = p_disp
+                    self.m_disp = m_disp
+                else:
+                    p_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
+                    m_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
+                    for index in self.indices:
+                        i, j = index[0], index[1]
+                        if i == j:
+                            p_disp[i,i] = self.ref_carts.flatten().copy()
+                            m_disp[i,i] = self.ref_carts.flatten().copy()
+                            p_disp[i,i][i] += self.disp
+                            m_disp[i,i][i] -= self.disp
+                            p_disp[i,i] = np.reshape(p_disp[i,i], (-1, 3))
+                            m_disp[i,i] = np.reshape(m_disp[i,i], (-1, 3))
+                        else:
+                            p_disp[i,j] = self.ref_carts.flatten().copy()
+                            m_disp[i,j] = self.ref_carts.flatten().copy()
+                            p_disp[i,j][i] += self.disp
+                            p_disp[i,j][j] += self.disp
+                            m_disp[i,j][i] -= self.disp
+                            m_disp[i,j][j] -= self.disp
+                            p_disp[i,j] = np.reshape(p_disp[i,j], (-1, 3))
+                            m_disp[i,j] = np.reshape(m_disp[i,j], (-1, 3))
 
-                self.p_disp = p_disp
-                self.m_disp = m_disp
+                    self.p_disp = p_disp
+                    self.m_disp = m_disp
+                    #print(self.p_disp)
 
         else:
             print(
@@ -599,7 +666,16 @@ class TransfDisp(object):
             self.eig_inv[i][
                 np.abs(self.eig_inv[i]) < np.max(np.abs(self.eig_inv[i])) * proj_tol
             ] = 0
-
+    def displace_geom(self,pair):
+        print("inside displace geom")
+        print(f"The pair {pair}")
+        disp_geom = np.copy(self.symm_obj.symtext.mol.coords)
+        for s_index in pair:
+            print(f"The s index {s_index}")
+            for atom_idx in range(self.symm_obj.symtext.mol.natoms):
+                for xyz_idx in range(3):
+                    disp_geom[atom_idx, xyz_idx] += self.disp * self.symm_obj.CDsalcs.salcs[s_index].coeffs[atom_idx * 3 + xyz_idx] #/ np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
+        return disp_geom
 
     def int_c(self, carts, eig_inv, proj):
         # This is a function that computes all currently implemented and

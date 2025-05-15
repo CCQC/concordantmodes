@@ -61,19 +61,21 @@ class TED(object):
         for l in range(n):
             table_output += "--------"
         table_output += "\n"
+        irrep_labels = []
         if self.symtext is not None:
             table_output += "Point Group " + str(self.symtext.pg) + "           "
             for ir, h in enumerate(self.symtext.salcblocks):
                 for s in range(h.shape[0]):
-                    if self.symtext.irreps[ir].d == 1: 
-                        table_output += "{:>8}".format(str(self.symtext.irreps[ir].symbol))
-                    else:
-                        dim = self.symtext.irreps[ir].d 
-                        table_output += "{:>8}".format(str(dim) + " x " + str(self.symtext.irreps[ir].symbol))
+                    irrep_labels.append(str(self.symtext.irreps[ir].symbol))
             table_output += "\n"
         table_output += "{:>26s}".format("frequency: ")
         for l in range(n):
             table_output += " " + "{:7.1f}".format(freq[l])
+        table_output += "\n"
+        if self.symtext is not None:
+            table_output += "{:>26s}".format("Irreps: ")
+            for l in range(n):
+                table_output += " " + "{:>7}".format(irrep_labels[l])
         table_output += "\n"
         table_output += "--------------------------"
         for l in range(n):

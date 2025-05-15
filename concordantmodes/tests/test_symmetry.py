@@ -50,7 +50,7 @@ def test_symmetry():
         for t, test in enumerate(test_subjects):
             options = Options()
             options.cart_insert = 9
-            options.symmetry = True
+            options.molsym_symmetry = True
             options.coords = coord
             options.second_order = False
             zmat = Zmat(options)

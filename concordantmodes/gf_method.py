@@ -32,7 +32,7 @@ class GFMethod(object):
         # Symmetrize F, diagonalize, then backtransform the eigenvectors.
         self.F_O = np.dot(np.dot(self.G_O, self.F), self.G_O)
    
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             #allows the block diagonalization of the GF matrix so normal modes stay
             #in the assumed ordering for the level A displacements (Within their symmetry blocks)
             self.block_GF()
@@ -62,18 +62,29 @@ class GFMethod(object):
 
         # Convert from Hartrees to wavenumbers.
         self.freq *= self.HARTREE_WAVENUM
-        for i in range(len(self.freq)):
-            print(
-                "frequency #"
-                + "{:3d}".format(i + 1)
-                + ": "
-                + "{:10.2f}".format(self.freq[i])
-            )
+        if self.options.molsym_symmetry:
+            for i in range(len(self.freq)):
+                print(
+                    "frequency #"
+                    + "{:3d}".format(i + 1)
+                    + ": "
+                    + "{:10.2f}".format(self.freq[i])
+                    + " {}".format(self.irrep_degen[i])
+                    + " x {}".format(self.irrep_labels[i])
+                )
+        else:
+            for i in range(len(self.freq)):
+                print(
+                    "frequency #"
+                    + "{:3d}".format(i + 1)
+                    + ": "
+                    + "{:10.2f}".format(self.freq[i])
+                )
         # Compute and then print the TED.
         print("////////////////////////////////////////////")
         print("//{:^40s}//".format("Total Energy Distribution (TED)"))
         print("////////////////////////////////////////////")
-        if self.options.symmetry:
+        if self.options.molsym_symmetry:
             self.ted.run(self.L, self.freq, self.symtext, rect_print=False)
         else:
             self.ted.run(self.L, self.freq, self.symtext, rect_print=False)
@@ -83,6 +94,8 @@ class GFMethod(object):
         self.eigvals, self.eigvecs = [], []
         offset_h = 0
         self.block_fo = []
+        self.irrep_labels = []
+        self.irrep_degen = []
         for hi, h in enumerate(self.symtext.salcblocks):
             
             #Extract the block from the supermatrix
@@ -91,6 +104,9 @@ class GFMethod(object):
             eig_v_h, L_p_h = LA.eigh(fo)
             self.eigvals.append(eig_v_h)
             self.eigvecs.append(L_p_h)
+            for i in range(len(eig_v_h)):
+                self.irrep_labels.append(self.symtext.irreps[hi].symbol)
+                self.irrep_degen.append(self.symtext.irreps[hi].d)
 
             # UPDATE OFFSET
             offset_h += h.shape[0]
