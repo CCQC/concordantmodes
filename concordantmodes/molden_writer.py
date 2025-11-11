@@ -53,6 +53,7 @@ class MoldenWriter(object):
         normal_modes = ""
         for i in range(len(self.disps.p_disp)):
             normal_modes += "  vibration{:>23}\n".format(str(i + 1))
+            # disp = self.disps.p_disp[i] - self.zmat.cartesians_final
             disp = self.disps.p_disp[i, i] - self.zmat.cartesians_final
             disp *= 30
             for j in range(len(disp)):

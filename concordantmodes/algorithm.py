@@ -11,7 +11,7 @@ class Algorithm(object):
     exploited.
     """
 
-    def __init__(self, num_deg_free, cma_level, options, proj_irreps):
+    def __init__(self, num_deg_free, cma_level, options, proj_irreps=None):
         self.num_deg_free = num_deg_free
         self.cma_level = cma_level
         self.options = options
@@ -24,7 +24,11 @@ class Algorithm(object):
             else:
                 self.loop_symmetry()
         else:
-            self.loop()
+            # self.loop()
+            if self.cma_level == "A" or self.options.deriv_level_init:
+                self.loop_diagonal()
+            else:
+                self.loop()
 
     #Indices for high level A looping or deriv_level_init == 1
     def loop_symmetry_diagonal(self):
@@ -55,7 +59,7 @@ class Algorithm(object):
         self.indices = [item for sublist in self.indices for item in sublist]
 
 
-    #Indices for level B where deriv_leevel_init == 0
+    #Indices for level B where deriv_level_init == 0
     def loop_symmetry(self):
         self.indices = []
         self.indices_by_irrep = []
@@ -85,21 +89,30 @@ class Algorithm(object):
                 self.indices.append(irrep_ind)
         self.indices = [item for sublist in self.indices for item in sublist]
     
-    #Generates level B indices where no symmetry is being used
+    def loop_diagonal(self):
+        self.indices = []
+        for i in range(self.num_deg_free):
+            self.indices.append([i,i])
+        self.indices_by_irrep = None
+        self.degens = None
+    
+    # Generates level B indices where no symmetry is being used
     def loop(self):
         if self.cma_level == "A":
             addem = 1
         else:
             addem = self.num_deg_free
         self.indices = []
+        # I feel this can be done better
         for i in range(self.num_deg_free):
             for j in range(i, i + addem):
                 if j > self.num_deg_free - 1:
                     break
                 else:
-                    if i == j:
-                        self.indices.append([i, j])
-                    elif i != j:
-                        self.indices.append([i, j])
+                    self.indices.append([i, j])
+                    # if i == j:
+                        # self.indices.append([i, j])
+                    # elif i != j:
+                        # self.indices.append([i, j])
         self.indices_by_irrep = None
         self.degens = None

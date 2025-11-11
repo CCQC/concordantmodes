@@ -2,6 +2,7 @@ import fileinput
 import os
 import re
 import shutil
+import copy
 import numpy as np
 
 
@@ -10,7 +11,8 @@ class DirectoryTree(object):
         self,
         prog_name,
         zmat,
-        disps,
+        ref_geom,
+        # disps,
         cma_level,
         p_disp,
         m_disp,
@@ -20,20 +22,20 @@ class DirectoryTree(object):
         template,
         dir_name,
         deriv_level=0,
-        anharm=False,
     ):
         self.prog_name = prog_name
         self.zmat = zmat
-        self.dir_name = dir_name
-        self.disps = disps  # This should be the 'TransfDisp' object
+        self.ref_geom = ref_geom  
+        # self.disps = disps  # This should be the 'TransfDisp' object
+        self.cma_level = cma_level
         self.p_disp = p_disp
         self.m_disp = m_disp
         self.options = options
-        self.template = template
-        self.symm_obj = symm_obj
         self.indices = indices
+        self.symm_obj = symm_obj
+        self.template = template
+        self.dir_name = dir_name
         self.deriv_level = deriv_level
-        self.anharm = anharm
         if cma_level == "B":
             self.insertion_index = self.options.cart_insert_init
         else:
@@ -41,9 +43,9 @@ class DirectoryTree(object):
         #self.insertion_index = self.options.cart_insert_init if cma_level == "B" else self.options.cart_insert
 
     def run(self):
-        disp_dict = {}
-        disp_dict["disp"] = []
-        disp_dict["geom"] = []
+        # disp_dict = {}
+        # disp_dict["disp"] = []
+        # disp_dict["geom"] = []
 
         root = os.getcwd()
 
@@ -51,28 +53,26 @@ class DirectoryTree(object):
 
         n_atoms = len(self.zmat.atom_list)
 
-        if prog_name == "molpro" or prog_name == "psi4" or prog_name == "cfour":
+        prog_list = ["molpro","psi4","cfour","orca"]
+
+        if prog_name in prog_list:
             with open(self.template, "r") as file:
                 data = file.readlines()
-            if self.options.pert_off_diag:
-                with open("template_od.dat") as file:
-                    data_od = file.readlines()
         else:
             print("Specified program not supported: " + prog_name)
             raise RuntimeError
 
-        init = False
-        genbas = False
-        ecp = False
+        self.init = False
+        self.genbas = False
+        self.ecp = False
         if os.path.exists(root + "/initden.dat"):
-            init = True
+            self.init = True
         if os.path.exists(root + "/GENBAS"):
-            genbas = True
+            self.genbas = True
         if os.path.exists(root + "/ECPDATA"):
-            ecp = True
+            self.ecp = True
+        
         data_buff = data.copy()
-        if self.options.pert_off_diag:
-            data_od_buff = data_od.copy()
         if os.path.exists(os.getcwd() + "/old" + self.dir_name):
             shutil.rmtree("old" + self.dir_name, ignore_errors=True)
         inp = ""
@@ -85,326 +85,170 @@ class DirectoryTree(object):
         os.mkdir(self.dir_name)
         os.chdir("./" + self.dir_name)
         if not self.deriv_level:
-            if self.anharm:
-                for i in range(len(self.p_disp)):
-                    p_data = self.make_input(
-                        data,
-                        self.p_disp[i],
-                        str(n_atoms),
-                        self.zmat.atom_list,
-                        self.insertion_index,
-                    )
+            # data = self.make_input(
+            self.make_input(
+                copy.deepcopy(data),
+                self.ref_geom,
+                # self.disps.disp_cart["ref"],
+                n_atoms,
+                self.zmat.atom_list,
+                self.insertion_index,
+                inp,
+                "1",
+            )
+            
 
-                    os.mkdir(str(2 * i + 1))
-                    os.chdir("./" + str(2 * i + 1))
-                    with open(inp, "w") as file:
-                        file.writelines(p_data)
-                    data = data_buff.copy()
-                    if init:
-                        shutil.copy("../../initden.dat", ".")
-                    if genbas:
-                        shutil.copy("../../GENBAS", ".")
-                    if ecp:
-                        shutil.copy("../../ECPDATA", ".")
-                    os.chdir("..")
+            # Not including the reference input, this function generates the directories for the displacement
+            # jobs and copies in the input file data. Following this, these jobs are ready to be submitted to the queue.
 
-                    m_data = self.make_input(
-                        data,
-                        self.m_disp[i],
-                        str(n_atoms),
-                        self.zmat.atom_list,
-                        self.insertion_index,
-                    )
-                    os.mkdir(str(2 * i + 2))
-                    os.chdir("./" + str(2 * i + 2))
-                    with open(inp, "w") as file:
-                        file.writelines(m_data)
-                    data = data_buff.copy()
-                    if init:
-                        shutil.copy("../../initden.dat", ".")
-                    if genbas:
-                        shutil.copy("../../GENBAS", ".")
-                    if ecp:
-                        shutil.copy("../../ECPDATA", ".")
-                    os.chdir("..")
-                    # direc += 2
-                # pass
-            else:
-                os.mkdir("1")
-                os.chdir("./1")
-                data = self.make_input(
-                    data,
-                    self.disps.disp_cart["ref"],
-                    str(n_atoms),
-                    self.zmat.atom_list,
-                    self.insertion_index,
-                )
+            p_disp = self.p_disp
+            m_disp = self.m_disp
+            indices = self.indices
+            direc = 2
 
-                with open(inp, "w") as file:
-                    file.writelines(data)
-                data = data_buff.copy()
-                if init:
-                    shutil.copy("../../initden.dat", ".")
-                if genbas:
-                    shutil.copy("../../GENBAS", ".")
-                if ecp:
-                    shutil.copy("../../ECPDATA", ".")
-                os.chdir("..")
-
-                # Not including the reference input, this function generates the directories for the displacement
-                # jobs and copies in the input file data. Following this, these jobs are ready to be submitted to the queue.
-
-                p_disp = self.p_disp
-                m_disp = self.m_disp
-                # a = p_disp.shape[0]
-                indices = self.indices
-                direc = 2
-
-                # This loop makes calls to the Make_Input function for storing the cartesian displacements as a variable,
-                # upon which it is written to a standard input file after the create_directory function creates a directory
-                # within the Disps directory.
-                if self.options.pert_off_diag:
-                    for index in indices:
+            # This loop makes calls to the Make_Input function, upon which the displaced geometry
+            # is written to a standard input file after the create_directory function creates a directory
+            # within the Disps directory.
+            if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
+                if self.options.only_TSIR:
+                    #loop over the 0th irrep (TSIR) only
+                    for index in self.symm_obj.indices_by_irrep[0]:
                         i, j = index[0], index[1]
-                        if i == j:
-                            p_data = self.make_input(
-                                data,
-                                p_disp[i, j],
-                                str(n_atoms),
-                                self.zmat.atom_list,
-                                self.insertion_index,
-                            )
-                            data = data_buff.copy()
-                        else:
-                            p_data = self.make_input(
-                                data_od,
-                                p_disp[i, j],
-                                str(n_atoms),
-                                self.zmat.atom_list,
-                                self.insertion_index,
-                            )
-                            data_od = data_od_buff.copy()
-
-                        os.mkdir(str(direc))
-                        os.chdir("./" + str(direc))
-                        with open(inp, "w") as file:
-                            file.writelines(p_data)
-                        if init:
-                            shutil.copy("../../initden.dat", ".")
-                        if genbas:
-                            shutil.copy("../../GENBAS", ".")
-                        if ecp:
-                            shutil.copy("../../ECPDATA", ".")
-                        os.chdir("..")
-                        if i == j:
-                            m_data = self.make_input(
-                                data,
-                                m_disp[i, j],
-                                str(n_atoms),
-                                self.zmat.atom_list,
-                                self.insertion_index,
-                            )
-                            data = data_buff.copy()
-                        else:
-                            m_data = self.make_input(
-                                data_od,
-                                m_disp[i, j],
-                                str(n_atoms),
-                                self.zmat.atom_list,
-                                self.insertion_index,
-                            )
-                            data_od = data_od_buff.copy()
-                        os.mkdir(str(direc + 1))
-                        os.chdir("./" + str(direc + 1))
-                        with open(inp, "w") as file:
-                            file.writelines(m_data)
-                        if init:
-                            shutil.copy("../../initden.dat", ".")
-                        if genbas:
-                            shutil.copy("../../GENBAS", ".")
-                        if ecp:
-                            shutil.copy("../../ECPDATA", ".")
-                        os.chdir("..")
+                        # data = self.make_input(
+                        self.make_input(
+                            copy.deepcopy(data),
+                            # p_data,
+                            p_disp[i, j],
+                            n_atoms,
+                            self.zmat.atom_list,
+                            self.insertion_index,
+                            inp,
+                            direc,
+                        )
+                        
+                        # data = self.make_input(
+                        self.make_input(
+                            copy.deepcopy(data),
+                            # data,
+                            m_disp[i, j],
+                            n_atoms,
+                            self.zmat.atom_list,
+                            self.insertion_index,
+                            inp,
+                            direc+1,
+                        )
+                        
                         direc += 2
                 else:
-                    if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
-                        if self.options.only_TSIR:
-                            #loop over the 0th irrep (TSIR) only
-                            for index in self.symm_obj.indices_by_irrep[0]:
-                                i, j = index[0], index[1]
-                                p_data = self.make_input(
-                                    data,
-                                    p_disp[i, j],
-                                    str(n_atoms),
-                                    self.zmat.atom_list,
-                                    self.insertion_index,
-                                )
-                                os.mkdir(str(direc))
-                                os.chdir("./" + str(direc))
-                                with open(inp, "w") as file:
-                                    file.writelines(p_data)
-                                data = data_buff.copy()
-                                if init:
-                                    shutil.copy("../../initden.dat", ".")
-                                if genbas:
-                                    shutil.copy("../../GENBAS", ".")
-                                if ecp:
-                                    shutil.copy("../../ECPDATA", ".")
-                                os.chdir("..")
-                        
-                                m_data = self.make_input(
-                                    data,
-                                    m_disp[i, j],
-                                    str(n_atoms),
-                                    self.zmat.atom_list,
-                                    self.insertion_index,
-                                )
-                                os.mkdir(str(direc + 1))
-                                os.chdir("./" + str(direc + 1))
-                                with open(inp, "w") as file:
-                                    file.writelines(m_data)
-                                data = data_buff.copy()
-                                if init:
-                                    shutil.copy("../../initden.dat", ".")
-                                if genbas:
-                                    shutil.copy("../../GENBAS", ".")
-                                if ecp:
-                                    shutil.copy("../../ECPDATA", ".")
-                                os.chdir("..")
-                                direc += 2
-                        else:
-                            for h, h_indices in enumerate(self.symm_obj.indices_by_irrep):
-                                for index in h_indices:
-                                    i, j = index[0], index[1]
-                                    p_data = self.make_input(
-                                        data,
-                                        p_disp[i, j],
-                                        str(n_atoms),
-                                        self.zmat.atom_list,
-                                        self.insertion_index,
-                                    )
-                                    os.mkdir(str(direc))
-                                    os.chdir("./" + str(direc))
-                                    with open(inp, "w") as file:
-                                        file.writelines(p_data)
-                                    data = data_buff.copy()
-                                    if init:
-                                        shutil.copy("../../initden.dat", ".")
-                                    if genbas:
-                                        shutil.copy("../../GENBAS", ".")
-                                    if ecp:
-                                        shutil.copy("../../ECPDATA", ".")
-                                    os.chdir("..")
-                                    if h != 0:
-                                        direc += 1
-                                    else:
-                                        m_data = self.make_input(
-                                            data,
-                                            m_disp[i, j],
-                                            str(n_atoms),
-                                            self.zmat.atom_list,
-                                            self.insertion_index,
-                                        )
-                                        os.mkdir(str(direc + 1))
-                                        os.chdir("./" + str(direc + 1))
-                                        with open(inp, "w") as file:
-                                            file.writelines(m_data)
-                                        data = data_buff.copy()
-                                        if init:
-                                            shutil.copy("../../initden.dat", ".")
-                                        if genbas:
-                                            shutil.copy("../../GENBAS", ".")
-                                        if ecp:
-                                            shutil.copy("../../ECPDATA", ".")
-                                        os.chdir("..")
-                                        direc += 2
-                    else:
-                        for index in indices:
+                    for h, h_indices in enumerate(self.symm_obj.indices_by_irrep):
+                        for index in h_indices:
                             i, j = index[0], index[1]
-                            p_data = self.make_input(
-                                data,
+                            # data = self.make_input(
+                            self.make_input(
+                                copy.deepcopy(data),
+                                # data,
                                 p_disp[i, j],
-                                str(n_atoms),
+                                n_atoms,
                                 self.zmat.atom_list,
                                 self.insertion_index,
+                                inp,
+                                direc,
                             )
+                            if h != 0:
+                                direc += 1
+                            else:
+                                # data = self.make_input(
+                                self.make_input(
+                                    copy.deepcopy(data),
+                                    m_disp[i, j],
+                                    n_atoms,
+                                    self.zmat.atom_list,
+                                    self.insertion_index,
+                                    inp,
+                                    direc+1,
+                                )
+                                direc += 2
+            else:
+                if self.cma_level != "A":
+                    for index in indices:
+                        i, j = index[0], index[1]
+                        # data = self.make_input(
+                        self.make_input(
+                            copy.deepcopy(data),
+                            p_disp[i, j],
+                            n_atoms,
+                            self.zmat.atom_list,
+                            self.insertion_index,
+                            inp,
+                            direc,
+                        )
 
-                            os.mkdir(str(direc))
-                            os.chdir("./" + str(direc))
-                            with open(inp, "w") as file:
-                                file.writelines(p_data)
-                            data = data_buff.copy()
-                            if init:
-                                shutil.copy("../../initden.dat", ".")
-                            if genbas:
-                                shutil.copy("../../GENBAS", ".")
-                            if ecp:
-                                shutil.copy("../../ECPDATA", ".")
-                            os.chdir("..")
+                        # data = self.make_input(
+                        self.make_input(
+                            copy.deepcopy(data),
+                            m_disp[i, j],
+                            n_atoms,
+                            self.zmat.atom_list,
+                            self.insertion_index,
+                            inp,
+                            direc+1,
+                        )
+                        direc += 2
+                else:
+                    for index in self.indices:
+                        i, j = index[0], index[1]
+                        # data = self.make_input(
+                        self.make_input(
+                            # data,
+                            copy.deepcopy(data),
+                            self.p_disp[i,j],
+                            n_atoms,
+                            self.zmat.atom_list,
+                            self.insertion_index,
+                            inp,
+                            direc,
+                        )
 
-                            m_data = self.make_input(
-                                data,
-                                m_disp[i, j],
-                                str(n_atoms),
-                                self.zmat.atom_list,
-                                self.insertion_index,
-                            )
-                            os.mkdir(str(direc + 1))
-                            os.chdir("./" + str(direc + 1))
-                            with open(inp, "w") as file:
-                                file.writelines(m_data)
-                            data = data_buff.copy()
-                            if init:
-                                shutil.copy("../../initden.dat", ".")
-                            if genbas:
-                                shutil.copy("../../GENBAS", ".")
-                            if ecp:
-                                shutil.copy("../../ECPDATA", ".")
-                            os.chdir("..")
-                            direc += 2
+                        # data = self.make_input(
+                        self.make_input(
+                            # data,
+                            copy.deepcopy(data),
+                            self.m_disp[i,j],
+                            n_atoms,
+                            self.zmat.atom_list,
+                            self.insertion_index,
+                            inp,
+                            direc+1,
+                        )
+
+                        direc += 2
+
         elif self.deriv_level == 1:
             direc = 1
             for index in self.indices:
-                p_data = self.make_input(
-                    data,
-                    self.p_disp[index],
-                    str(n_atoms),
+                # data = self.make_input(
+                self.make_input(
+                    # data,
+                    copy.deepcopy(data),
+                    self.p_disp[index[0]],
+                    n_atoms,
                     self.zmat.atom_list,
                     self.insertion_index,
+                    inp,
+                    direc,
                 )
 
-                os.mkdir(str(direc))
-                os.chdir("./" + str(direc))
-                with open(inp, "w") as file:
-                    file.writelines(p_data)
-                data = data_buff.copy()
-                if init:
-                    shutil.copy("../../initden.dat", ".")
-                if genbas:
-                    shutil.copy("../../GENBAS", ".")
-                if ecp:
-                    shutil.copy("../../ECPDATA", ".")
-                os.chdir("..")
-
-                m_data = self.make_input(
-                    data,
-                    self.m_disp[index],
-                    str(n_atoms),
+                # data = self.make_input(
+                self.make_input(
+                    # data,
+                    copy.deepcopy(data),
+                    self.m_disp[index[0]],
+                    n_atoms,
                     self.zmat.atom_list,
                     self.insertion_index,
+                    inp,
+                    direc+1,
                 )
-                os.mkdir(str(direc + 1))
-                os.chdir("./" + str(direc + 1))
-                with open(inp, "w") as file:
-                    file.writelines(m_data)
-                data = data_buff.copy()
-                if init:
-                    shutil.copy("../../initden.dat", ".")
-                if genbas:
-                    shutil.copy("../../GENBAS", ".")
-                if ecp:
-                    shutil.copy("../../ECPDATA", ".")
-                os.chdir("..")
 
                 direc += 2
         else:
@@ -413,18 +257,21 @@ class DirectoryTree(object):
             )
             raise RuntimeError
 
-    def make_input(self, data, dispp, n_at, at, index):
+    def make_input(self, data, dispp, n_at, at, index, inp, direc):
+        os.mkdir(str(direc))
+        os.chdir("./" + str(direc))
+        data_buff = copy.deepcopy(data)
         space = " "
         if self.prog_name == "cfour":
             space = ""
         if index == -1:
             print(
-                "The user needs to specify a different value for the \
-                   cart_insert keyword."
+                "The user needs to specify a value for the \
+                   cart_insert or cart_insert_init keyword."
             )
             raise RuntimeError
         else:
-            for i in range(int(n_at)):
+            for i in range(n_at):
                 data.insert(
                     index + i,
                     space
@@ -434,5 +281,17 @@ class DirectoryTree(object):
                     + "{:16.10f}".format(dispp[i][2])
                     + "\n",
                 )
+            
+            with open(inp, "w") as file:
+                file.writelines(data)
+            data = copy.deepcopy(data_buff)
+            
+            if self.init:
+                shutil.copy("../../initden.dat", ".")
+            if self.genbas:
+                shutil.copy("../../GENBAS", ".")
+            if self.ecp:
+                shutil.copy("../../ECPDATA", ".")
+            os.chdir("..")
 
         return data

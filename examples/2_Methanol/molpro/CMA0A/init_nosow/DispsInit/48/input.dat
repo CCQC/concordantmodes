@@ -1,0 +1,20 @@
+*** Optimization of min3
+memory,1000,m
+gthresh,energy=1.0d-12,orbital=1.0d-10,oneint=1.0d-16,twoint=1.0d-16,optgrad=1.0d-6,compress=1.0d-13
+geomtyp=xyz
+
+ bohr
+ geometry = {
+ 6
+ arbitrary comment
+ C   -1.3792759170   -0.0278446891    0.0000006276
+ O    1.3065342624    0.1218116053    0.0000002008
+ H   -2.0764551510    1.9103384809   -0.0000799675
+ H   -2.1078138376   -0.9783458963    1.6825767100
+ H   -2.1078067056   -0.9784771778   -1.6825046559
+ H    1.9410931889   -1.5776144429   -0.0000013249
+}
+
+basis=cc-pvdz
+{rhf;maxit,200}
+{ccsd(t);maxit,200}

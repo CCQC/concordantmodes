@@ -63,7 +63,7 @@ class FcConv(object):
                 C2 = np.einsum("rij,pi,qj->rpq", self.s_vec.B2, self.A_T, self.A_T)
                 V2 = np.einsum("q,qpr->pr", self.v_q, C2)
 
-            self.F = self.F - V2
+            # self.F = self.F - V2
 
             if self.print_f:
                 self.print_const()

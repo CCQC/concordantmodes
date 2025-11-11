@@ -158,7 +158,7 @@ class Symmetry(object):
 
     def make_proj(self, s_vec):
         np.set_printoptions(threshold=np.inf, precision=10)
-        print("Project out redundent coordinates to make the nonredundant set")
+        print("Project out redundant coordinates to make the nonredundant set")
         self.b = []
         for h, s in enumerate(self.salcs.salc_sets):
             self.b.append(np.dot(s[:self.irreplength[h]], s_vec.B))
@@ -181,6 +181,7 @@ class Symmetry(object):
         self.salc_proj = np.row_stack(newsblock).T
 
     def create_flat_sym_sort(self, sym_sort):
+        print("sym_sort: ")
         print(sym_sort)
         self.flat_sym_sort = np.array([])
         self.flat_sym_sort_inv = np.array([])
@@ -189,10 +190,9 @@ class Symmetry(object):
 
         self.flat_sym_sort = self.flat_sym_sort.astype(int)
         
-        print(len(self.flat_sym_sort))
+        print("Flattened sym_sort: ")
         print(self.flat_sym_sort)
         for i in range(len(self.flat_sym_sort)):
-            print(i)
             self.flat_sym_sort_inv = np.append(self.flat_sym_sort_inv,np.where(self.flat_sym_sort==i)[0][0])
         # flat_sym_sort_inv = flat_sym_sort_inv[flat_sym_sort]
         self.flat_sym_sort_inv = self.flat_sym_sort_inv.astype(int)

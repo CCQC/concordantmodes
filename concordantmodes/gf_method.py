@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as sp
 from numpy.linalg import inv
 from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
@@ -15,15 +16,14 @@ class GFMethod(object):
     def __init__(self, G, F, zmat, ted, options, symtext = None, cma=None, sym_sort=[]):
         self.G = G
         self.F = F
-        #self.tol = tol
-        #self.proj_tol = proj_tol
         self.zmat = zmat
-        self.AMU_ELMASS = 5.48579909065 * (10 ** (-4))
-        self.HARTREE_WAVENUM = 219474.6313708
         self.ted = ted
+        self.options = options
         self.symtext = symtext
         self.cma = cma
-        self.options = options
+        self.sym_sort = sym_sort
+        self.AMU_ELMASS = 5.48579909065 * (10 ** (-4))
+        self.HARTREE_WAVENUM = 219474.6313708
 
     def run(self):
         # Construct the orthogonalizer
@@ -31,18 +31,21 @@ class GFMethod(object):
 
         # Symmetrize F, diagonalize, then backtransform the eigenvectors.
         self.F_O = np.dot(np.dot(self.G_O, self.F), self.G_O)
+        # self.F_O[np.abs(self.F_O) < 1.0e-8] = 0
+        # self.F_O[np.abs(self.F_O) < self.options.tol] = 0
    
         if self.options.molsym_symmetry:
             #allows the block diagonalization of the GF matrix so normal modes stay
             #in the assumed ordering for the level A displacements (Within their symmetry blocks)
             self.block_GF()
         else:
+            # self.eig_v, self.L_p = sp.linalg.eigh(self.F_O)
             self.eig_v, self.L_p = LA.eigh(self.F_O)
         
         self.L_p[np.abs(self.L_p) < self.options.tol] = 0
         self.L = np.dot(self.G_O, self.L_p)
         self.L = np.real(self.L)
-        L = np.absolute(self.L)
+        # L = np.absolute(self.L)
         L_p = np.real(self.L_p)
         self.L_p = L_p
 
@@ -88,7 +91,6 @@ class GFMethod(object):
             self.ted.run(self.L, self.freq, self.symtext, rect_print=False)
         else:
             self.ted.run(self.L, self.freq, self.symtext, rect_print=False)
-        self.ted_breakdown = self.ted.ted_breakdown
 
     def block_GF(self):
         self.eigvals, self.eigvecs = [], []

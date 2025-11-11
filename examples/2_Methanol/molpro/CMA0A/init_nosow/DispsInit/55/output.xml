@@ -1,0 +1,114 @@
+<?xml version="1.0"?>
+<molpro xmlns="http://www.molpro.net/schema/molpro-output"
+  xmlns:xsd="http://www.w3.org/1999/XMLSchema"
+  xmlns:cml="http://www.xml-cml.org/schema"
+  xmlns:stm="http://www.xml-cml.org/schema"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+ <job>
+  <jobstep command="RHF-SCF" commandset="SCFPRO">
+   <cml:molecule>
+    <cml:symmetry pointGroup="C1">
+    </cml:symmetry>
+    <cml:atomArray>
+     <cml:atom id="a1" elementType="C" x3="-0.724719670143319" y3="-0.11233862739874E-01"
+       z3="0.664646576894168E-07"/>
+     <cml:atom id="a2" elementType="O" x3="0.683872400057932" y3="0.607972609378791E-01"
+       z3="0.220137719735648E-06"/>
+     <cml:atom id="a3" elementType="H" x3="-1.09965494011018" y3="1.01129311326976"
+       z3="-0.42289620151082E-04"/>
+     <cml:atom id="a4" elementType="H" x3="-1.11485639979561" y3="-0.518188535068235"
+       z3="0.891102416406228"/>
+     <cml:atom id="a5" elementType="H" x3="-1.11485277953556" y3="-0.518258056941425"
+       z3="-0.891064205366512"/>
+     <cml:atom id="a6" elementType="H" x3="1.02927737668081" y3="-0.834120966979886"
+       z3="-0.658455203526603E-06"/>
+    </cml:atomArray>
+    <cml:bondArray>
+     <cml:bond atomRefs2="a1 a2"/>
+     <cml:bond atomRefs2="a1 a3"/>
+     <cml:bond atomRefs2="a1 a4"/>
+     <cml:bond atomRefs2="a1 a5"/>
+     <cml:bond atomRefs2="a2 a6"/>
+    </cml:bondArray>
+   </cml:molecule>
+   <property name="Energy" method="RHF" principal="true" stateSymmetry="1" stateNumber="1"
+     value="-115.049390403449"/>
+   <property name="One-electron energy" method="RHF" value="-237.148351890617"/>
+   <property name="Two-electron energy" method="RHF" value="81.6519975019031"/>
+   <property name="Kinetic energy" method="RHF" value="114.956370378519"/>
+   <property name="Nuclear energy" method="RHF" value="40.4469639852641"/>
+   <property name="Virial quotient" method="RHF" value="-1.00080917677397"/>
+   <property name="Dipole moment" method="RHF" principal="true" stateSymmetry="1"
+     stateNumber="1"
+     value="-0.372820322222053 -0.591165388891327 -0.301020376835267E-05"/>
+   <time start="21:24:55" end="21:24:57" cpu="0.5" system="0.86" real="1.77"/>
+   <storage units="megabyte" memory="0.0" sf="0.0" df="88.19" eaf="17.12" ga="0.0"/>
+   <summary overall_method="RHF/cc-pVDZ"/>
+  </jobstep>
+  <jobstep command="CCSD(T)" commandset="CCSD">
+   <property name="energy" method="Reference" stateSymmetry="1" stateNumber="1"
+     value="-115.049390403449"/>
+   <property name="singlet pair energy" method="CCSD" stateSymmetry="1" stateNumber="1"
+     value="-0.254299797343104"/>
+   <property name="triplet pair energy" method="CCSD" stateSymmetry="1" stateNumber="1"
+     value="-0.108765675226818"/>
+   <property name="correlation energy" method="CCSD" stateSymmetry="1" stateNumber="1"
+     value="-0.363065472570508"/>
+   <property name="contribution" method="Triples (T)" stateSymmetry="1" stateNumber="1"
+     value="-0.769459395893747E-02"/>
+   <property name="correlation energy" method="Total" stateSymmetry="1" stateNumber="1"
+     value="-0.370760066529446"/>
+   <property name="total energy" method="CCSD" stateSymmetry="1" stateNumber="1"
+     value="-115.41245587602"/>
+   <property name="energy" method="CCSD[T]" stateSymmetry="1" stateNumber="1"
+     value="-115.420436198071"/>
+   <property name="energy" method="CCSD-T" stateSymmetry="1" stateNumber="1"
+     value="-115.420002689669"/>
+   <property name="total energy" method="CCSD(T)" principal="true" stateSymmetry="1"
+     stateNumber="1" value="-115.420150469979"/>
+   <time start="21:24:57" end="21:24:58" cpu="0.52" system="0.08" real="0.79"/>
+   <storage units="megabyte" memory="0.0" sf="5.97" df="98.84" eaf="17.12" ga="0.0"/>
+   <summary overall_method="CCSD(T)/cc-pVDZ"/>
+  </jobstep>
+  <stm:metadataList>
+   <stm:metadata name="dc:date" content="2025-08-07T21:24:58-04:00"/>
+   <stm:metadata name="dc:creator" content="mel64643"/>
+   <stm:metadata name="dc:title" content="Optimization of min3"/>
+   <stm:metadata name="cmlm:insilico" content="Molpro"/>
+  </stm:metadataList>
+  <platform>
+   <version major="2022" minor="1" SHA="31073afc4d8441e10870424e0d77336a33bc4286"
+     integer_bits="64" parallelism="mpp">
+    2022.1
+    <date year="2025" month="8" day="7" hour="21" minute="24" second="55">
+     2025-08-07T21:24:55
+    </date>
+   </version>
+   <licence id="ccgc"/>
+   <parallel processes="3" nodes="1" all_processes="3" openmp="1"/>
+   <dimensions natom="400" nvalence="500" nvalence_pno="1000" nbasis="12000" nstate="100"
+     nsymm="16" nrec="512" nprim="2" ncol="100"/>
+  </platform>
+  <input>
+   <p>***,Optimization of min3</p>
+   <p>memory,1000,m</p>
+   <p>gthresh,energy=1.0d-12,orbital=1.0d-10,oneint=1.0d-16,twoint=1.0d-16,optgrad=1.0d-6,compress=1.0d-13</p>
+   <p>geomtyp=xyz</p>
+   <p> bohr</p>
+   <p> geometry = {</p>
+   <p> 6</p>
+   <p> arbitrary comment</p>
+   <p> C   -1.3695216937   -0.0212289239    0.0000001256</p>
+   <p> O    1.2923315403    0.1148901723    0.0000004160</p>
+   <p> H   -2.0780466684    1.9110670158   -0.0000799158</p>
+   <p> H   -2.1067732639   -0.9792344122    1.6839395160</p>
+   <p> H   -2.1067664226   -0.9793657895   -1.6838673076</p>
+   <p> H    1.9450523482   -1.5762601824   -0.0000012443</p>
+   <p>}</p>
+   <p>basis=cc-pvdz</p>
+   <p>{rhf;maxit,200}</p>
+   <p>{ccsd(t);maxit,200}</p>
+  </input>
+  <diagnostics warnings="0"/>
+ </job>
+</molpro>

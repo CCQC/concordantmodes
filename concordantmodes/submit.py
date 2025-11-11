@@ -29,7 +29,7 @@ class Submit(object):
                 job_match = re.findall(self.job_fin_regex, qacct_string)
                 if len(job_match) == len(self.disp_list):
                     break
-                time.sleep(10)
+                time.sleep(30)
 
             output = str(process.stdout)
             error = str(process.stderr)
@@ -49,6 +49,8 @@ class Submit(object):
                 processes.append(job)
                 time.sleep(2)
 
+            print("sleeping")
+            time.sleep(10)
             for q in range(len(processes)):
                 while True:
                     job = processes[q]
@@ -56,11 +58,13 @@ class Submit(object):
                     job_id = int(
                         re.search(outRegex, job.stdout.decode("UTF-8")).group(1)
                     )
-                    jobFinRegex = re.compile(r"taskid")
+                    # jobFinRegex = re.compile(r"taskid")
                     finish = subprocess.run(
                         ["sacct", "-j", str(job_id)], stdout=pipe, stderr=pipe
                     )
                     output = str(finish.stdout.decode("UTF-8"))
+                    # print(str(job_id))
+                    # print(output)
                     if not ("PENDING" in output or "RUNNING" in output):
                         print(
                             "job id "
@@ -69,5 +73,5 @@ class Submit(object):
                             + str(q)
                         )
                         break
-            print("sleeping")
-            time.sleep(10)
+            # print("sleeping")
+            # time.sleep(10)

@@ -483,8 +483,7 @@ class SVectors(object):
                     self.s_4center_dict["Ly" + str(i + 1)][int(indies[2]) - 1] = ly_3
                     self.s_4center_dict["Ly" + str(i + 1)][int(indies[3]) - 1] = ly_4
 
-        # The last step will be to concatenate all of the s-vectors into a singular B-tensor, in order of stretches, then bends, then torsions.
-        # Note: I am going to modify this to hold all 2-center, 3-center, and 4-center internal coordinates.
+        # The last step will be to concatenate all of the s-vectors into a single B-tensor, in the order shown below.
         self.B = np.array([self.s_2center_dict["B1"].flatten()])
 
         # Append stretches
@@ -554,15 +553,15 @@ class SVectors(object):
             else:
                 self.proj = np.eye(len(self.B))
 
-        # self.proj may be used to transfrom from full set of internal
-        # coords to symmetrized internal coords. self.proj.T may be used
-        # to transform from the symmetrized set to the full set of internal
+        # self.proj may be used to transform from the full set of internal
+        # coords to projected internal coords. self.proj.T may be used
+        # to transform from the projected set to the full set of internal
         # coords.
 
         # Beware! The projected B matrix cannot be psuedo inverted to form
         # the A-matrix. You lose information.
 
-        # Option to run numerical second order B-tensor here.
+        # Run numerical second order B-tensor here.
         if second_order:
             Proj = self.proj.copy()
             self.B2 = self.second_order_B()
@@ -578,8 +577,6 @@ class SVectors(object):
                         ) / 2
                         self.B2[i, k, j + 1] = self.B2[i, j + 1, k]
             self.B2 = self.B2.astype(float)
-            print(self.B2.shape)
-            print(self.B2)
             self.proj = Proj
 
     def compute_STRE(self, x1, x2):
@@ -767,10 +764,8 @@ class SVectors(object):
         # Initialize then generate the internal coordinate displacements
         from concordantmodes.transf_disp import TransfDisp
 
-        print(self.zmat.cartesians_final)
         B_disp = TransfDisp(
-            # self,
-            self.B,
+            self,
             self.zmat,
             np.eye(len(self.B)),
             True,

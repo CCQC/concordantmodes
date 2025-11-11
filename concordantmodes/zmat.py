@@ -230,7 +230,7 @@ class Zmat(object):
                         [str(i - first_index + 1), List[1], List[2], List[3]]
                     )
                     self.torsion_variables.append("D" + str(i - first_index))
-        elif self.options.coords.upper() == "REDUNDANT":
+        elif self.options.coords.upper() == "DELOCALIZED":
             count = 0
             if self.options.covalent_radii:
                 # This program yields the covalent radius of an atom in bohr.
@@ -238,7 +238,7 @@ class Zmat(object):
                 self.bond_indices = np.array([])
                 indices = []
                 transdisp_inter = TransfDisp(
-                    1,
+                    None,
                     self,
                     1,
                     False,
@@ -647,7 +647,7 @@ class Zmat(object):
         # coordinates.
         indices = []
         transdisp = TransfDisp(
-            1, self, 1, False, np.array([]), self.options, indices, None
+            None, self, 1, False, np.array([]), self.options, indices, None
         )
         I = np.eye(
             len(self.bond_indices)
@@ -694,7 +694,7 @@ class Zmat(object):
 
         # This code is useful for checking the Redundant coordinate
         # generation process.
-        if self.options.coords.upper() == "REDUNDANT":
+        if self.options.coords.upper() == "DELOCALIZED":
             indices = []
             for i in range(len(self.bond_indices)):
                 indices.append(self.bond_indices[i].tolist())
