@@ -20,8 +20,8 @@ class SapeloTemplate(object):
         self.odict = {
             "q": options.queue,
             "nslots": options.nslots,
-            "time_limit" : options.time_limit,
-            "memory" : options.memory,
+            "time_limit": options.time_limit,
+            "memory": options.memory,
             "jarray": "1-{}".format(job_num),
             "prog_name": prog_name,
             "prog": prog,
@@ -97,7 +97,7 @@ psi4 -n $NSLOTS -o output.dat
 
 #ignored line -- do not remove
 """
-# rm $PSI_SCRATCH -r
+        # rm $PSI_SCRATCH -r
         elif self.prog_name == "orca":
             self.sapelo_template = """#!/bin/bash
 #SBATCH --job-name=Concordant           # Job name (testBowtie2)

@@ -5,7 +5,9 @@ from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
 from . import masses
 from concordantmodes.s_vectors import SVectors as s_vec
+
 np.set_printoptions(precision=8, linewidth=240)
+
 
 class TransfDisp(object):
     np.set_printoptions(precision=8, linewidth=240)
@@ -49,7 +51,7 @@ class TransfDisp(object):
         if self.s_vectors is not None:
             self.B = self.s_vectors.B
         else:
-            self.B=[]
+            self.B = []
         self.zmat = zmat
         self.ref_carts = self.zmat.cartesians_a.copy()
         self.ref_carts = np.array(self.ref_carts).astype(float)
@@ -67,7 +69,7 @@ class TransfDisp(object):
 
     def run(self, fc=np.array([])):
         np.set_printoptions(precision=8, linewidth=240)
-        
+
         # Invert the L-matrix and then normalize the rows.
         proj_tol = 1.0e-3
         self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Proj internals (S) )
@@ -78,7 +80,7 @@ class TransfDisp(object):
             ] = 0
 
         # Compute the A-matrix to convert from normal coordinates to cartesians
-        
+
         u = np.array(self.zmat.masses)
         for i in range(len(u)):
             if self.zmat.atom_list[i] == "X":
@@ -130,7 +132,7 @@ class TransfDisp(object):
             # This code loops through a list of indices that the force constants will be computed at and
             # generates the displacements for the diagonal and (if specified) the off-diagonals. Where
             # the displacement matrix D[i,j] = D[j,i].
-            
+
             disp = np.zeros(len(self.eigs.T))
             buff = disp.copy()
             if not self.deriv_level:
@@ -138,15 +140,23 @@ class TransfDisp(object):
                 m_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
                 disp = np.zeros((len(self.disp)))
                 if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
-                    print("Molsym is being used. +/- displacements of non TSIR are equivalent.")
+                    print(
+                        "Molsym is being used. +/- displacements of non TSIR are equivalent."
+                    )
                     if self.options.only_TSIR:
                         indices = self.symm_obj.indices_by_irrep[0]
                     else:
-                        print("Generating displacements for all irreps. Only + displacements for non TSIR")
-                        indices = copy.deepcopy(self.symm_obj.indices_by_irrep).flatten().reshape((-1,2))
+                        print(
+                            "Generating displacements for all irreps. Only + displacements for non TSIR"
+                        )
+                        indices = (
+                            copy.deepcopy(self.symm_obj.indices_by_irrep)
+                            .flatten()
+                            .reshape((-1, 2))
+                        )
                 else:
                     indices = self.indices
-            
+
                 Sum = 1
                 h = 0
                 for index in indices:
@@ -179,7 +189,12 @@ class TransfDisp(object):
                             self.options,
                         )
                     disp = buff.copy()
-                    if self.symm_obj.symtext is not None and self.options.exploit_pm_symm and not self.options.only_TSIR and Sum>len(self.symm_obj.indices_by_irrep[0]):
+                    if (
+                        self.symm_obj.symtext is not None
+                        and self.options.exploit_pm_symm
+                        and not self.options.only_TSIR
+                        and Sum > len(self.symm_obj.indices_by_irrep[0])
+                    ):
                         h += 1
                     Sum += 1
             elif self.deriv_level == 1:
@@ -217,7 +232,7 @@ class TransfDisp(object):
                 raise RuntimeError
             self.p_disp = p_disp
             self.m_disp = m_disp
-            
+
         elif self.coord_type == "cartesian":
             self.disp_mag = self.options.disp
             if self.deriv_level == 1:
@@ -238,40 +253,46 @@ class TransfDisp(object):
                     print("The ref geom")
                     print(self.ref_carts)
                     print(self.symm_obj.symtext.mol.coords)
-                    p_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
-                    m_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
+                    p_disp = np.zeros(
+                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
+                        dtype=object,
+                    )
+                    m_disp = np.zeros(
+                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
+                        dtype=object,
+                    )
                     print(f"p disp {p_disp}")
                     n_irrep = len(self.symm_obj.symtext.irreps)
-                    #salc_indices_pi = [[] for h in range(n_irrep)]
+                    # salc_indices_pi = [[] for h in range(n_irrep)]
                     salc_indices_pi = self.symm_obj.CDsalcs.salcs_by_irrep
                     print("salc indices pi")
                     print(salc_indices_pi)
                     new_indices = []
-                    #for h in range(len(salc_indices_pi)):
-                    #for i in salc_indices_pi[h]:
+                    # for h in range(len(salc_indices_pi)):
+                    # for i in salc_indices_pi[h]:
                     #    for j in salc_indices_pi[h]:
                     for i in range(len(self.symm_obj.CDsalcs)):
                         for j in range(len(self.symm_obj.CDsalcs)):
                             print(f"i j pair {i,j}")
-                            pair = [i,j]
+                            pair = [i, j]
                             disp_geom = self.displace_geom(pair)
                             print("the disp geom")
                             print(disp_geom)
                             if i == j:
-                                #p_disp[i,i][i] += self.disp
-                                #m_disp[i,i][i] -= self.disp
-                                p_disp[i,i] += disp_geom
-                                m_disp[i,i] -= disp_geom
+                                # p_disp[i,i][i] += self.disp
+                                # m_disp[i,i][i] -= self.disp
+                                p_disp[i, i] += disp_geom
+                                m_disp[i, i] -= disp_geom
                             else:
-                                #p_disp[i,j][i] += self.disp
-                                #p_disp[i,j][j] += self.disp
-                                #m_disp[i,j][i] -= self.disp
-                                #m_disp[i,j][j] -= self.disp
-                                p_disp[i,j] += disp_geom
-                                m_disp[i,j] -= disp_geom
-                    #print(stop)
-                    
-                    #for i in range(len(self.symm_obj.CDsalcs)):
+                                # p_disp[i,j][i] += self.disp
+                                # p_disp[i,j][j] += self.disp
+                                # m_disp[i,j][i] -= self.disp
+                                # m_disp[i,j][j] -= self.disp
+                                p_disp[i, j] += disp_geom
+                                m_disp[i, j] -= disp_geom
+                    # print(stop)
+
+                    # for i in range(len(self.symm_obj.CDsalcs)):
                     #    for j in range(len(self.symm_obj.CDsalcs)):
                     #        if i <= j:
                     #            salc_i = self.symm_obj.CDsalcs[i]
@@ -301,26 +322,32 @@ class TransfDisp(object):
                     self.p_disp = p_disp
                     self.m_disp = m_disp
                 else:
-                    p_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
-                    m_disp = np.zeros((len(self.ref_carts.flatten()),len(self.ref_carts.flatten())), dtype=object)
+                    p_disp = np.zeros(
+                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
+                        dtype=object,
+                    )
+                    m_disp = np.zeros(
+                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
+                        dtype=object,
+                    )
                     for index in self.indices:
                         i, j = index[0], index[1]
                         if i == j:
-                            p_disp[i,i] = self.ref_carts.flatten().copy()
-                            m_disp[i,i] = self.ref_carts.flatten().copy()
-                            p_disp[i,i][i] += self.disp
-                            m_disp[i,i][i] -= self.disp
-                            p_disp[i,i] = np.reshape(p_disp[i,i], (-1, 3))
-                            m_disp[i,i] = np.reshape(m_disp[i,i], (-1, 3))
+                            p_disp[i, i] = self.ref_carts.flatten().copy()
+                            m_disp[i, i] = self.ref_carts.flatten().copy()
+                            p_disp[i, i][i] += self.disp
+                            m_disp[i, i][i] -= self.disp
+                            p_disp[i, i] = np.reshape(p_disp[i, i], (-1, 3))
+                            m_disp[i, i] = np.reshape(m_disp[i, i], (-1, 3))
                         else:
-                            p_disp[i,j] = self.ref_carts.flatten().copy()
-                            m_disp[i,j] = self.ref_carts.flatten().copy()
-                            p_disp[i,j][i] += self.disp
-                            p_disp[i,j][j] += self.disp
-                            m_disp[i,j][i] -= self.disp
-                            m_disp[i,j][j] -= self.disp
-                            p_disp[i,j] = np.reshape(p_disp[i,j], (-1, 3))
-                            m_disp[i,j] = np.reshape(m_disp[i,j], (-1, 3))
+                            p_disp[i, j] = self.ref_carts.flatten().copy()
+                            m_disp[i, j] = self.ref_carts.flatten().copy()
+                            p_disp[i, j][i] += self.disp
+                            p_disp[i, j][j] += self.disp
+                            m_disp[i, j][i] -= self.disp
+                            m_disp[i, j][j] -= self.disp
+                            p_disp[i, j] = np.reshape(p_disp[i, j], (-1, 3))
+                            m_disp[i, j] = np.reshape(m_disp[i, j], (-1, 3))
 
                     self.p_disp = p_disp
                     self.m_disp = m_disp
@@ -331,7 +358,7 @@ class TransfDisp(object):
             )
             raise RuntimeError
 
-    #function useful for CMA geometry optimizer
+    # function useful for CMA geometry optimizer
     def eigs_inv(self):
         proj_tol = 1.0e-3
         self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Sym internals (S) )
@@ -341,7 +368,7 @@ class TransfDisp(object):
                 np.abs(self.eig_inv[i]) < np.max(np.abs(self.eig_inv[i])) * proj_tol
             ] = 0
 
-    def displace_geom(self,pair):
+    def displace_geom(self, pair):
         print("inside displace geom")
         print(f"The pair {pair}")
         disp_geom = np.copy(self.symm_obj.symtext.mol.coords)
@@ -349,7 +376,12 @@ class TransfDisp(object):
             print(f"The s index {s_index}")
             for atom_idx in range(self.symm_obj.symtext.mol.natoms):
                 for xyz_idx in range(3):
-                    disp_geom[atom_idx, xyz_idx] += self.disp * self.symm_obj.CDsalcs.salcs[s_index].coeffs[atom_idx * 3 + xyz_idx] #/ np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
+                    disp_geom[atom_idx, xyz_idx] += (
+                        self.disp
+                        * self.symm_obj.CDsalcs.salcs[s_index].coeffs[
+                            atom_idx * 3 + xyz_idx
+                        ]
+                    )  # / np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
         return disp_geom
 
     def int_c(self, carts, eig_inv, proj):
@@ -432,19 +464,11 @@ class TransfDisp(object):
             a = self.calc_angle(x1, x2, x3)
             if self.conv:
                 condition_1 = (
-                    float(
-                        self.zmat.variable_dictionary_a[
-                            self.zmat.angle_variables[i]
-                        ]
-                    )
+                    float(self.zmat.variable_dictionary_a[self.zmat.angle_variables[i]])
                     > 180.0
                 )
                 condition_2 = (
-                    float(
-                        self.zmat.variable_dictionary_a[
-                            self.zmat.angle_variables[i]
-                        ]
-                    )
+                    float(self.zmat.variable_dictionary_a[self.zmat.angle_variables[i]])
                     < 0.0
                 )
                 if condition_1 or condition_2:
@@ -568,15 +592,11 @@ class TransfDisp(object):
             o = self.calc_OOP(x1, x2, x3, x4)
             if self.conv:
                 condition_1 = (
-                    float(
-                        self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]]
-                    )
+                    float(self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]])
                     > 180.0
                 )
                 condition_2 = (
-                    float(
-                        self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]]
-                    )
+                    float(self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]])
                     < -180.0
                 )
                 if condition_1:
@@ -901,7 +921,7 @@ class TransfDisp(object):
             print(tolerance)
         return new_carts
 
-    def compute_A(self, B, proj, eig_inv, u, cma_level='B'):
+    def compute_A(self, B, proj, eig_inv, u, cma_level="B"):
         """
         Construct 'A', the commented lines may be useful for getting
         intensities later. The BB^T product must be linearly independent
@@ -924,7 +944,7 @@ class TransfDisp(object):
         # # A = np.sqrt(u).dot(A)
         # # A = u.dot(A)
         # A = A.T  # (S x 3N)
-        
+
         # This step modifies A to convert from normal coords to carts.
         A = np.dot(L.T, A)  # (Q x 3N)
 

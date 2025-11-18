@@ -7,7 +7,7 @@ from scipy import stats
 class Algorithm(object):
     """
     The purpose of this class is to return a list of indices by which the force constants of the CMA method
-    will be computed. These indices will be determined by user input where nonabelian symmetry can be 
+    will be computed. These indices will be determined by user input where nonabelian symmetry can be
     exploited.
     """
 
@@ -30,7 +30,7 @@ class Algorithm(object):
             else:
                 self.loop()
 
-    #Indices for high level A looping or deriv_level_b == 1
+    # Indices for high level A looping or deriv_level_b == 1
     def loop_symmetry_diagonal(self):
         self.indices = []
         self.indices_by_irrep = []
@@ -42,13 +42,13 @@ class Algorithm(object):
                 for irrepl in irrep:
                     irrep_indices = []
                     for i in range(offset, irrepl + offset):
-                        irrep_indices.append([i,i])
+                        irrep_indices.append([i, i])
                     degen_list.append(irrep_indices)
                     offset += irrepl
                 self.indices_by_irrep.append(degen_list)
             else:
                 for i in range(offset, irrep + offset):
-                    irrep_indices.append([i,i])
+                    irrep_indices.append([i, i])
                 self.indices_by_irrep.append(irrep_indices)
                 offset += irrep
         for i, irrep_ind in enumerate(self.indices_by_irrep):
@@ -58,8 +58,7 @@ class Algorithm(object):
                 self.indices.append(irrep_ind)
         self.indices = [item for sublist in self.indices for item in sublist]
 
-
-    #Indices for level B where deriv_level_b == 0
+    # Indices for level B where deriv_level_b == 0
     def loop_symmetry(self):
         self.indices = []
         self.indices_by_irrep = []
@@ -72,14 +71,14 @@ class Algorithm(object):
                     irrep_indices = []
                     for i in range(offset, irrepl + offset):
                         for j in range(i, irrepl + offset):
-                            irrep_indices.append([i,j])
+                            irrep_indices.append([i, j])
                     degen_list.append(irrep_indices)
                     offset += irrepl
                 self.indices_by_irrep.append(degen_list)
             else:
                 for i in range(offset, irrep + offset):
                     for j in range(i, irrep + offset):
-                        irrep_indices.append([i,j])
+                        irrep_indices.append([i, j])
                 self.indices_by_irrep.append(irrep_indices)
                 offset += self.proj_irreps[h]
         for i, irrep_ind in enumerate(self.indices_by_irrep):
@@ -88,14 +87,14 @@ class Algorithm(object):
             else:
                 self.indices.append(irrep_ind)
         self.indices = [item for sublist in self.indices for item in sublist]
-    
+
     def loop_diagonal(self):
         self.indices = []
         for i in range(self.num_deg_free):
-            self.indices.append([i,i])
+            self.indices.append([i, i])
         self.indices_by_irrep = None
         self.degens = None
-    
+
     # Generates level B indices where no symmetry is being used
     def loop(self):
         if self.cma_level == "A":
@@ -111,8 +110,8 @@ class Algorithm(object):
                 else:
                     self.indices.append([i, j])
                     # if i == j:
-                        # self.indices.append([i, j])
+                    # self.indices.append([i, j])
                     # elif i != j:
-                        # self.indices.append([i, j])
+                    # self.indices.append([i, j])
         self.indices_by_irrep = None
         self.degens = None

@@ -25,7 +25,7 @@ class DirectoryTree(object):
     ):
         self.prog_name = prog_name
         self.zmat = zmat
-        self.ref_geom = ref_geom  
+        self.ref_geom = ref_geom
         # self.disps = disps  # This should be the 'TransfDisp' object
         self.cma_level = cma_level
         self.p_disp = p_disp
@@ -46,7 +46,7 @@ class DirectoryTree(object):
             print("Please specify A, B, or C for your cma_level")
             raise RuntimeError
             # self.insertion_index = self.options.cart_insert
-        #self.insertion_index = self.options.cart_insert_b if cma_level == "B" else self.options.cart_insert
+        # self.insertion_index = self.options.cart_insert_b if cma_level == "B" else self.options.cart_insert
 
     def run(self):
         # disp_dict = {}
@@ -59,7 +59,7 @@ class DirectoryTree(object):
 
         n_atoms = len(self.zmat.atom_list)
 
-        prog_list = ["molpro","psi4","cfour","orca"]
+        prog_list = ["molpro", "psi4", "cfour", "orca"]
 
         if prog_name in prog_list:
             with open(self.template, "r") as file:
@@ -77,7 +77,7 @@ class DirectoryTree(object):
             self.genbas = True
         if os.path.exists(root + "/ECPDATA"):
             self.ecp = True
-        
+
         data_buff = data.copy()
         if os.path.exists(os.getcwd() + "/old" + self.dir_name):
             shutil.rmtree("old" + self.dir_name, ignore_errors=True)
@@ -102,7 +102,6 @@ class DirectoryTree(object):
                 inp,
                 "1",
             )
-            
 
             # Not including the reference input, this function generates the directories for the displacement
             # jobs and copies in the input file data. Following this, these jobs are ready to be submitted to the queue.
@@ -116,9 +115,13 @@ class DirectoryTree(object):
                 if self.options.only_TSIR:
                     indices = self.symm_obj.indices_by_irrep[0]
                 else:
-                    indices = deepcopy.copy(self.symm_obj.indices_by_irrep).flatten().reshape((-1,2))
+                    indices = (
+                        deepcopy.copy(self.symm_obj.indices_by_irrep)
+                        .flatten()
+                        .reshape((-1, 2))
+                    )
             # else:
-            
+
             Sum = 1
             h = 0
             for index in indices:
@@ -146,11 +149,16 @@ class DirectoryTree(object):
                         self.zmat.atom_list,
                         self.insertion_index,
                         inp,
-                        direc+1,
+                        direc + 1,
                     )
-                    
+
                     direc += 2
-                if self.symm_obj.symtext is not None and self.options.exploit_pm_symm and not self.options.only_TSIR and Sum>len(self.symm_obj.indices_by_irrep[0]):
+                if (
+                    self.symm_obj.symtext is not None
+                    and self.options.exploit_pm_symm
+                    and not self.options.only_TSIR
+                    and Sum > len(self.symm_obj.indices_by_irrep[0])
+                ):
                     h += 1
                 Sum += 1
 
@@ -158,118 +166,118 @@ class DirectoryTree(object):
             # is written to a standard input file after the create_directory function creates a directory
             # within the Disps directory.
             # if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
-                # if self.options.only_TSIR:
-                    # #loop over the 0th irrep (TSIR) only
-                    # for index in self.symm_obj.indices_by_irrep[0]:
-                        # i, j = index[0], index[1]
-                        # # data = self.make_input(
-                        # self.make_input(
-                            # copy.deepcopy(data),
-                            # # p_data,
-                            # p_disp[i, j],
-                            # n_atoms,
-                            # self.zmat.atom_list,
-                            # self.insertion_index,
-                            # inp,
-                            # direc,
-                        # )
-                        
-                        # # data = self.make_input(
-                        # self.make_input(
-                            # copy.deepcopy(data),
-                            # # data,
-                            # m_disp[i, j],
-                            # n_atoms,
-                            # self.zmat.atom_list,
-                            # self.insertion_index,
-                            # inp,
-                            # direc+1,
-                        # )
-                        
-                        # direc += 2
-                # else:
-                    # for h, h_indices in enumerate(self.symm_obj.indices_by_irrep):
-                        # for index in h_indices:
-                            # i, j = index[0], index[1]
-                            # # data = self.make_input(
-                            # self.make_input(
-                                # copy.deepcopy(data),
-                                # # data,
-                                # p_disp[i, j],
-                                # n_atoms,
-                                # self.zmat.atom_list,
-                                # self.insertion_index,
-                                # inp,
-                                # direc,
-                            # )
-                            # if h != 0:
-                                # direc += 1
-                            # else:
-                                # # data = self.make_input(
-                                # self.make_input(
-                                    # copy.deepcopy(data),
-                                    # m_disp[i, j],
-                                    # n_atoms,
-                                    # self.zmat.atom_list,
-                                    # self.insertion_index,
-                                    # inp,
-                                    # direc+1,
-                                # )
-                                # direc += 2
+            # if self.options.only_TSIR:
+            # #loop over the 0th irrep (TSIR) only
+            # for index in self.symm_obj.indices_by_irrep[0]:
+            # i, j = index[0], index[1]
+            # # data = self.make_input(
+            # self.make_input(
+            # copy.deepcopy(data),
+            # # p_data,
+            # p_disp[i, j],
+            # n_atoms,
+            # self.zmat.atom_list,
+            # self.insertion_index,
+            # inp,
+            # direc,
+            # )
+
+            # # data = self.make_input(
+            # self.make_input(
+            # copy.deepcopy(data),
+            # # data,
+            # m_disp[i, j],
+            # n_atoms,
+            # self.zmat.atom_list,
+            # self.insertion_index,
+            # inp,
+            # direc+1,
+            # )
+
+            # direc += 2
             # else:
-                # if self.cma_level != "A":
-                    # for index in indices:
-                        # i, j = index[0], index[1]
-                        # # data = self.make_input(
-                        # self.make_input(
-                            # copy.deepcopy(data),
-                            # p_disp[i, j],
-                            # n_atoms,
-                            # self.zmat.atom_list,
-                            # self.insertion_index,
-                            # inp,
-                            # direc,
-                        # )
+            # for h, h_indices in enumerate(self.symm_obj.indices_by_irrep):
+            # for index in h_indices:
+            # i, j = index[0], index[1]
+            # # data = self.make_input(
+            # self.make_input(
+            # copy.deepcopy(data),
+            # # data,
+            # p_disp[i, j],
+            # n_atoms,
+            # self.zmat.atom_list,
+            # self.insertion_index,
+            # inp,
+            # direc,
+            # )
+            # if h != 0:
+            # direc += 1
+            # else:
+            # # data = self.make_input(
+            # self.make_input(
+            # copy.deepcopy(data),
+            # m_disp[i, j],
+            # n_atoms,
+            # self.zmat.atom_list,
+            # self.insertion_index,
+            # inp,
+            # direc+1,
+            # )
+            # direc += 2
+            # else:
+            # if self.cma_level != "A":
+            # for index in indices:
+            # i, j = index[0], index[1]
+            # # data = self.make_input(
+            # self.make_input(
+            # copy.deepcopy(data),
+            # p_disp[i, j],
+            # n_atoms,
+            # self.zmat.atom_list,
+            # self.insertion_index,
+            # inp,
+            # direc,
+            # )
 
-                        # # data = self.make_input(
-                        # self.make_input(
-                            # copy.deepcopy(data),
-                            # m_disp[i, j],
-                            # n_atoms,
-                            # self.zmat.atom_list,
-                            # self.insertion_index,
-                            # inp,
-                            # direc+1,
-                        # )
-                        # direc += 2
-                # else:
-                    # for index in self.indices:
-                        # i, j = index[0], index[1]
-                        # # data = self.make_input(
-                        # self.make_input(
-                            # # data,
-                            # copy.deepcopy(data),
-                            # self.p_disp[i,j],
-                            # n_atoms,
-                            # self.zmat.atom_list,
-                            # self.insertion_index,
-                            # inp,
-                            # direc,
-                        # )
+            # # data = self.make_input(
+            # self.make_input(
+            # copy.deepcopy(data),
+            # m_disp[i, j],
+            # n_atoms,
+            # self.zmat.atom_list,
+            # self.insertion_index,
+            # inp,
+            # direc+1,
+            # )
+            # direc += 2
+            # else:
+            # for index in self.indices:
+            # i, j = index[0], index[1]
+            # # data = self.make_input(
+            # self.make_input(
+            # # data,
+            # copy.deepcopy(data),
+            # self.p_disp[i,j],
+            # n_atoms,
+            # self.zmat.atom_list,
+            # self.insertion_index,
+            # inp,
+            # direc,
+            # )
 
-                        # # data = self.make_input(
-                        # self.make_input(
-                            # # data,
-                            # copy.deepcopy(data),
-                            # self.m_disp[i,j],
-                            # n_atoms,
-                            # self.zmat.atom_list,
-                            # self.insertion_index,
-                            # inp,
-                            # direc+1,
-                        # )
+            # # data = self.make_input(
+            # self.make_input(
+            # # data,
+            # copy.deepcopy(data),
+            # self.m_disp[i,j],
+            # n_atoms,
+            # self.zmat.atom_list,
+            # self.insertion_index,
+            # inp,
+            # direc+1,
+            # )
 
-                        # direc += 2
+            # direc += 2
 
         elif self.deriv_level == 1:
             direc = 1
@@ -295,7 +303,7 @@ class DirectoryTree(object):
                     self.zmat.atom_list,
                     self.insertion_index,
                     inp,
-                    direc+1,
+                    direc + 1,
                 )
 
                 direc += 2
@@ -329,11 +337,11 @@ class DirectoryTree(object):
                     + "{:16.10f}".format(dispp[i][2])
                     + "\n",
                 )
-            
+
             with open(inp, "w") as file:
                 file.writelines(data)
             data = copy.deepcopy(data_buff)
-            
+
             if self.init:
                 shutil.copy("../../initden.dat", ".")
             if self.genbas:

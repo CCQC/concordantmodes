@@ -2,7 +2,7 @@ from concordantmodes.options import Options
 
 options_kwargs = {
     "program_a": "molpro",
-    "cluster" : "sapelo",
+    "cluster": "sapelo",
     "energy_regex_a": r"\(T\) total energy\s+(\-\d+\.\d+)",
     "cart_insert_a": 9,
     "success_regex_a": r"Molpro calculation terminated",

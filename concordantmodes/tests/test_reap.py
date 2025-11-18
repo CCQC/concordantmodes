@@ -34,7 +34,7 @@ def test_reap():
     suite.options.success_regex = r"beer"
     # print(os.getcwd())
     os.chdir(suite.path + "/Disps")
-    #reap_obj = Reap(
+    # reap_obj = Reap(
     #    prog_name,
     #    suite.ZMAT,
     #    suite.disps.disp_cart,
@@ -46,15 +46,15 @@ def test_reap():
     #    suite.options.gradient_regex,
     #    suite.options.molly_regex_init,
     #    suite.options.success_regex,
-    #)
-    #suite.options.init_bool = False
-    suite.algo.indices = [[0,0],[1,1],[2,2]]
+    # )
+    # suite.options.init_bool = False
+    suite.algo.indices = [[0, 0], [1, 1], [2, 2]]
     reap_obj = Reap(
         suite.options,
         suite.GF.L,
         suite.algo.indices,
         "A",
-        deriv_level = suite.options.deriv_level,
+        deriv_level=suite.options.deriv_level,
     )
     reap_obj.run()
 

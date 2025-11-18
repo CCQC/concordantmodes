@@ -1,7 +1,7 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    "cluster" : "sapelo",
+    "cluster": "sapelo",
     "program_a": "psi4",
     "program_b": "psi4",
     "energy_regex_a": r"Giraffe The Energy is\s+(\-\d+\.\d+)",
@@ -9,7 +9,7 @@ options_kwargs = {
     "cart_insert_a": 7,
     "cart_insert_b": 7,
     "coords": "Delocalized",
-    "covalent_radii" : True,
+    "covalent_radii": True,
     "success_regex_a": r"beer",
     "success_regex_b": r"beer",
 }

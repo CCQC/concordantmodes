@@ -35,7 +35,7 @@ def test_transf_disp():
         suite.TED_obj,
         suite.options,
         suite.algo.indices,
-        coord_type
+        coord_type,
     )
     disps.run()
 

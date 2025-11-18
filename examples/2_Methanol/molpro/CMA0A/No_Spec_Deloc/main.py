@@ -1,7 +1,7 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    "cluster" : "sapelo",
+    "cluster": "sapelo",
     "program_b": "molpro",
     "program_a": "molpro",
     "energy_regex_a": r"\(T\) total energy\s+(\-\d+\.\d+)",

@@ -16,7 +16,7 @@ class TED(object):
         self.zmat = zmat
         self.options = options
 
-    def run(self, eigs, freq, symtext = None, rect_print=True):
+    def run(self, eigs, freq, symtext=None, rect_print=True):
         self.symtext = symtext
         proj_eigs = eigs
         if len(np.shape(self.proj)) > 2 and np.shape(self.proj)[0] > 1:

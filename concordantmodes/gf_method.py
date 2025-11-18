@@ -6,6 +6,7 @@ from scipy.linalg import fractional_matrix_power
 from scipy.linalg import block_diag
 import copy
 
+
 class GFMethod(object):
     """
     This class is a versatile method to compute GF frequencies.
@@ -13,7 +14,7 @@ class GFMethod(object):
     TODO: Insert standard uncertainties of amu_elmass and HARTREE_WAVENUM
     """
 
-    def __init__(self, G, F, zmat, ted, options, symtext = None, cma=None, sym_sort=[]):
+    def __init__(self, G, F, zmat, ted, options, symtext=None, cma=None, sym_sort=[]):
         self.G = G
         self.F = F
         self.zmat = zmat
@@ -33,15 +34,15 @@ class GFMethod(object):
         self.F_O = np.dot(np.dot(self.G_O, self.F), self.G_O)
         # self.F_O[np.abs(self.F_O) < 1.0e-8] = 0
         # self.F_O[np.abs(self.F_O) < self.options.tol] = 0
-   
+
         if self.options.molsym_symmetry:
-            #allows the block diagonalization of the GF matrix so normal modes stay
-            #in the assumed ordering for the level A displacements (Within their symmetry blocks)
+            # allows the block diagonalization of the GF matrix so normal modes stay
+            # in the assumed ordering for the level A displacements (Within their symmetry blocks)
             self.block_GF()
         else:
             # self.eig_v, self.L_p = sp.linalg.eigh(self.F_O)
             self.eig_v, self.L_p = LA.eigh(self.F_O)
-        
+
         self.L_p[np.abs(self.L_p) < self.options.tol] = 0
         self.L = np.dot(self.G_O, self.L_p)
         self.L = np.real(self.L)
@@ -54,8 +55,8 @@ class GFMethod(object):
         # del_tol = 1.0e-2
         # self.L = self.L.T
         # for row in self.L:
-           # abs_row = np.abs(row)
-           # row[abs_row < np.max(abs_row)*del_tol] = 0
+        # abs_row = np.abs(row)
+        # row[abs_row < np.max(abs_row)*del_tol] = 0
         # self.L = self.L.T
         # Compute the frequencies by the square root of the eigenvalues.
         self.freq = np.sqrt(self.eig_v, dtype=complex)
@@ -106,8 +107,8 @@ class GFMethod(object):
         self.irrep_labels = []
         self.irrep_degen = []
         for hi, h in enumerate(self.symtext.salcblocks):
-            
-            #Extract the block from the supermatrix
+
+            # Extract the block from the supermatrix
             fo = self.extract(self.F_O, offset_h, h.shape[0])
             self.block_fo.append(fo)
             eig_v_h, L_p_h = LA.eigh(fo)
@@ -124,7 +125,7 @@ class GFMethod(object):
         self.eig_v = np.asarray(self.eigvals)
         self.block_eigvecs = copy.deepcopy(self.eigvecs)
         self.L_p = block_diag(*self.eigvecs)
-  
-     #function to extract bd matrices from supermatrix
+
+    # function to extract bd matrices from supermatrix
     def extract(self, A, offset, size):
-        return A[offset:offset+size, offset:offset+size]
+        return A[offset : offset + size, offset : offset + size]

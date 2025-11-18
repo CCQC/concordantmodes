@@ -1,7 +1,7 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    "cluster" : "sapelo",
+    "cluster": "sapelo",
     "program_b": "molpro",
     "program_a": "molpro",
     "energy_regex_a": r"\(T\) total energy\s+(\-\d+\.\d+)",
@@ -11,7 +11,7 @@ options_kwargs = {
     "coords": "Custom",
     "success_regex_a": r"Molpro calculation terminated",
     "success_regex_b": r"Molpro calculation terminated",
-    "molsym_symmetry" : True,
+    "molsym_symmetry": True,
 }
 options_obj = Options(**options_kwargs)
 

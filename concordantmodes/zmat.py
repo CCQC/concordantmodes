@@ -21,7 +21,7 @@ class Zmat(object):
 
         # Process the read in information
         self.zmat_process(zmat_output)
-       
+
         # Calculate internal coordinate values from reference cartesian coordinates
         self.zmat_calc()
 
@@ -108,7 +108,7 @@ class Zmat(object):
             if end_cart:
                 cart_range.append(i + cart_range[0])
                 break
-        
+
         self.cart_range = cart_range
         cart_output = output[cart_range[0] : cart_range[1]].copy()
 
@@ -723,8 +723,7 @@ class Zmat(object):
                 float(self.variable_dictionary_b[self.torsion_variables[i]]) >= 270.0
             )
             buff = np.floor(
-                abs(float(self.variable_dictionary_b[self.torsion_variables[i]]))
-                / 360
+                abs(float(self.variable_dictionary_b[self.torsion_variables[i]])) / 360
             )
             if condition_1:
                 self.variable_dictionary_b[self.torsion_variables[i]] = float(
@@ -750,24 +749,19 @@ class Zmat(object):
         # Then the Final. This can probably be structured more elegantly, but this works and isn't too computationally demanding.
         for i in range(len(self.torsion_variables)):
             condition_1 = (
-                float(self.variable_dictionary_a[self.torsion_variables[i]])
-                <= -90.0
+                float(self.variable_dictionary_a[self.torsion_variables[i]]) <= -90.0
             )
             condition_2 = (
-                float(self.variable_dictionary_a[self.torsion_variables[i]])
-                >= 270.0
+                float(self.variable_dictionary_a[self.torsion_variables[i]]) >= 270.0
             )
             buff = np.floor(
-                abs(float(self.variable_dictionary_a[self.torsion_variables[i]]))
-                / 360
+                abs(float(self.variable_dictionary_a[self.torsion_variables[i]])) / 360
             )
             if condition_1:
                 self.variable_dictionary_a[self.torsion_variables[i]] = float(
                     self.variable_dictionary_a[self.torsion_variables[i]]
                 )
-                self.variable_dictionary_a[self.torsion_variables[i]] += (
-                    360.0 * buff
-                )
+                self.variable_dictionary_a[self.torsion_variables[i]] += 360.0 * buff
                 if (
                     float(self.variable_dictionary_a[self.torsion_variables[i]])
                     <= -90.0
@@ -777,9 +771,7 @@ class Zmat(object):
                 self.variable_dictionary_a[self.torsion_variables[i]] = float(
                     self.variable_dictionary_a[self.torsion_variables[i]]
                 )
-                self.variable_dictionary_a[self.torsion_variables[i]] -= (
-                    360.0 * buff
-                )
+                self.variable_dictionary_a[self.torsion_variables[i]] -= 360.0 * buff
                 if (
                     float(self.variable_dictionary_a[self.torsion_variables[i]])
                     >= 270.0
@@ -802,9 +794,9 @@ class Zmat(object):
                 i
             ]
         for i in range(len(self.torsion_indices)):
-            self.index_dictionary[
-                "D" + str(i + zmat_shift_d + 1)
-            ] = self.torsion_indices[i]
+            self.index_dictionary["D" + str(i + zmat_shift_d + 1)] = (
+                self.torsion_indices[i]
+            )
         for i in range(len(self.oop_indices)):
             self.index_dictionary["O" + str(i + 1)] = self.oop_indices[i]
         for i in range(len(self.lin_indices)):

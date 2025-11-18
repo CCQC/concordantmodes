@@ -1,7 +1,7 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    "cluster" : "sapelo",
+    "cluster": "sapelo",
     "program_a": "psi4",
     "program_b": "psi4",
     "energy_regex_a": r"Giraffe The Energy is\s+(\-\d+\.\d+)",

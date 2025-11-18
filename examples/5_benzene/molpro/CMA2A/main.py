@@ -1,7 +1,7 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    "cluster" : "sapelo",
+    "cluster": "sapelo",
     "program_c": "molpro",
     "program_b": "molpro",
     "program_a": "molpro",
@@ -15,10 +15,10 @@ options_kwargs = {
     "success_regex_a": r"Molpro calculation terminated",
     "success_regex_b": r"Molpro calculation terminated",
     "success_regex_c": r"Molpro calculation terminated",
-    "symmetry" : True,
-    "autosalcs" : True,
-    "off_diag" : 2,
-    "xi_tol" : 0.14,
+    "symmetry": True,
+    "autosalcs": True,
+    "off_diag": 2,
+    "xi_tol": 0.14,
 }
 options_obj = Options(**options_kwargs)
 
