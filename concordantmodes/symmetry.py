@@ -44,7 +44,7 @@ class Symmetry(object):
 
     
     def molsym_salcs_cartesian(self):
-        self.zmat.cartesians_init = self.symtext.mol.coords
+        self.zmat.cartesians_b = self.symtext.mol.coords
         cart_coords = CartesianCoordinates(self.symtext)
         self.CDsalcs = ProjectionOp(self.symtext, cart_coords, project_Eckart=False)
         self.CDsalcs.sort_to('blocks')
@@ -91,7 +91,7 @@ class Symmetry(object):
         qc_obj = {
             "symbols": self.zmat.atom_list,
             "mass" : [get_mass(x) for x in self.zmat.atom_list],
-            "geometry" : self.zmat.cartesians_init.flatten().tolist(),
+            "geometry" : self.zmat.cartesians_b.flatten().tolist(),
         }
         return qc_obj
 
@@ -245,9 +245,9 @@ class Symmetry(object):
         print(g_sym)
         return F, g_mat.G
 
-    def cma2_sym_sort(self, sym_sort, od_inds, irreps_init, F_inter, xi, xi_tol_i):
+    def cma2_sym_sort(self, sym_sort, od_inds, irreps_b, F_inter, xi, xi_tol_i):
         total_off_diags_buff = 0
-        for irrep in irreps_init:
+        for irrep in irreps_b:
             if len(irrep) > 1:
                 for i in range(len(irrep)):
                     for j in range(i):
@@ -272,14 +272,14 @@ class Symmetry(object):
         return sym_disps
 
     def mode_symmetry_sort(self,TED,sym_sort,freqs):
-        ref_TED_init = TED
+        ref_TED_b = TED
         sym_modes = []
         for irrep in sym_sort:
             irrep_modes = []
-            for i in range(len(ref_TED_init.T)):
+            for i in range(len(ref_TED_b.T)):
                 Sum = 0
                 for j in irrep:
-                    Sum += ref_TED_init.T[i,j]
+                    Sum += ref_TED_b.T[i,j]
                 # print(i)
                 # print(irrep)
                 # print(Sum)

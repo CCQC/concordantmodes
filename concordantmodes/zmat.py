@@ -92,8 +92,8 @@ class Zmat(object):
         with open(zmat_name, "r") as file:
             output = file.readlines()
         # Read in the input cartesian coordinates
-        self.cartesians_init = []
-        self.cartesians_final = []
+        self.cartesians_b = []
+        self.cartesians_a = []
         cart_range = []
         self.atom_list = []
 
@@ -118,18 +118,18 @@ class Zmat(object):
                 divide_index = i
                 break
         if self.divider:
-            cart_output_init = cart_output[:divide_index].copy()
-            cart_output_final = cart_output[divide_index + 1 :].copy()
+            cart_output_b = cart_output[:divide_index].copy()
+            cart_output_a = cart_output[divide_index + 1 :].copy()
         else:
-            cart_output_init = cart_output.copy()
+            cart_output_b = cart_output.copy()
 
-        for i in range(len(cart_output_init)):
-            if re.search(self.cartesian_regex, cart_output_init[i]):
-                temp = re.findall(self.cartesian_regex, cart_output_init[i])
-                atom = re.findall(self.cartesian_atom_regex, cart_output_init[i])
-                self.cartesians_init.append(temp[0])
+        for i in range(len(cart_output_b)):
+            if re.search(self.cartesian_regex, cart_output_b[i]):
+                temp = re.findall(self.cartesian_regex, cart_output_b[i])
+                atom = re.findall(self.cartesian_atom_regex, cart_output_b[i])
+                self.cartesians_b.append(temp[0])
                 self.atom_list.append(atom[0])
-        self.cartesians_init = np.array(self.cartesians_init).astype(float)
+        self.cartesians_b = np.array(self.cartesians_b).astype(float)
 
         # The masses are assigned to the respective atom from the masses.py file
         self.masses = [masses.get_mass(label) for label in self.atom_list]
@@ -139,17 +139,17 @@ class Zmat(object):
         self.mass_weight = np.diag(np.array(self.masses).repeat(3))
 
         if self.divider:
-            for i in range(len(cart_output_final)):
-                if re.search(self.cartesian_regex, cart_output_final[i]):
-                    temp = re.findall(self.cartesian_regex, cart_output_final[i])
-                    self.cartesians_final.append(temp[0])
-            self.cartesians_final = np.array(self.cartesians_final).astype(float)
+            for i in range(len(cart_output_a)):
+                if re.search(self.cartesian_regex, cart_output_a[i]):
+                    temp = re.findall(self.cartesian_regex, cart_output_a[i])
+                    self.cartesians_a.append(temp[0])
+            self.cartesians_a = np.array(self.cartesians_a).astype(float)
         else:
-            self.cartesians_final = self.cartesians_init.copy()
+            self.cartesians_a = self.cartesians_b.copy()
 
         if self.options.cart_coords.upper() == "ANGSTROM":
-            self.cartesians_init /= self.Bohr_Ang
-            self.cartesians_final /= self.Bohr_Ang
+            self.cartesians_b /= self.Bohr_Ang
+            self.cartesians_a /= self.Bohr_Ang
 
         zmat_output = ""
         # Slice out the ZMAT from the input
@@ -189,8 +189,8 @@ class Zmat(object):
         self.liny_variables = []
         self.rcom_indices = []
         self.rcom_variables = []
-        self.variable_dictionary_init = {}
-        self.variable_dictionary_final = {}
+        self.variable_dictionary_b = {}
+        self.variable_dictionary_a = {}
         self.index_dictionary = {}
         self.reduced_masses = np.array([])
 
@@ -247,14 +247,14 @@ class Zmat(object):
                     indices,
                 )
                 inter_atomic_len = np.zeros(
-                    (len(self.cartesians_init), len(self.cartesians_init))
+                    (len(self.cartesians_b), len(self.cartesians_b))
                 )
-                N = len(self.cartesians_init)
+                N = len(self.cartesians_b)
                 adj_mat = np.zeros((N, N))
-                for i in range(len(self.cartesians_init)):
+                for i in range(len(self.cartesians_b)):
                     for j in range(i):
                         inter_atomic_len[j, i] = transdisp_inter.calc_bond(
-                            self.cartesians_init[i], self.cartesians_init[j]
+                            self.cartesians_b[i], self.cartesians_b[j]
                         )
                         if inter_atomic_len[j, i] < self.options.bond_threshold * (
                             c_r.get(self.atom_list[i]) + c_r.get(self.atom_list[j])
@@ -659,8 +659,8 @@ class Zmat(object):
             + len(self.linx_indices)
             + len(self.liny_indices)
         )
-        self.variables1 = transdisp.int_c(self.cartesians_init, I, I)
-        self.variables2 = transdisp.int_c(self.cartesians_final, I, I)
+        self.variables1 = transdisp.int_c(self.cartesians_b, I, I)
+        self.variables2 = transdisp.int_c(self.cartesians_a, I, I)
 
         for i in range(
             +len(self.angle_indices)
@@ -704,87 +704,87 @@ class Zmat(object):
                 indices.append(self.torsion_indices[i].tolist())
 
         for i in range(len(self.variables1)):
-            self.variable_dictionary_init[self.variables[i]] = self.variables1[i]
+            self.variable_dictionary_b[self.variables[i]] = self.variables1[i]
 
         if self.divider:
             for i in range(len(self.variables2)):
-                self.variable_dictionary_final[self.variables[i]] = self.variables2[i]
+                self.variable_dictionary_a[self.variables[i]] = self.variables2[i]
         else:
-            self.variable_dictionary_final = self.variable_dictionary_init.copy()
+            self.variable_dictionary_a = self.variable_dictionary_b.copy()
             # And now we must temper the torsion angles! For consistency's sake
             # we will force them to lie between -90 deg and +270 deg.
 
         # Handle Variable lists separately. First the INIT:
         for i in range(len(self.torsion_variables)):
             condition_1 = (
-                float(self.variable_dictionary_init[self.torsion_variables[i]]) <= -90.0
+                float(self.variable_dictionary_b[self.torsion_variables[i]]) <= -90.0
             )
             condition_2 = (
-                float(self.variable_dictionary_init[self.torsion_variables[i]]) >= 270.0
+                float(self.variable_dictionary_b[self.torsion_variables[i]]) >= 270.0
             )
             buff = np.floor(
-                abs(float(self.variable_dictionary_init[self.torsion_variables[i]]))
+                abs(float(self.variable_dictionary_b[self.torsion_variables[i]]))
                 / 360
             )
             if condition_1:
-                self.variable_dictionary_init[self.torsion_variables[i]] = float(
-                    self.variable_dictionary_init[self.torsion_variables[i]]
+                self.variable_dictionary_b[self.torsion_variables[i]] = float(
+                    self.variable_dictionary_b[self.torsion_variables[i]]
                 )
-                self.variable_dictionary_init[self.torsion_variables[i]] += 360.0 * buff
+                self.variable_dictionary_b[self.torsion_variables[i]] += 360.0 * buff
                 if (
-                    float(self.variable_dictionary_init[self.torsion_variables[i]])
+                    float(self.variable_dictionary_b[self.torsion_variables[i]])
                     <= -90.0
                 ):
-                    self.variable_dictionary_init[self.torsion_variables[i]] += 360.0
+                    self.variable_dictionary_b[self.torsion_variables[i]] += 360.0
             if condition_2:
-                self.variable_dictionary_init[self.torsion_variables[i]] = float(
-                    self.variable_dictionary_init[self.torsion_variables[i]]
+                self.variable_dictionary_b[self.torsion_variables[i]] = float(
+                    self.variable_dictionary_b[self.torsion_variables[i]]
                 )
-                self.variable_dictionary_init[self.torsion_variables[i]] -= 360.0 * buff
+                self.variable_dictionary_b[self.torsion_variables[i]] -= 360.0 * buff
                 if (
-                    float(self.variable_dictionary_init[self.torsion_variables[i]])
+                    float(self.variable_dictionary_b[self.torsion_variables[i]])
                     >= 270.0
                 ):
-                    self.variable_dictionary_init[self.torsion_variables[i]] -= 360.0
+                    self.variable_dictionary_b[self.torsion_variables[i]] -= 360.0
 
         # Then the Final. This can probably be structured more elegantly, but this works and isn't too computationally demanding.
         for i in range(len(self.torsion_variables)):
             condition_1 = (
-                float(self.variable_dictionary_final[self.torsion_variables[i]])
+                float(self.variable_dictionary_a[self.torsion_variables[i]])
                 <= -90.0
             )
             condition_2 = (
-                float(self.variable_dictionary_final[self.torsion_variables[i]])
+                float(self.variable_dictionary_a[self.torsion_variables[i]])
                 >= 270.0
             )
             buff = np.floor(
-                abs(float(self.variable_dictionary_final[self.torsion_variables[i]]))
+                abs(float(self.variable_dictionary_a[self.torsion_variables[i]]))
                 / 360
             )
             if condition_1:
-                self.variable_dictionary_final[self.torsion_variables[i]] = float(
-                    self.variable_dictionary_final[self.torsion_variables[i]]
+                self.variable_dictionary_a[self.torsion_variables[i]] = float(
+                    self.variable_dictionary_a[self.torsion_variables[i]]
                 )
-                self.variable_dictionary_final[self.torsion_variables[i]] += (
+                self.variable_dictionary_a[self.torsion_variables[i]] += (
                     360.0 * buff
                 )
                 if (
-                    float(self.variable_dictionary_final[self.torsion_variables[i]])
+                    float(self.variable_dictionary_a[self.torsion_variables[i]])
                     <= -90.0
                 ):
-                    self.variable_dictionary_final[self.torsion_variables[i]] += 360.0
+                    self.variable_dictionary_a[self.torsion_variables[i]] += 360.0
             if condition_2:
-                self.variable_dictionary_final[self.torsion_variables[i]] = float(
-                    self.variable_dictionary_final[self.torsion_variables[i]]
+                self.variable_dictionary_a[self.torsion_variables[i]] = float(
+                    self.variable_dictionary_a[self.torsion_variables[i]]
                 )
-                self.variable_dictionary_final[self.torsion_variables[i]] -= (
+                self.variable_dictionary_a[self.torsion_variables[i]] -= (
                     360.0 * buff
                 )
                 if (
-                    float(self.variable_dictionary_final[self.torsion_variables[i]])
+                    float(self.variable_dictionary_a[self.torsion_variables[i]])
                     >= 270.0
                 ):
-                    self.variable_dictionary_final[self.torsion_variables[i]] -= 360.0
+                    self.variable_dictionary_a[self.torsion_variables[i]] -= 360.0
 
     def zmat_compile(self):
         zmat_shift_a = 0
@@ -825,7 +825,7 @@ class Zmat(object):
                 + " "
                 + self.variables[i]
                 + " = "
-                + str(self.variable_dictionary_init[self.variables[i]])
+                + str(self.variable_dictionary_b[self.variables[i]])
             )
         print("Final Geometric Internal Coordinate Values:")
         for i in range(len(self.variables)):
@@ -834,7 +834,7 @@ class Zmat(object):
                 + " "
                 + self.variables[i]
                 + " = "
-                + str(self.variable_dictionary_final[self.variables[i]])
+                + str(self.variable_dictionary_a[self.variables[i]])
             )
         print("Final - Initial Geometric Internal Coordinate Values:")
         for i in range(len(self.variables)):
@@ -842,16 +842,16 @@ class Zmat(object):
                 self.variables[i]
                 + " = "
                 + str(
-                    self.variable_dictionary_final[self.variables[i]]
-                    - self.variable_dictionary_init[self.variables[i]]
+                    self.variable_dictionary_a[self.variables[i]]
+                    - self.variable_dictionary_b[self.variables[i]]
                 )
             )
         if self.options.geom_check:
             Sum = 0
             for i in range(len(self.bond_indices)):
                 Sum += (
-                    self.variable_dictionary_final[self.variables[i]]
-                    - self.variable_dictionary_init[self.variables[i]]
+                    self.variable_dictionary_a[self.variables[i]]
+                    - self.variable_dictionary_b[self.variables[i]]
                 ) ** 2
 
             # print("squared sum: ")

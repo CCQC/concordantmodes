@@ -5,19 +5,16 @@ from scipy.linalg import block_diag
 
 options_kwargs = {
     "cluster": "sapelo",
-    "program_init": "molpro",
-    "program": "molpro",
-    "energy_regex": r"\(T\) total energy\s+(\-\d+\.\d+)",
-    "energy_regex_init": r"\(T\) total energy\s+(\-\d+\.\d+)",
-    "cart_insert_init": 9,
-    "cart_insert": 9,
-    # "calc_init" : False,
-    # "gen_disps_init" : False,
-    # "reduced_disp": True,
+    "program_b": "molpro",
+    "program_a": "molpro",
+    "energy_regex_a": r"\(T\) total energy\s+(\-\d+\.\d+)",
+    "energy_regex_b": r"\(T\) total energy\s+(\-\d+\.\d+)",
+    "cart_insert_b": 9,
+    "cart_insert_a": 9,
     "man_proj": True,
     "coords": "Custom",
-    "success_regex": r"Molpro calculation terminated",
-    "success_regex_init": r"Molpro calculation terminated",
+    "success_regex_b": r"Molpro calculation terminated",
+    "success_regex_a": r"Molpro calculation terminated",
 }
 options_obj = Options(**options_kwargs)
 

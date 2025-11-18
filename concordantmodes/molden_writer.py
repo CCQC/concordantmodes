@@ -26,14 +26,14 @@ class MoldenWriter(object):
         for i in self.zmat.atom_list:
             atom_num = np.append(atom_num, int(qcel.periodictable.to_atomic_number(i)))
 
-        for i in range(len(self.zmat.cartesians_final)):
+        for i in range(len(self.zmat.cartesians_a)):
             geometry += "{:2<}{:>9}{:>5}{:-20.10f}{:-20.10f}{:-20.10f}\n".format(
                 self.zmat.atom_list[i],
                 str(i + 1),
                 str(int(atom_num[i])),
-                self.zmat.cartesians_final[i][0],
-                self.zmat.cartesians_final[i][1],
-                self.zmat.cartesians_final[i][2],
+                self.zmat.cartesians_a[i][0],
+                self.zmat.cartesians_a[i][1],
+                self.zmat.cartesians_a[i][2],
             )
 
         frequencies = ""
@@ -42,19 +42,19 @@ class MoldenWriter(object):
 
         fr_geom = ""
 
-        for i in range(len(self.zmat.cartesians_final)):
+        for i in range(len(self.zmat.cartesians_a)):
             fr_geom += "{:<5}{:-20.10f}{:-20.10f}{:-20.10f}\n".format(
                 self.zmat.atom_list[i],
-                self.zmat.cartesians_final[i][0],
-                self.zmat.cartesians_final[i][1],
-                self.zmat.cartesians_final[i][2],
+                self.zmat.cartesians_a[i][0],
+                self.zmat.cartesians_a[i][1],
+                self.zmat.cartesians_a[i][2],
             )
 
         normal_modes = ""
         for i in range(len(self.disps.p_disp)):
             normal_modes += "  vibration{:>23}\n".format(str(i + 1))
             # disp = self.disps.p_disp[i] - self.zmat.cartesians_final
-            disp = self.disps.p_disp[i, i] - self.zmat.cartesians_final
+            disp = self.disps.p_disp[i, i] - self.zmat.cartesians_a
             disp *= 30
             for j in range(len(disp)):
                 normal_modes += "{:-20.10f}{:-20.10f}{:-20.10f}\n".format(

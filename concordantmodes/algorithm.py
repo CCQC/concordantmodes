@@ -19,18 +19,18 @@ class Algorithm(object):
 
     def run(self):
         if self.options.molsym_symmetry:
-            if self.cma_level == "A" or self.options.deriv_level_init:
+            if self.cma_level == "A" or self.options.deriv_level_b:
                 self.loop_symmetry_diagonal()
             else:
                 self.loop_symmetry()
         else:
             # self.loop()
-            if self.cma_level == "A" or self.options.deriv_level_init:
+            if self.cma_level == "A" or self.options.deriv_level_b:
                 self.loop_diagonal()
             else:
                 self.loop()
 
-    #Indices for high level A looping or deriv_level_init == 1
+    #Indices for high level A looping or deriv_level_b == 1
     def loop_symmetry_diagonal(self):
         self.indices = []
         self.indices_by_irrep = []
@@ -59,7 +59,7 @@ class Algorithm(object):
         self.indices = [item for sublist in self.indices for item in sublist]
 
 
-    #Indices for level B where deriv_level_init == 0
+    #Indices for level B where deriv_level_b == 0
     def loop_symmetry(self):
         self.indices = []
         self.indices_by_irrep = []

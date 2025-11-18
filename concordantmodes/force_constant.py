@@ -28,7 +28,7 @@ class ForceConstant(object):
         options,
         indices,
         deriv_level=0,
-        coord_type_init="internal",
+        coord_type_b="internal",
         cma_level="B"
     ):
         self.options = options
@@ -38,13 +38,13 @@ class ForceConstant(object):
         self.ref_en = ref_en
         self.indices = indices
         self.deriv_level = deriv_level
-        self.coord_type_init = coord_type_init
+        self.coord_type_b = coord_type_b
         self.cma_level = cma_level
 
     def run(self):
         indices = self.indices
         disp = self.disp
-        if self.coord_type_init == "cartesian":
+        if self.coord_type_b == "cartesian":
             size = self.indices[-1][0] + 1
             cart_disp = np.zeros(size)
             for i in range(len(cart_disp)):
@@ -62,31 +62,49 @@ class ForceConstant(object):
             print("Force Constant disp sizes:")
             for index in indices:
                 i, j = index[0], index[1]
-                if self.cma_level != "A":
-                    e_pi, e_pj = p_en_array[i, i], p_en_array[j, j]
-                    e_mi, e_mj = m_en_array[i, i], m_en_array[j, j]
-                    e_pp, e_mm = p_en_array[i, j], m_en_array[i, j]
-                    if i == j:
-                        self.FC[i, i] = self.diag_fc(e_pi, e_mi, e_r, denom_disp[i])
-                        self.gradient[i] = self.first_deriv(e_pi, e_mi, denom_disp[i])
-                    elif i != j:
-                        self.FC[i, j] = self.off_diag_fc(
-                            e_pp,
-                            e_pi,
-                            e_pj,
-                            e_mi,
-                            e_mj,
-                            e_mm,
-                            e_r,
-                            denom_disp[i],
-                            denom_disp[j],
-                        )
-                else:
-                    e_pi, e_mi = p_en_array[i], m_en_array[i]
-                    # print("denom # "+str(i+1))
-                    # print(denom_disp[i])
+                e_pi, e_pj = p_en_array[i, i], p_en_array[j, j]
+                e_mi, e_mj = m_en_array[i, i], m_en_array[j, j]
+                e_pp, e_mm = p_en_array[i, j], m_en_array[i, j]
+                if i == j:
                     self.FC[i, i] = self.diag_fc(e_pi, e_mi, e_r, denom_disp[i])
                     self.gradient[i] = self.first_deriv(e_pi, e_mi, denom_disp[i])
+                elif i != j:
+                    self.FC[i, j] = self.off_diag_fc(
+                        e_pp,
+                        e_pi,
+                        e_pj,
+                        e_mi,
+                        e_mj,
+                        e_mm,
+                        e_r,
+                        denom_disp[i],
+                        denom_disp[j],
+                    )
+                # if self.cma_level != "A":
+                    # e_pi, e_pj = p_en_array[i, i], p_en_array[j, j]
+                    # e_mi, e_mj = m_en_array[i, i], m_en_array[j, j]
+                    # e_pp, e_mm = p_en_array[i, j], m_en_array[i, j]
+                    # if i == j:
+                        # self.FC[i, i] = self.diag_fc(e_pi, e_mi, e_r, denom_disp[i])
+                        # self.gradient[i] = self.first_deriv(e_pi, e_mi, denom_disp[i])
+                    # elif i != j:
+                        # self.FC[i, j] = self.off_diag_fc(
+                            # e_pp,
+                            # e_pi,
+                            # e_pj,
+                            # e_mi,
+                            # e_mj,
+                            # e_mm,
+                            # e_r,
+                            # denom_disp[i],
+                            # denom_disp[j],
+                        # )
+                # else:
+                    # e_pi, e_mi = p_en_array[i,j], m_en_array[i,j]
+                    # print("denom # "+str(i+1))
+                    # print(denom_disp[i])
+                    # self.FC[i, i] = self.diag_fc(e_pi, e_mi, e_r, denom_disp[i])
+                    # self.gradient[i] = self.first_deriv(e_pi, e_mi, denom_disp[i])
             # Take advantage of FC[i,j] = FC[j,i]
             cf = np.triu_indices(dim, 1)
             il = (cf[1], cf[0])

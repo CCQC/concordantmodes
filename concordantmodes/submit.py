@@ -47,9 +47,12 @@ class Submit(object):
                     ["sbatch", "./optstep.sh"], cwd=path, stdout=pipe, stderr=pipe
                 )
                 processes.append(job)
-                time.sleep(2)
+                # time.sleep(120)
+                # time.sleep(30)
+                time.sleep(3)
+                # time.sleep(1)
 
-            print("sleeping")
+            print("First Nap")
             time.sleep(10)
             for q in range(len(processes)):
                 while True:
@@ -73,5 +76,5 @@ class Submit(object):
                             + str(q)
                         )
                         break
-            # print("sleeping")
-            # time.sleep(10)
+            print("Second Nap")
+            time.sleep(10)

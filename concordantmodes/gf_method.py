@@ -50,6 +50,13 @@ class GFMethod(object):
         self.L_p = L_p
 
         self.L[np.abs(self.L) < self.options.tol] = 0
+        # del_tol = 1.0e-3
+        # del_tol = 1.0e-2
+        # self.L = self.L.T
+        # for row in self.L:
+           # abs_row = np.abs(row)
+           # row[abs_row < np.max(abs_row)*del_tol] = 0
+        # self.L = self.L.T
         # Compute the frequencies by the square root of the eigenvalues.
         self.freq = np.sqrt(self.eig_v, dtype=complex)
         # Filter for imaginary modes.

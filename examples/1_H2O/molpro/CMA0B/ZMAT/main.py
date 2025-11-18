@@ -1,11 +1,11 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    "program": "molpro",
+    "program_a": "molpro",
     "cluster" : "sapelo",
-    "energy_regex": r"\(T\) total energy\s+(\-\d+\.\d+)",
-    "cart_insert": 9,
-    "success_regex": r"Molpro calculation terminated",
+    "energy_regex_a": r"\(T\) total energy\s+(\-\d+\.\d+)",
+    "cart_insert_a": 9,
+    "success_regex_a": r"Molpro calculation terminated",
 }
 options_obj = Options(**options_kwargs)
 

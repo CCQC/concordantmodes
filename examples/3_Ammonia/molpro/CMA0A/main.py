@@ -1,22 +1,17 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    # "queue": "gen4.q,gen6.q,debug.q",
     "cluster" : "sapelo",
-    "program_init": "molpro",
-    "program": "molpro",
-    "energy_regex": r"\(T\) total energy\s+(\-\d+\.\d+)",
-    "energy_regex_init": r"\(T\) total energy\s+(\-\d+\.\d+)",
-    "cart_insert_init": 7,
-    "cart_insert": 7,
+    "program_b": "molpro",
+    "program_a": "molpro",
+    "energy_regex_a": r"\(T\) total energy\s+(\-\d+\.\d+)",
+    "energy_regex_b": r"\(T\) total energy\s+(\-\d+\.\d+)",
+    "cart_insert_b": 7,
+    "cart_insert_a": 7,
     "coords": "Custom",
-    "success_regex": r"Molpro calculation terminated",
-    "success_regex_init": r"Molpro calculation terminated",
+    "success_regex_a": r"Molpro calculation terminated",
+    "success_regex_b": r"Molpro calculation terminated",
     "molsym_symmetry" : True,
-    # "gen_disps_init" : False,
-    # "calc_init" : False,
-    #"gen_disps" :False,
-    #"calc" : False,
 }
 options_obj = Options(**options_kwargs)
 

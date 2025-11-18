@@ -72,7 +72,7 @@ class FcConv(object):
             if self.print_f:
                 self.print_const()
 
-    def print_const(self, fc_name="fcFinal.dat"):
+    def print_const(self, fc_name="fc_a.dat"):
         self.N = len(self.F)
         fc_output = ""
         fc_output += "{:5d}{:5d}\n".format(len(self.zmat.atom_list), self.N)

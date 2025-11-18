@@ -51,7 +51,7 @@ class TransfDisp(object):
         else:
             self.B=[]
         self.zmat = zmat
-        self.ref_carts = self.zmat.cartesians_final.copy()
+        self.ref_carts = self.zmat.cartesians_a.copy()
         self.ref_carts = np.array(self.ref_carts).astype(float)
         self.u = np.identity(3 * len(zmat.atom_list))
         self.disp = self.options.disp
@@ -130,6 +130,7 @@ class TransfDisp(object):
             # This code loops through a list of indices that the force constants will be computed at and
             # generates the displacements for the diagonal and (if specified) the off-diagonals. Where
             # the displacement matrix D[i,j] = D[j,i].
+            
             disp = np.zeros(len(self.eigs.T))
             buff = disp.copy()
             if not self.deriv_level:
@@ -139,129 +140,48 @@ class TransfDisp(object):
                 if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
                     print("Molsym is being used. +/- displacements of non TSIR are equivalent.")
                     if self.options.only_TSIR:
-                        for index in self.symm_obj.indices_by_irrep[0]:
-                            i, j = index[0], index[1]
-                            disp[i] = self.disp[i]
-                            disp[j] = self.disp[j]
-                            p_disp[i, j] = self.coord_convert(
-                                disp,
-                                self.n_coord.copy(),
-                                self.ref_carts.copy(),
-                                50,
-                                1.0e-7,
-                                self.A.copy(),
-                                False,
-                                self.zmat,
-                                self.options,
-                            )
-                            m_disp[i, j] = self.coord_convert(
-                                -disp,
-                                self.n_coord.copy(),
-                                self.ref_carts.copy(),
-                                50,
-                                1.0e-7,
-                                self.A.copy(),
-                                False,
-                                self.zmat,
-                                self.options,
-                            )
-                            disp = buff.copy()
-                        self.p_disp = p_disp
-                        self.m_disp = m_disp
+                        indices = self.symm_obj.indices_by_irrep[0]
                     else:
                         print("Generating displacements for all irreps. Only + displacements for non TSIR")
-                        for h, h_indices in enumerate(self.symm_obj.indices_by_irrep):
-                            for index in h_indices:
-                                i, j = index[0], index[1]
-                                disp[i] = self.disp[i]
-                                disp[j] = self.disp[j]
-                                p_disp[i, j] = self.coord_convert(
-                                    disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                if h != 0:
-                                    pass
-                                else:
-                                    m_disp[i, j] = self.coord_convert(
-                                        -disp,
-                                        self.n_coord.copy(),
-                                        self.ref_carts.copy(),
-                                        50,
-                                        1.0e-7,
-                                        self.A.copy(),
-                                        False,
-                                        self.zmat,
-                                        self.options,
-                                    )
-                                disp = buff.copy()
-                            self.p_disp = p_disp
-                            self.m_disp = m_disp
+                        indices = copy.deepcopy(self.symm_obj.indices_by_irrep).flatten().reshape((-1,2))
                 else:
-                    if self.cma_level != "A":
-                        for index in self.indices:
-                            i, j = index[0], index[1]
-                            disp[i] = self.disp[i]
-                            disp[j] = self.disp[j]
-                            p_disp[i, j] = self.coord_convert(
-                                disp,
-                                self.n_coord.copy(),
-                                self.ref_carts.copy(),
-                                50,
-                                1.0e-7,
-                                self.A.copy(),
-                                False,
-                                self.zmat,
-                                self.options,
-                            )
-                            m_disp[i, j] = self.coord_convert(
-                                -disp,
-                                self.n_coord.copy(),
-                                self.ref_carts.copy(),
-                                50,
-                                1.0e-7,
-                                self.A.copy(),
-                                False,
-                                self.zmat,
-                                self.options,
-                            )
-                            disp = buff.copy()
+                    indices = self.indices
+            
+                Sum = 1
+                h = 0
+                for index in indices:
+                    i, j = index[0], index[1]
+                    disp[i] = self.disp[i]
+                    disp[j] = self.disp[j]
+                    p_disp[i, j] = self.coord_convert(
+                        disp,
+                        self.n_coord.copy(),
+                        self.ref_carts.copy(),
+                        # 50,
+                        # 1.0e-7,
+                        self.A.copy(),
+                        False,
+                        self.zmat,
+                        self.options,
+                    )
+                    if h != 0:
+                        pass
                     else:
-                        for i in range(len(self.eigs)):
-                            disp[i] = self.disp[i]
-                            p_disp[i,i] = self.coord_convert(
-                                disp,
-                                self.n_coord.copy(),
-                                self.ref_carts.copy(),
-                                50,
-                                1.0e-10,
-                                self.A.copy(),
-                                False,
-                                self.zmat,
-                                self.options,
-                            )
-                            m_disp[i,i] = self.coord_convert(
-                                -disp,
-                                self.n_coord.copy(),
-                                self.ref_carts.copy(),
-                                50,
-                                1.0e-10,
-                                self.A.copy(),
-                                False,
-                                self.zmat,
-                                self.options,
-                            )
-                            disp = buff.copy()
-
-                    self.p_disp = p_disp
-                    self.m_disp = m_disp
-
+                        m_disp[i, j] = self.coord_convert(
+                            -disp,
+                            self.n_coord.copy(),
+                            self.ref_carts.copy(),
+                            # 50,
+                            # 1.0e-7,
+                            self.A.copy(),
+                            False,
+                            self.zmat,
+                            self.options,
+                        )
+                    disp = buff.copy()
+                    if self.symm_obj.symtext is not None and self.options.exploit_pm_symm and not self.options.only_TSIR and Sum>len(self.symm_obj.indices_by_irrep[0]):
+                        h += 1
+                    Sum += 1
             elif self.deriv_level == 1:
                 p_disp = np.zeros(len(self.eigs), dtype=object)
                 m_disp = np.zeros(len(self.eigs), dtype=object)
@@ -271,8 +191,8 @@ class TransfDisp(object):
                         disp,
                         self.n_coord.copy(),
                         self.ref_carts.copy(),
-                        50,
-                        1.0e-10,
+                        # 50,
+                        # 1.0e-10,
                         self.A.copy(),
                         False,
                         self.zmat,
@@ -282,21 +202,22 @@ class TransfDisp(object):
                         -disp,
                         self.n_coord.copy(),
                         self.ref_carts.copy(),
-                        50,
-                        1.0e-10,
+                        # 50,
+                        # 1.0e-10,
                         self.A.copy(),
                         False,
                         self.zmat,
                         self.options,
                     )
                     disp = buff.copy()
-                self.p_disp = p_disp
-                self.m_disp = m_disp
             else:
                 print(
-                    "Only energy and gradient derivatives are supported. Check your deriv_level_init keyword."
+                    "Only energy and gradient derivatives are supported. Check your deriv_level_b keyword."
                 )
                 raise RuntimeError
+            self.p_disp = p_disp
+            self.m_disp = m_disp
+            
         elif self.coord_type == "cartesian":
             self.disp_mag = self.options.disp
             if self.deriv_level == 1:
@@ -512,7 +433,7 @@ class TransfDisp(object):
             if self.conv:
                 condition_1 = (
                     float(
-                        self.zmat.variable_dictionary_final[
+                        self.zmat.variable_dictionary_a[
                             self.zmat.angle_variables[i]
                         ]
                     )
@@ -520,7 +441,7 @@ class TransfDisp(object):
                 )
                 condition_2 = (
                     float(
-                        self.zmat.variable_dictionary_final[
+                        self.zmat.variable_dictionary_a[
                             self.zmat.angle_variables[i]
                         ]
                     )
@@ -583,10 +504,10 @@ class TransfDisp(object):
             t = self.calc_tors(x1, x2, x3, x4)
             if self.conv:
                 condition_1 = float(
-                    self.zmat.variable_dictionary_final[self.zmat.torsion_variables[i]]
+                    self.zmat.variable_dictionary_a[self.zmat.torsion_variables[i]]
                 ) > 135.0 and (t * 180.0 / np.pi < -135.0)
                 condition_2 = float(
-                    self.zmat.variable_dictionary_final[self.zmat.torsion_variables[i]]
+                    self.zmat.variable_dictionary_a[self.zmat.torsion_variables[i]]
                 ) < -135.0 and (t * 180.0 / np.pi > 135.0)
                 if condition_1:
                     t += 2 * np.pi
@@ -648,13 +569,13 @@ class TransfDisp(object):
             if self.conv:
                 condition_1 = (
                     float(
-                        self.zmat.variable_dictionary_final[self.zmat.oop_variables[i]]
+                        self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]]
                     )
                     > 180.0
                 )
                 condition_2 = (
                     float(
-                        self.zmat.variable_dictionary_final[self.zmat.oop_variables[i]]
+                        self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]]
                     )
                     < -180.0
                 )
@@ -938,8 +859,8 @@ class TransfDisp(object):
         n_disp,
         n_coord,
         ref_carts,
-        max_iter,
-        tolerance,
+        # max_iter,
+        # tolerance,
         A,
         tight_disp,
         zmat,
@@ -948,7 +869,8 @@ class TransfDisp(object):
         disp = n_disp.copy()
         new_n = n_coord + n_disp
         new_carts = np.array(ref_carts).astype(float)
-        for i in range(max_iter):
+        tolerance = options.transf_tol
+        for i in range(options.transf_max_it):
             cart_disp = np.dot(n_disp, A)
             np.set_printoptions(precision=6, linewidth=240)
             # if self.options.second_order:
@@ -963,7 +885,7 @@ class TransfDisp(object):
             n_disp = new_n - coord_check
 
             if tight_disp:
-                sVec = s_vec(zmat, options, zmat.variable_dictionary_final)
+                sVec = s_vec(zmat, options, zmat.variable_dictionary_a)
                 sVec.run(new_carts, False)
                 A = self.compute_A(
                     sVec.B, self.ted.proj, self.eig_inv, self.zmat.mass_weight
