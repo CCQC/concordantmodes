@@ -41,6 +41,7 @@ def test_f_convert2int():
     # print("Transformed internal force constants do not match the reference.")
     assert np.allclose(FCint.F, FCintR.fc_mat, rtol=0, atol=1e-10)
 
+
 def test_f_convert2cart():
     errors = []
 
@@ -72,4 +73,3 @@ def test_f_convert2cart():
     # print("Transformed internal force constants do not match the reference.")
     os.chdir(suite.root)
     assert np.allclose(FCcart.F, FCintC.fc_mat, rtol=0.0, atol=1e-10)
-

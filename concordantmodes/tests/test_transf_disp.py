@@ -34,21 +34,23 @@ def test_transf_disp():
         suite.TED_obj,
         suite.options,
         suite.algo.indices,
-        symm_obj=suite.symm_obj
+        symm_obj=suite.symm_obj,
         # coord_type,
     )
     disps.run()
 
     disp_ref = [
         [-1.375077, -0.024277, -0.005898],
-        [ 1.305992,  0.120699,  0.004699],
-        [-2.077869,  1.909601,  0.001539],
-        [-2.100907, -0.978713,  1.679819],
+        [1.305992, 0.120699, 0.004699],
+        [-2.077869, 1.909601, 0.001539],
+        [-2.100907, -0.978713, 1.679819],
         [-2.117020, -0.979951, -1.684038],
-        [ 1.941157, -1.577492,  0.003869],
+        [1.941157, -1.577492, 0.003869],
     ]
 
     os.chdir(suite.root)
 
     assert np.allclose(np.asarray(disp_ref), disps.p_disp[3][3], rtol=0.0, atol=1e-5)
+
+
 test_transf_disp()
