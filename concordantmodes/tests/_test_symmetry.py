@@ -10,10 +10,10 @@ import numpy as np
 
 def test_symmetry():
     os.chdir("./ref_data/symmetry_test/")
-    test_subjects_red = ["c2v_water_zmat_red", "c3v_ammonia_zmat_red"]
+    test_subjects_del = ["c2v_water_zmat_del", "c3v_ammonia_zmat_del"]
     test_subjects_custom = ["c2v_water_zmat_custom", "c3v_ammonia_zmat_custom"]
-    # redundants first
-    test_subject_projs_red = [
+    # delocalized first
+    test_subject_projs_del = [
         np.array(
             [
                 [0.56086644, 0.43061449, -0.70710678],
@@ -59,11 +59,11 @@ def test_symmetry():
             ]
         ),
     ]
-    # iterate over redundant and custom coordinates
-    for c, coord in enumerate(["redundant", "Custom"]):
-        if coord == "redundant":
-            test_subjects = test_subjects_red
-            test_subject_projs = test_subject_projs_red
+    # iterate over delocalized and custom coordinates
+    for c, coord in enumerate(["Delocalized", "Custom"]):
+        if coord == "Delocalized":
+            test_subjects = test_subjects_del
+            test_subject_projs = test_subject_projs_del
         else:
             test_subjects = test_subjects_custom
             test_subject_projs = test_subject_projs_custom
@@ -77,11 +77,12 @@ def test_symmetry():
             options.second_order = False
             zmat = Zmat(options)
             zmat.run(test)
-            symm_obj = Symmetry(zmat, options)
+            symm_obj = Symmetry(zmat, options, test_subject_projs)
             symm_obj.run()
-            s_vec = SVectors(zmat, options, zmat.variable_dictionary_init)
-            s_vec.run(zmat.cartesians_init, True, second_order=options.second_order)
+            s_vec = SVectors(zmat, options, zmat.variable_dictionary_b)
+            s_vec.run(zmat.cartesians_b, True, second_order=options.second_order)
             symm_obj.make_proj(s_vec)
             assert np.allclose(
                 symm_obj.salc_proj, test_subject_projs[t], rtol=0, atol=1e-8
             )
+    os.chdir("../../")

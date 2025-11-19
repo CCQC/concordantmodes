@@ -399,7 +399,7 @@ class ConcordantModes(object):
             self.TED_obj,
             self.options,
             self.symm_obj.symtext,
-            cma="init",  # Change to cma_level?
+            # cma="init",  # Change to cma_level?
         )
         b_GF.run()
 

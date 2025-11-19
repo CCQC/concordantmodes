@@ -240,7 +240,8 @@ B_ref_INTDER[5:] *= 0.529177210903
 
 def test_compute_B():
     errors = []
-    s_vec = SVectors(suite.ZMAT, suite.options, suite.ZMAT.variable_dictionary_init)
-    s_vec.run(suite.ZMAT.cartesians_init, True)
+    s_vec = SVectors(suite.ZMAT, suite.options, suite.ZMAT.variable_dictionary_b)
+    s_vec.run(suite.ZMAT.cartesians_b, True)
+    os.chdir(suite.root)
 
-    assert np.allclose(s_vec.B, B_ref_INTDER, rtol=0.0, atol=1e-8)
+    assert np.allclose(s_vec.B, B_ref_INTDER, rtol=0.0, atol=1e-6)

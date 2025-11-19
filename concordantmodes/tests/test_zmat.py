@@ -10,10 +10,10 @@ from concordantmodes.transf_disp import TransfDisp
 from concordantmodes.options import Options
 from concordantmodes.zmat import Zmat
 
-coord1 = "Redundant"
+coord1 = "Delocalized"
 coord2 = "ZMAT"
 coord3 = "Custom"
-file1 = "zmat_red"
+file1 = "zmat_del"
 file2 = "zmat_zmat"
 file3 = "zmat_custom"
 # ZMAT read data
@@ -51,32 +51,32 @@ def make_zmat(type: str, option: str):
 
     options.coords = option
     ZMAT = Zmat(options)
-    output_test_red = ZMAT.zmat_read(type)
-    ZMAT.zmat_process(output_test_red)
+    output_test_del = ZMAT.zmat_read(type)
+    ZMAT.zmat_process(output_test_del)
     os.chdir("../../")
     return ZMAT
 
 
 zmat = make_zmat("zmat_zmat", "ZMAT")
-redundant_zmat = make_zmat("zmat_red", "Redundant")
+delocalized_zmat = make_zmat("zmat_del", "Delocalized")
 custom_zmat = make_zmat("zmat_custom", "Custom")
 
 ref_bond_indices = [
     (zmat, [["2", "1"], ["3", "1"], ["4", "1"], ["5", "1"], ["6", "2"]]),
-    (redundant_zmat, [["1", "2"], ["1", "3"], ["1", "4"], ["1", "5"], ["2", "6"]]),
+    (delocalized_zmat, [["1", "2"], ["1", "3"], ["1", "4"], ["1", "5"], ["2", "6"]]),
     (custom_zmat, [("1", "2"), ("1", "3"), ("1", "4"), ("1", "5"), ("2", "6")]),
 ]
 
 ref_bond_variables = [
     (zmat, ["R1", "R2", "R3", "R4", "R5"]),
-    (redundant_zmat, ["R1", "R2", "R3", "R4", "R5"]),
+    (delocalized_zmat, ["R1", "R2", "R3", "R4", "R5"]),
     (custom_zmat, ["R1", "R2", "R3", "R4", "R5"]),
 ]
 
 ref_angle_indices = [
     (zmat, [["3", "1", "2"], ["4", "1", "2"], ["5", "1", "2"], ["6", "2", "1"]]),
     (
-        redundant_zmat,
+        delocalized_zmat,
         [
             ["2", "1", "3"],
             ["2", "1", "4"],
@@ -103,30 +103,18 @@ ref_angle_indices = [
 
 ref_angle_variables = [
     (zmat, ["A2", "A3", "A4", "A5"]),
-    (redundant_zmat, ["A1", "A2", "A3", "A4", "A5", "A6", "A7"]),
+    (delocalized_zmat, ["A1", "A2", "A3", "A4", "A5", "A6", "A7"]),
     (custom_zmat, ["A1", "A2", "A3", "A4", "A5", "A6", "A7"]),
 ]
 
 ref_tors_indices = [
     (zmat, [["4", "1", "2", "3"], ["5", "1", "2", "4"], ["6", "2", "1", "3"]]),
     (
-        redundant_zmat,
+        delocalized_zmat,
         [
-            ["3", "1", "2", "4"],
-            ["3", "1", "2", "5"],
             ["3", "1", "2", "6"],
-            ["2", "1", "3", "4"],
-            ["2", "1", "3", "5"],
-            ["4", "1", "2", "5"],
             ["4", "1", "2", "6"],
-            ["2", "1", "4", "3"],
-            ["2", "1", "4", "5"],
             ["5", "1", "2", "6"],
-            ["2", "1", "5", "3"],
-            ["2", "1", "5", "4"],
-            ["4", "1", "3", "5"],
-            ["3", "1", "4", "5"],
-            ["3", "1", "5", "4"],
         ],
     ),
     (custom_zmat, [("6", "2", "1", "4")]),
@@ -135,23 +123,11 @@ ref_tors_indices = [
 ref_tors_variables = [
     (zmat, ["D3", "D4", "D5"]),
     (
-        redundant_zmat,
+        delocalized_zmat,
         [
             "D1",
             "D2",
             "D3",
-            "D4",
-            "D5",
-            "D6",
-            "D7",
-            "D8",
-            "D9",
-            "D10",
-            "D11",
-            "D12",
-            "D13",
-            "D14",
-            "D15",
         ],
     ),
     (custom_zmat, ["D1"]),
@@ -184,7 +160,7 @@ def test_zmat_read(option, expected, file_name):
 @pytest.mark.parametrize(
     "ZMAT, ref_bond_indices",
     ref_bond_indices,
-    ids=["standard zmat", "automatic redundant", "custom"],
+    ids=["standard zmat", "automatic delocalized", "custom"],
 )
 def test_zmat_bond_indices(ZMAT, ref_bond_indices):
     if isinstance(ZMAT.bond_indices, np.ndarray):
@@ -195,7 +171,7 @@ def test_zmat_bond_indices(ZMAT, ref_bond_indices):
 @pytest.mark.parametrize(
     "ZMAT, ref_bond_variables",
     ref_bond_variables,
-    ids=["standard zmat", "automatic redundant", "custom"],
+    ids=["standard zmat", "automatic delocalized", "custom"],
 )
 def test_zmat_bond_variables(ZMAT, ref_bond_variables):
     assert list(ZMAT.bond_variables) == ref_bond_variables
@@ -204,7 +180,7 @@ def test_zmat_bond_variables(ZMAT, ref_bond_variables):
 @pytest.mark.parametrize(
     "ZMAT, ref_angle_indices",
     ref_angle_indices,
-    ids=["standard zmat", "automatic redundant", "custom"],
+    ids=["standard zmat", "automatic delocalized", "custom"],
 )
 def test_zmat_angle_indices(ZMAT, ref_angle_indices):
     if isinstance(ZMAT.angle_indices, np.ndarray):
@@ -215,7 +191,7 @@ def test_zmat_angle_indices(ZMAT, ref_angle_indices):
 @pytest.mark.parametrize(
     "ZMAT, ref_angle_variables",
     ref_angle_variables,
-    ids=["standard zmat", "automatic redundant", "custom"],
+    ids=["standard zmat", "automatic delocalized", "custom"],
 )
 def test_zmat_angle_variables(ZMAT, ref_angle_variables):
     assert list(ZMAT.angle_variables) == ref_angle_variables
@@ -224,7 +200,7 @@ def test_zmat_angle_variables(ZMAT, ref_angle_variables):
 @pytest.mark.parametrize(
     "ZMAT, ref_tors_indices",
     ref_tors_indices,
-    ids=["standard zmat", "automatic redundant", "custom"],
+    ids=["standard zmat", "automatic delocalized", "custom"],
 )
 def test_zmat_torsion_indices(ZMAT, ref_tors_indices):
     if isinstance(ZMAT.torsion_indices, np.ndarray):
@@ -237,7 +213,7 @@ def test_zmat_torsion_indices(ZMAT, ref_tors_indices):
 @pytest.mark.parametrize(
     "ZMAT, ref_tors_variables",
     ref_tors_variables,
-    ids=["standard zmat", "automatic redundant", "custom"],
+    ids=["standard zmat", "automatic delocalized", "custom"],
 )
 def test_zmat_torsion_variables(ZMAT, ref_tors_variables):
     assert list(ZMAT.torsion_variables) == ref_tors_variables
@@ -256,14 +232,14 @@ def test_zmat_torsion_variables(ZMAT, ref_tors_variables):
         ref_liny_variables,
     ],
     ids=[
-        "redundant out of plane indices",
-        "redundant out of place variables",
-        "redundant lin indices",
-        "redundant lin variables",
-        "redundant linx indices",
-        "redundant linx variables",
-        "redundant_liny indices",
-        "redundant_liny variables",
+        "delocalized out of plane indices",
+        "delocalized out of place variables",
+        "delocalized lin indices",
+        "delocalized lin variables",
+        "delocalized linx indices",
+        "delocalized linx variables",
+        "delocalized_liny indices",
+        "delocalized_liny variables",
     ],
 )
 def test_custom_zmat(custom_zmat_coords, reference_coords):
@@ -279,8 +255,8 @@ def test_zmat_calc():
 
     options.coords = "Custom"
     ZMAT = Zmat(options)
-    output_test_red = ZMAT.zmat_read("zmat_custom")
-    ZMAT.zmat_process(output_test_red)
+    output_test_del = ZMAT.zmat_read("zmat_custom")
+    ZMAT.zmat_process(output_test_del)
 
     ZMAT.zmat_calc()
 
@@ -303,7 +279,7 @@ def test_zmat_calc():
         "Lx1": -54.67048011096265,
         "Ly1": -0.0022793163188044303,
     }
-    var_dict_custom = ZMAT.variable_dictionary_final
+    var_dict_custom = ZMAT.variable_dictionary_a
 
     if np.setdiff1d(var_dict_ref, var_dict_custom).size:
         errors.append("Custom variables do not match.")
@@ -320,12 +296,13 @@ def test_zmat_compile():
 
     options.coords = "Custom"
     ZMAT = Zmat(options)
-    output_test_custom = ZMAT.zmat_read("zmat_custom")
-    ZMAT.zmat_process(output_test_custom)
+    ZMAT.run("zmat_custom")
+    # output_test_custom = ZMAT.zmat_read("zmat_custom")
+    # ZMAT.zmat_process(output_test_custom)
 
-    ZMAT.zmat_calc()
+    # ZMAT.zmat_calc()
 
-    ZMAT.zmat_compile()
+    # ZMAT.zmat_compile()
 
     print(ZMAT.index_dictionary)
 

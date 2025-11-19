@@ -351,9 +351,11 @@ class Zmat(object):
 
             self.torsion_indices = self.torsion_indices.reshape((-1, 4))
 
+            print(self.torsion_indices)
             # Eliminate all redundancies
             self.torsion_indices = np.unique(self.torsion_indices, axis=0)
 
+            print(self.torsion_indices)
             del_list = np.array([])
             for i in range(len(self.torsion_indices)):
                 for j in range(len(self.torsion_indices) - i - 1):
@@ -368,6 +370,7 @@ class Zmat(object):
                         del_list = np.append(del_list, [i + j + 1])
 
             del_list = del_list.astype(int)
+            print(self.torsion_indices)
             self.torsion_indices = np.delete(self.torsion_indices, del_list, axis=0)
             self.oop_indices = self.oop_indices.reshape((-1, 4))
 

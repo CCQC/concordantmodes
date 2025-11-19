@@ -15,7 +15,7 @@ from concordantmodes.zmat import Zmat
 
 np.set_printoptions(precision=9)
 
-suite = execute_suite("./ref_data/f_conv_test/", "Redundant")
+suite = execute_suite("./ref_data/f_conv_test/", "Delocalized")
 suite.run()
 
 
@@ -35,9 +35,11 @@ def test_f_convert2int():
 
     FCintR = FcRead(suite.path + "/fc_int.dat")
     FCintR.run()
-    print("Transformed internal force constants do not match the reference.")
+    # print(FCint.F)
+    # print(FCintR.fc_mat)
+    os.chdir(suite.root)
+    # print("Transformed internal force constants do not match the reference.")
     assert np.allclose(FCint.F, FCintR.fc_mat, rtol=0, atol=1e-10)
-
 
 def test_f_convert2cart():
     errors = []
@@ -66,6 +68,8 @@ def test_f_convert2cart():
     FCintC = FcRead(suite.path + "/fc_cart.dat")
     FCintC.run()
 
-    print(FCcart.F - FCintC.fc_mat)
-    print("Transformed internal force constants do not match the reference.")
+    # print(FCcart.F - FCintC.fc_mat)
+    # print("Transformed internal force constants do not match the reference.")
+    os.chdir(suite.root)
     assert np.allclose(FCcart.F, FCintC.fc_mat, rtol=0.0, atol=1e-10)
+

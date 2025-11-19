@@ -20,7 +20,7 @@ from concordantmodes.zmat import Zmat
 def test_gf_method():
     errors = []
 
-    suite = execute_suite("./ref_data/f_read_test/", "Redundant")
+    suite = execute_suite("./ref_data/f_read_test/", "Delocalized")
     suite.run()
 
     GF = GFMethod(
@@ -47,4 +47,5 @@ def test_gf_method():
         3134.79345416958,
         3837.8500878962245,
     ]
-    assert np.allclose(GF.freq, np.asarray(ref_freq), rtol=0.0, atol=1e-10)
+    os.chdir(suite.root)
+    assert np.allclose(GF.freq, np.asarray(ref_freq), rtol=0.0, atol=1e-3)

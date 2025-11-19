@@ -313,7 +313,7 @@ class DirectoryTree(object):
             )
             raise RuntimeError
 
-    def make_input(self, data, dispp, n_at, at, index, inp, direc):
+    def make_input(self, data, dispp, n_at, at, index, inp, direc, copy_files=False):
         os.mkdir(str(direc))
         os.chdir("./" + str(direc))
         data_buff = copy.deepcopy(data)
@@ -323,7 +323,7 @@ class DirectoryTree(object):
         if index == -1:
             print(
                 "The user needs to specify a value for the \
-                   cart_insert or cart_insert_b keyword."
+                   cart_insert_a, cart_insert_b, or cart_insert_c keyword."
             )
             raise RuntimeError
         else:
@@ -340,14 +340,15 @@ class DirectoryTree(object):
 
             with open(inp, "w") as file:
                 file.writelines(data)
+            data_final = copy.deepcopy(data)
             data = copy.deepcopy(data_buff)
-
-            if self.init:
-                shutil.copy("../../initden.dat", ".")
-            if self.genbas:
-                shutil.copy("../../GENBAS", ".")
-            if self.ecp:
-                shutil.copy("../../ECPDATA", ".")
+            if copy_files:
+                if self.init:
+                    shutil.copy("../../initden.dat", ".")
+                if self.genbas:
+                    shutil.copy("../../GENBAS", ".")
+                if self.ecp:
+                    shutil.copy("../../ECPDATA", ".")
             os.chdir("..")
 
-        return data
+        return data_final
