@@ -47,10 +47,7 @@ class Submit(object):
                     ["sbatch", "./optstep.sh"], cwd=path, stdout=pipe, stderr=pipe
                 )
                 processes.append(job)
-                # time.sleep(120)
-                # time.sleep(30)
                 time.sleep(3)
-                # time.sleep(1)
 
             print("First Nap")
             time.sleep(10)
@@ -61,13 +58,10 @@ class Submit(object):
                     job_id = int(
                         re.search(outRegex, job.stdout.decode("UTF-8")).group(1)
                     )
-                    # jobFinRegex = re.compile(r"taskid")
                     finish = subprocess.run(
                         ["sacct", "-j", str(job_id)], stdout=pipe, stderr=pipe
                     )
                     output = str(finish.stdout.decode("UTF-8"))
-                    # print(str(job_id))
-                    # print(output)
                     if not ("PENDING" in output or "RUNNING" in output):
                         print(
                             "job id "

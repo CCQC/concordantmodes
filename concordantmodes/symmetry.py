@@ -29,7 +29,6 @@ class Symmetry(object):
     def run(self):
         schema = self.make_schema()
         mol = molsym.Molecule.from_schema(schema)
-        # molsym.symmetrize(mol)
 
         self.symtext = molsym.Symtext.from_molecule(mol)
         if self.options.subgroup:
@@ -260,13 +259,8 @@ class Symmetry(object):
 
         F_sym = F[self.flat_sym_sort].copy()
         F_sym = F_sym[:, self.flat_sym_sort]
-        # F_sym2 = F_sym
         print("Sym Force Constants:")
         print(F_sym)
-        # print("SymDiff")
-        # print(F_sym2-F_sym1)
-        # F_sym = F_sym[flat_sym_sort.argsort()].copy()
-        # F_sym = F_sym[:,flat_sym_sort.argsort()]
 
         g_sym = g_mat.G[self.flat_sym_sort].copy()
         g_sym = g_sym[:, self.flat_sym_sort]
@@ -300,8 +294,6 @@ class Symmetry(object):
             for j in indices:
                 if j[0] in i and j[1] in i:
                     sym_disps.append([j[0], j[1]])
-                    # if j[1] in i:
-                    # sym_disps.append([j[0],j[1]])
         return sym_disps
 
     def mode_symmetry_sort(self, TED, sym_sort, freqs):
@@ -313,13 +305,8 @@ class Symmetry(object):
                 Sum = 0
                 for j in irrep:
                     Sum += ref_TED_b.T[i, j]
-                # print(i)
-                # print(irrep)
-                # print(Sum)
                 if Sum > 80.0:
                     irrep_modes.append(i)
-            # print(np.array(irrep)+1)
-            # print(np.array(irrep_modes)+1)
             if len(irrep_modes) != len(irrep):
                 print("Something's wrong with the irrep symmetry sorter:")
                 raise RuntimeError

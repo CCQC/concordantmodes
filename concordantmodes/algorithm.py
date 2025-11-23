@@ -24,7 +24,6 @@ class Algorithm(object):
             else:
                 self.loop_symmetry()
         else:
-            # self.loop()
             if self.cma_level == "A" or self.options.deriv_level_b:
                 self.loop_diagonal()
             else:
@@ -102,16 +101,11 @@ class Algorithm(object):
         else:
             addem = self.num_deg_free
         self.indices = []
-        # I feel this can be done better
         for i in range(self.num_deg_free):
             for j in range(i, i + addem):
                 if j > self.num_deg_free - 1:
                     break
                 else:
                     self.indices.append([i, j])
-                    # if i == j:
-                    # self.indices.append([i, j])
-                    # elif i != j:
-                    # self.indices.append([i, j])
         self.indices_by_irrep = None
         self.degens = None

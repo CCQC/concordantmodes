@@ -125,7 +125,6 @@ class TransfDisp(object):
                     simple_disp = np.dot(simple_disp, self.ted.proj.T)
                     print("Reduced displacement in simple internal coordinates:")
                     print(self.disp.copy()[i])
-                    # print(np.max(np.abs(simple_disp)))
                     print(simple_disp)
                     buff_disp *= 0
 
@@ -167,8 +166,6 @@ class TransfDisp(object):
                         disp,
                         self.n_coord.copy(),
                         self.ref_carts.copy(),
-                        # 50,
-                        # 1.0e-7,
                         self.A.copy(),
                         False,
                         self.zmat,
@@ -181,8 +178,6 @@ class TransfDisp(object):
                             -disp,
                             self.n_coord.copy(),
                             self.ref_carts.copy(),
-                            # 50,
-                            # 1.0e-7,
                             self.A.copy(),
                             False,
                             self.zmat,
@@ -206,8 +201,6 @@ class TransfDisp(object):
                         disp,
                         self.n_coord.copy(),
                         self.ref_carts.copy(),
-                        # 50,
-                        # 1.0e-10,
                         self.A.copy(),
                         False,
                         self.zmat,
@@ -217,8 +210,6 @@ class TransfDisp(object):
                         -disp,
                         self.n_coord.copy(),
                         self.ref_carts.copy(),
-                        # 50,
-                        # 1.0e-10,
                         self.A.copy(),
                         False,
                         self.zmat,
@@ -263,14 +254,10 @@ class TransfDisp(object):
                     )
                     print(f"p disp {p_disp}")
                     n_irrep = len(self.symm_obj.symtext.irreps)
-                    # salc_indices_pi = [[] for h in range(n_irrep)]
                     salc_indices_pi = self.symm_obj.CDsalcs.salcs_by_irrep
                     print("salc indices pi")
                     print(salc_indices_pi)
                     new_indices = []
-                    # for h in range(len(salc_indices_pi)):
-                    # for i in salc_indices_pi[h]:
-                    #    for j in salc_indices_pi[h]:
                     for i in range(len(self.symm_obj.CDsalcs)):
                         for j in range(len(self.symm_obj.CDsalcs)):
                             print(f"i j pair {i,j}")
@@ -279,15 +266,9 @@ class TransfDisp(object):
                             print("the disp geom")
                             print(disp_geom)
                             if i == j:
-                                # p_disp[i,i][i] += self.disp
-                                # m_disp[i,i][i] -= self.disp
                                 p_disp[i, i] += disp_geom
                                 m_disp[i, i] -= disp_geom
                             else:
-                                # p_disp[i,j][i] += self.disp
-                                # p_disp[i,j][j] += self.disp
-                                # m_disp[i,j][i] -= self.disp
-                                # m_disp[i,j][j] -= self.disp
                                 p_disp[i, j] += disp_geom
                                 m_disp[i, j] -= disp_geom
                     # print(stop)

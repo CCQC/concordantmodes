@@ -29,7 +29,6 @@ class TED(object):
         print("The eigenvectors (check these for phase):")
         print(proj_eigs)
         self.TED = np.multiply(proj_eigs, proj_eigs_inv.T) * 100
-        # self.ted_breakdown = self.TED
         self.table_print(freq, self.TED, rect_print)
 
     def table_print(self, freq, TED, rect_print):

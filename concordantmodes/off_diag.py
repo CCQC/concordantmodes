@@ -19,6 +19,5 @@ class OffDiagonal(object):
         od_inds = self.od_inds
         temp = copy.copy(f_diag)
         if off_diag == 1:
-            print("Adding on these off-diagonals:")
-            print(od_inds)
-            # for od_ind in od_inds
+            # print("Adding on these off-diagonals:")
+            # print(od_inds)

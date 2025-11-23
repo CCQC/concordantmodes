@@ -18,18 +18,12 @@ class FcConv(object):
 
     def __init__(self, fc_mat, s_vec, zmat, coord, print_f, ted, options):
         self.coord = coord
-        # self.F_read = F_read
         self.F = fc_mat
-        # self.second_order = second_order
         self.print_f = print_f
         self.s_vec = s_vec
         self.ted = ted
-        # self.units = units
         self.zmat = zmat
         self.options = options
-
-        # self.units = self.options.units
-        # self.second_order = self.options.second_order
 
         self.MDYNE_HART = 4.3597447222071
         self.BOHR_ANG = 0.529177210903

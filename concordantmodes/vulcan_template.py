@@ -8,7 +8,6 @@ class VulcanTemplate(object):
     This file just stores the vulcan qsub script
     """
 
-    # "molpro": "molpro -n $NSLOTS --nouse-logfile --no-xml-output -o \
     def __init__(self, options, job_num, prog_name, prog):
         self.prog_name = prog_name
         self.progdict = {

@@ -32,32 +32,21 @@ class GFMethod(object):
 
         # Symmetrize F, diagonalize, then backtransform the eigenvectors.
         self.F_O = np.dot(np.dot(self.G_O, self.F), self.G_O)
-        # self.F_O[np.abs(self.F_O) < 1.0e-8] = 0
-        # self.F_O[np.abs(self.F_O) < self.options.tol] = 0
 
         if self.options.molsym_symmetry:
             # allows the block diagonalization of the GF matrix so normal modes stay
             # in the assumed ordering for the level A displacements (Within their symmetry blocks)
             self.block_GF()
         else:
-            # self.eig_v, self.L_p = sp.linalg.eigh(self.F_O)
             self.eig_v, self.L_p = LA.eigh(self.F_O)
 
         self.L_p[np.abs(self.L_p) < self.options.tol] = 0
         self.L = np.dot(self.G_O, self.L_p)
         self.L = np.real(self.L)
-        # L = np.absolute(self.L)
         L_p = np.real(self.L_p)
         self.L_p = L_p
 
         self.L[np.abs(self.L) < self.options.tol] = 0
-        # del_tol = 1.0e-3
-        # del_tol = 1.0e-2
-        # self.L = self.L.T
-        # for row in self.L:
-        # abs_row = np.abs(row)
-        # row[abs_row < np.max(abs_row)*del_tol] = 0
-        # self.L = self.L.T
         # Compute the frequencies by the square root of the eigenvalues.
         self.freq = np.sqrt(self.eig_v, dtype=complex)
         # Filter for imaginary modes.

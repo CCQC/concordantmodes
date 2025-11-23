@@ -30,16 +30,9 @@ class execute_suite(object):
         self.root = os.getcwd()
         os.chdir(self.path)
         self.options = Options()
-        # self.options.coords = "Redundant"
         self.options.coords = self.coords
         self.ZMAT = Zmat(self.options)
         self.ZMAT.run(zmat_name="zmat")
-        # output_test = self.ZMAT.zmat_read("zmat")
-        # self.ZMAT.zmat_process(output_test)
-
-        # self.ZMAT.zmat_calc()
-
-        # self.ZMAT.zmat_compile()
 
         self.symm_obj = Symmetry(self.ZMAT, self.options, np.array([]))
         self.symm_obj.dummy_obj()
@@ -89,5 +82,4 @@ class execute_suite(object):
             symm_obj=self.symm_obj,
         )
         self.disps.run()
-        # os.chdir("../")
         os.chdir("../../")
