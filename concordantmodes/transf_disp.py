@@ -1,12 +1,16 @@
 import numpy as np
+import copy
 from numpy.linalg import inv
 from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
 from . import masses
 from concordantmodes.s_vectors import SVectors as s_vec
 
+np.set_printoptions(precision=8, linewidth=240)
+
 
 class TransfDisp(object):
+    np.set_printoptions(precision=8, linewidth=240)
     """
     The purpose of this script is to perform an iterative transformation
     between internal coordinate displacements and cartesian displacements,
@@ -31,44 +35,44 @@ class TransfDisp(object):
         self,
         s_vectors,
         zmat,
-        disp,
         eigs,
         conv,
-        disp_tol,
         ted,
         options,
         indices,
+        symm_obj=None,
         coord_type="internal",
         deriv_level=0,
-        cubic_indices=np.array([]),
-        quartic_indices=np.array([]),
-        anharm=False,
+        cma_level="B",
     ):
-        self.disp_tol = disp_tol
+        self.options = options
         self.conv = conv
         self.s_vectors = s_vectors
+        if self.s_vectors is not None:
+            self.B = self.s_vectors.B
+        else:
+            self.B = []
         self.zmat = zmat
-        self.ref_carts = zmat.cartesians_final.copy()
+        self.ref_carts = self.zmat.cartesians_a.copy()
         self.ref_carts = np.array(self.ref_carts).astype(float)
         self.u = np.identity(3 * len(zmat.atom_list))
-        self.disp = disp
+        self.disp = self.options.disp
         self.ted = ted
         self.eigs = eigs
-        self.options = options
         self.disp_cart = {}
         self.disp_cart["ref"] = self.ref_carts.copy()
         self.indices = indices
+        self.symm_obj = symm_obj
         self.deriv_level = deriv_level
         self.coord_type = coord_type
-        self.cubic_indices = cubic_indices
-        self.quartic_indices = quartic_indices
-        self.anharm = anharm
+        self.cma_level = cma_level
 
     def run(self, fc=np.array([])):
-        self.B = self.s_vectors.B.copy()  # (redundant internals (s) x cartesians (3N))
+        np.set_printoptions(precision=8, linewidth=240)
+
         # Invert the L-matrix and then normalize the rows.
         proj_tol = 1.0e-3
-        self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Sym internals (S) )
+        self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Proj internals (S) )
         for i in range(len(self.eig_inv)):
             self.eig_inv[i] = self.eig_inv[i] / LA.norm(self.eig_inv[i])
             self.eig_inv[i][
@@ -76,8 +80,17 @@ class TransfDisp(object):
             ] = 0
 
         # Compute the A-matrix to convert from normal coordinates to cartesians
+
+        u = np.array(self.zmat.masses)
+        for i in range(len(u)):
+            if self.zmat.atom_list[i] == "X":
+                u[i] = 0
+            else:
+                u[i] = 1.0 / u[i]
+        u = np.repeat(u, 3)
+        u = np.diag(u)
         self.A = self.compute_A(
-            self.s_vectors.B.copy(), self.ted.proj, self.eig_inv, self.zmat.mass_weight
+            self.B.copy(), self.ted.proj, self.eig_inv, u, cma_level=self.cma_level
         )
 
         # Generate the normal coordinate values for the reference structure
@@ -96,16 +109,16 @@ class TransfDisp(object):
             for i in range(len(self.n_coord)):
                 self.disp.append(self.Disp)
 
-            # This code will be useful for submitting the computation with
-            # reduced displacements
+            # Reduced displacements generator
             if self.options.reduced_disp and len(fc):
                 disp_size = self.options.reduced_disp_size
-                print(disp_size)
                 for i in range(len(self.disp)):
                     self.disp[i] = disp_size / np.abs(fc[i, i]) ** 0.25
                 print("Reduced displacements")
                 print(self.disp)
                 buff_disp = np.zeros(len(self.disp))
+                # Use this loop to print out the reduced disps in internal coords.
+                # Might want to make this an optional printout.
                 for i in range(len(self.disp)):
                     buff_disp[i] = self.disp[i]
                     simple_disp = np.dot(buff_disp, self.eig_inv)
@@ -118,323 +131,67 @@ class TransfDisp(object):
             # This code loops through a list of indices that the force constants will be computed at and
             # generates the displacements for the diagonal and (if specified) the off-diagonals. Where
             # the displacement matrix D[i,j] = D[j,i].
+
             disp = np.zeros(len(self.eigs.T))
             buff = disp.copy()
             if not self.deriv_level:
-                if not self.anharm:
-                    p_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
-                    m_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
-                    for index in self.indices:
-                        i, j = index[0], index[1]
-                        disp[i] = self.disp[i]
-                        disp[j] = self.disp[j]
-                        p_disp[i, j] = self.coord_convert(
-                            disp,
-                            self.n_coord.copy(),
-                            self.ref_carts.copy(),
-                            50,
-                            1.0e-7,
-                            self.A.copy(),
-                            False,
-                            self.zmat,
-                            self.options,
+                p_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
+                m_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
+                disp = np.zeros((len(self.disp)))
+                if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
+                    print(
+                        "Molsym is being used. +/- displacements of non TSIR are equivalent."
+                    )
+                    if self.options.only_TSIR:
+                        indices = self.symm_obj.indices_by_irrep[0]
+                    else:
+                        print(
+                            "Generating displacements for all irreps. Only + displacements for non TSIR"
                         )
+                        indices = (
+                            copy.deepcopy(self.symm_obj.indices_by_irrep)
+                            .flatten()
+                            .reshape((-1, 2))
+                        )
+                else:
+                    indices = self.indices
+
+                Sum = 1
+                h = 0
+                for index in indices:
+                    i, j = index[0], index[1]
+                    disp[i] = self.disp[i]
+                    disp[j] = self.disp[j]
+                    p_disp[i, j] = self.coord_convert(
+                        disp,
+                        self.n_coord.copy(),
+                        self.ref_carts.copy(),
+                        self.A.copy(),
+                        False,
+                        self.zmat,
+                        self.options,
+                    )
+                    if h != 0:
+                        pass
+                    else:
                         m_disp[i, j] = self.coord_convert(
                             -disp,
                             self.n_coord.copy(),
                             self.ref_carts.copy(),
-                            50,
-                            1.0e-7,
                             self.A.copy(),
                             False,
                             self.zmat,
                             self.options,
                         )
-                        disp = buff.copy()
-                    self.p_disp = p_disp
-                    self.m_disp = m_disp
-                else:
-                    if len(self.cubic_indices):
-                        self.p_disp_xxx = np.zeros(len(self.eigs), dtype=object)
-                        self.m_disp_xxx = np.zeros(len(self.eigs), dtype=object)
-                        if len(self.cubic_indices[0]):
-                            cubic_disp_xxx_p = []
-                            cubic_disp_xxx_m = []
-                            i = 0
-                            for index in self.cubic_indices[0]:
-                                disp[index[0]] = 2 * self.disp[index[0]]
-                                cubic_disp_xxx_p.append(disp)
-                                cubic_disp_xxx_m.append(-disp)
-                                self.p_disp_xxx[i] = self.coord_convert(
-                                    disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                self.m_disp_xxx[i] = self.coord_convert(
-                                    -disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                disp = buff.copy()
-                                i += 1
-                        self.p_disp_xxy = np.zeros(
-                            len(self.cubic_indices[1]), dtype=object
-                        )
-                        self.m_disp_xxy = np.zeros(
-                            len(self.cubic_indices[1]), dtype=object
-                        )
-                        if len(self.cubic_indices[1]):
-                            cubic_disp_xxy_p = []
-                            cubic_disp_xxy_m = []
-                            i = 0
-                            for index in self.cubic_indices[1]:
-                                disp[index[0]] += self.disp[index[0]]
-                                disp[index[1]] += self.disp[index[1]]
-                                disp[index[2]] += self.disp[index[2]]
-                                cubic_disp_xxy_p.append(disp)
-                                cubic_disp_xxy_m.append(-disp)
-                                self.p_disp_xxy[i] = self.coord_convert(
-                                    disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                self.m_disp_xxy[i] = self.coord_convert(
-                                    -disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                disp = buff.copy()
-                                i += 1
-                        self.p_disp_xyz = np.zeros(
-                            len(self.cubic_indices[2]), dtype=object
-                        )
-                        self.m_disp_xyz = np.zeros(
-                            len(self.cubic_indices[2]), dtype=object
-                        )
-                        if len(self.cubic_indices[2]):
-                            cubic_disp_xyz_p = []
-                            cubic_disp_xyz_m = []
-                            i = 0
-                            for index in self.cubic_indices[2]:
-                                disp[index[0]] += self.disp[index[0]]
-                                disp[index[1]] += self.disp[index[1]]
-                                disp[index[2]] += self.disp[index[2]]
-                                cubic_disp_xyz_p.append(disp)
-                                cubic_disp_xyz_m.append(-disp)
-                                self.p_disp_xyz[i] = self.coord_convert(
-                                    disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                self.m_disp_xyz[i] = self.coord_convert(
-                                    -disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                disp = buff.copy()
-                                i += 1
-                    if len(self.quartic_indices):
-                        self.p_disp_xxxy = np.zeros(
-                            len(self.quartic_indices[1]), dtype=object
-                        )
-                        self.m_disp_xxxy = np.zeros(
-                            len(self.quartic_indices[1]), dtype=object
-                        )
-                        if len(self.quartic_indices[1]):
-                            quartic_disp_xxxy_p = []
-                            quartic_disp_xxxy_m = []
-                            i = 0
-                            for index in self.quartic_indices[1]:
-                                disp[index[0]] += self.disp[index[0]]
-                                disp[index[1]] += self.disp[index[1]]
-                                disp[index[2]] += self.disp[index[2]]
-                                disp[index[3]] += self.disp[index[3]]
-                                quartic_disp_xxxy_p.append(disp)
-                                quartic_disp_xxxy_m.append(-disp)
-                                self.p_disp_xxxy[i] = self.coord_convert(
-                                    disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                self.m_disp_xxxy[i] = self.coord_convert(
-                                    -disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                disp = buff.copy()
-                                i += 1
-                        self.p_disp_xxyy = np.zeros(
-                            len(self.quartic_indices[2]), dtype=object
-                        )
-                        self.m_disp_xxyy = np.zeros(
-                            len(self.quartic_indices[2]), dtype=object
-                        )
-                        if len(self.quartic_indices[2]):
-                            quartic_disp_xxyy_p = []
-                            quartic_disp_xxyy_m = []
-                            i = 0
-                            for index in self.quartic_indices[2]:
-                                disp[index[0]] += self.disp[index[0]]
-                                disp[index[1]] += self.disp[index[1]]
-                                disp[index[2]] += self.disp[index[2]]
-                                disp[index[3]] += self.disp[index[3]]
-                                quartic_disp_xxyy_p.append(disp)
-                                quartic_disp_xxyy_m.append(-disp)
-                                self.p_disp_xxyy[i] = self.coord_convert(
-                                    disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                self.m_disp_xxyy[i] = self.coord_convert(
-                                    -disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                disp = buff.copy()
-                                i += 1
-                        self.p_disp_xxyz = np.zeros(
-                            len(self.quartic_indices[3]), dtype=object
-                        )
-                        self.m_disp_xxyz = np.zeros(
-                            len(self.quartic_indices[3]), dtype=object
-                        )
-                        if len(self.quartic_indices[3]):
-                            quartic_disp_xxyz_p = []
-                            quartic_disp_xxyz_m = []
-                            i = 0
-                            for index in self.quartic_indices[3]:
-                                disp[index[0]] += self.disp[index[0]]
-                                disp[index[1]] += self.disp[index[1]]
-                                disp[index[2]] += self.disp[index[2]]
-                                disp[index[3]] += self.disp[index[3]]
-                                quartic_disp_xxyz_p.append(disp)
-                                quartic_disp_xxyz_m.append(-disp)
-                                self.p_disp_xxyz[i] = self.coord_convert(
-                                    disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                self.m_disp_xxyz[i] = self.coord_convert(
-                                    -disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                disp = buff.copy()
-                                i += 1
-                        self.p_disp_wxyz = np.zeros(
-                            len(self.quartic_indices[4]), dtype=object
-                        )
-                        self.m_disp_wxyz = np.zeros(
-                            len(self.quartic_indices[4]), dtype=object
-                        )
-                        if len(self.quartic_indices[4]):
-                            quartic_disp_wxyz_p = []
-                            quartic_disp_wxyz_m = []
-                            i = 0
-                            for index in self.quartic_indices[4]:
-                                disp[index[0]] += self.disp[index[0]]
-                                disp[index[1]] += self.disp[index[1]]
-                                disp[index[2]] += self.disp[index[2]]
-                                disp[index[3]] += self.disp[index[3]]
-                                quartic_disp_wxyz_p.append(disp)
-                                quartic_disp_wxyz_m.append(-disp)
-                                self.p_disp_wxyz[i] = self.coord_convert(
-                                    disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                self.m_disp_wxyz[i] = self.coord_convert(
-                                    -disp,
-                                    self.n_coord.copy(),
-                                    self.ref_carts.copy(),
-                                    50,
-                                    1.0e-7,
-                                    self.A.copy(),
-                                    False,
-                                    self.zmat,
-                                    self.options,
-                                )
-                                disp = buff.copy()
-                                i += 1
-
+                    disp = buff.copy()
+                    if (
+                        self.symm_obj.symtext is not None
+                        and self.options.exploit_pm_symm
+                        and not self.options.only_TSIR
+                        and Sum > len(self.symm_obj.indices_by_irrep[0])
+                    ):
+                        h += 1
+                    Sum += 1
             elif self.deriv_level == 1:
                 p_disp = np.zeros(len(self.eigs), dtype=object)
                 m_disp = np.zeros(len(self.eigs), dtype=object)
@@ -444,8 +201,6 @@ class TransfDisp(object):
                         disp,
                         self.n_coord.copy(),
                         self.ref_carts.copy(),
-                        50,
-                        1.0e-10,
                         self.A.copy(),
                         False,
                         self.zmat,
@@ -455,42 +210,160 @@ class TransfDisp(object):
                         -disp,
                         self.n_coord.copy(),
                         self.ref_carts.copy(),
-                        50,
-                        1.0e-10,
                         self.A.copy(),
                         False,
                         self.zmat,
                         self.options,
                     )
                     disp = buff.copy()
-                self.p_disp = p_disp
-                self.m_disp = m_disp
             else:
                 print(
-                    "Only energy and gradient derivatives are supported. Check your deriv_level_init keyword."
+                    "Only energy and gradient derivatives are supported. Check your deriv_level_b keyword."
                 )
                 raise RuntimeError
-        elif self.coord_type == "cartesian":
-            p_disp = np.zeros(len(self.ref_carts.flatten()), dtype=object)
-            m_disp = np.zeros(len(self.ref_carts.flatten()), dtype=object)
-            print("THIS IS THE DISP SIZE")
-            print(self.disp)
-            for i in range(len(self.ref_carts.flatten())):
-                p_disp[i] = self.ref_carts.flatten().copy()
-                m_disp[i] = self.ref_carts.flatten().copy()
-                p_disp[i][i] = p_disp[i][i] + self.disp
-                m_disp[i][i] = m_disp[i][i] - self.disp
-                p_disp[i] = np.reshape(p_disp[i], (-1, 3))
-                m_disp[i] = np.reshape(m_disp[i], (-1, 3))
-
             self.p_disp = p_disp
             self.m_disp = m_disp
+
+        elif self.coord_type == "cartesian":
+            self.disp_mag = self.options.disp
+            if self.deriv_level == 1:
+                p_disp = np.zeros(len(self.ref_carts.flatten()), dtype=object)
+                m_disp = np.zeros(len(self.ref_carts.flatten()), dtype=object)
+                for i in range(len(self.ref_carts.flatten())):
+                    p_disp[i] = self.ref_carts.flatten().copy()
+                    m_disp[i] = self.ref_carts.flatten().copy()
+                    p_disp[i][i] = p_disp[i][i] + self.disp
+                    m_disp[i][i] = m_disp[i][i] - self.disp
+                    p_disp[i] = np.reshape(p_disp[i], (-1, 3))
+                    m_disp[i] = np.reshape(m_disp[i], (-1, 3))
+
+                self.p_disp = p_disp
+                self.m_disp = m_disp
+            elif not self.deriv_level:
+                if self.options.molsym_symmetry:
+                    print("The ref geom")
+                    print(self.ref_carts)
+                    print(self.symm_obj.symtext.mol.coords)
+                    p_disp = np.zeros(
+                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
+                        dtype=object,
+                    )
+                    m_disp = np.zeros(
+                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
+                        dtype=object,
+                    )
+                    print(f"p disp {p_disp}")
+                    n_irrep = len(self.symm_obj.symtext.irreps)
+                    salc_indices_pi = self.symm_obj.CDsalcs.salcs_by_irrep
+                    print("salc indices pi")
+                    print(salc_indices_pi)
+                    new_indices = []
+                    for i in range(len(self.symm_obj.CDsalcs)):
+                        for j in range(len(self.symm_obj.CDsalcs)):
+                            print(f"i j pair {i,j}")
+                            pair = [i, j]
+                            disp_geom = self.displace_geom(pair)
+                            print("the disp geom")
+                            print(disp_geom)
+                            if i == j:
+                                p_disp[i, i] += disp_geom
+                                m_disp[i, i] -= disp_geom
+                            else:
+                                p_disp[i, j] += disp_geom
+                                m_disp[i, j] -= disp_geom
+                    # print(stop)
+
+                    # for i in range(len(self.symm_obj.CDsalcs)):
+                    #    for j in range(len(self.symm_obj.CDsalcs)):
+                    #        if i <= j:
+                    #            salc_i = self.symm_obj.CDsalcs[i]
+                    #            salc_j = self.symm_obj.CDsalcs[j]
+                    #            print(f"the salc {i, j}")
+                    #            print(f"The disp {self.disp}")
+                    #            new_indices.append([i,j])
+                    #            #self.append_geoms(salc_i, salc_j)
+                    #            disp_geom = np.copy(self.symm_obj.symtext.mol.coords)
+                    #            for atom_idx in range(self.symm_obj.symtext.mol.natoms):
+                    #                for xyz_idx in range(3):
+                    #                    disp_geom[atom_idx, xyz_idx] += self.disp * salc_i.coeffs[atom_idx * 3 + xyz_idx] #/ np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
+                    #                    disp_geom[atom_idx, xyz_idx] += self.disp * salc_j.coeffs[atom_idx * 3 + xyz_idx] #/ np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
+                    #            print(f"The disp_geom {disp_geom}")
+                    #            if i == j:
+                    #                #p_disp[i,i][i] += self.disp
+                    #                #m_disp[i,i][i] -= self.disp
+                    #                p_disp[i,i] += disp_geom
+                    #                m_disp[i,i] -= disp_geom
+                    #            else:
+                    #                #p_disp[i,j][i] += self.disp
+                    #                #p_disp[i,j][j] += self.disp
+                    #                #m_disp[i,j][i] -= self.disp
+                    #                #m_disp[i,j][j] -= self.disp
+                    #                p_disp[i,j] += disp_geom
+                    #                m_disp[i,j] -= disp_geom
+                    self.p_disp = p_disp
+                    self.m_disp = m_disp
+                else:
+                    p_disp = np.zeros(
+                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
+                        dtype=object,
+                    )
+                    m_disp = np.zeros(
+                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
+                        dtype=object,
+                    )
+                    for index in self.indices:
+                        i, j = index[0], index[1]
+                        if i == j:
+                            p_disp[i, i] = self.ref_carts.flatten().copy()
+                            m_disp[i, i] = self.ref_carts.flatten().copy()
+                            p_disp[i, i][i] += self.disp
+                            m_disp[i, i][i] -= self.disp
+                            p_disp[i, i] = np.reshape(p_disp[i, i], (-1, 3))
+                            m_disp[i, i] = np.reshape(m_disp[i, i], (-1, 3))
+                        else:
+                            p_disp[i, j] = self.ref_carts.flatten().copy()
+                            m_disp[i, j] = self.ref_carts.flatten().copy()
+                            p_disp[i, j][i] += self.disp
+                            p_disp[i, j][j] += self.disp
+                            m_disp[i, j][i] -= self.disp
+                            m_disp[i, j][j] -= self.disp
+                            p_disp[i, j] = np.reshape(p_disp[i, j], (-1, 3))
+                            m_disp[i, j] = np.reshape(m_disp[i, j], (-1, 3))
+
+                    self.p_disp = p_disp
+                    self.m_disp = m_disp
 
         else:
             print(
                 "Please input a displacement coordinate type of either cartesian or internal."
             )
             raise RuntimeError
+
+    # function useful for CMA geometry optimizer
+    def eigs_inv(self):
+        proj_tol = 1.0e-3
+        self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Sym internals (S) )
+        for i in range(len(self.eig_inv)):
+            self.eig_inv[i] = self.eig_inv[i] / LA.norm(self.eig_inv[i])
+            self.eig_inv[i][
+                np.abs(self.eig_inv[i]) < np.max(np.abs(self.eig_inv[i])) * proj_tol
+            ] = 0
+
+    def displace_geom(self, pair):
+        print("inside displace geom")
+        print(f"The pair {pair}")
+        disp_geom = np.copy(self.symm_obj.symtext.mol.coords)
+        for s_index in pair:
+            print(f"The s index {s_index}")
+            for atom_idx in range(self.symm_obj.symtext.mol.natoms):
+                for xyz_idx in range(3):
+                    disp_geom[atom_idx, xyz_idx] += (
+                        self.disp
+                        * self.symm_obj.CDsalcs.salcs[s_index].coeffs[
+                            atom_idx * 3 + xyz_idx
+                        ]
+                    )  # / np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
+        return disp_geom
 
     def int_c(self, carts, eig_inv, proj):
         # This is a function that computes all currently implemented and
@@ -572,19 +445,11 @@ class TransfDisp(object):
             a = self.calc_angle(x1, x2, x3)
             if self.conv:
                 condition_1 = (
-                    float(
-                        self.zmat.variable_dictionary_final[
-                            self.zmat.angle_variables[i]
-                        ]
-                    )
+                    float(self.zmat.variable_dictionary_a[self.zmat.angle_variables[i]])
                     > 180.0
                 )
                 condition_2 = (
-                    float(
-                        self.zmat.variable_dictionary_final[
-                            self.zmat.angle_variables[i]
-                        ]
-                    )
+                    float(self.zmat.variable_dictionary_a[self.zmat.angle_variables[i]])
                     < 0.0
                 )
                 if condition_1 or condition_2:
@@ -644,10 +509,10 @@ class TransfDisp(object):
             t = self.calc_tors(x1, x2, x3, x4)
             if self.conv:
                 condition_1 = float(
-                    self.zmat.variable_dictionary_final[self.zmat.torsion_variables[i]]
+                    self.zmat.variable_dictionary_a[self.zmat.torsion_variables[i]]
                 ) > 135.0 and (t * 180.0 / np.pi < -135.0)
                 condition_2 = float(
-                    self.zmat.variable_dictionary_final[self.zmat.torsion_variables[i]]
+                    self.zmat.variable_dictionary_a[self.zmat.torsion_variables[i]]
                 ) < -135.0 and (t * 180.0 / np.pi > 135.0)
                 if condition_1:
                     t += 2 * np.pi
@@ -708,15 +573,11 @@ class TransfDisp(object):
             o = self.calc_OOP(x1, x2, x3, x4)
             if self.conv:
                 condition_1 = (
-                    float(
-                        self.zmat.variable_dictionary_final[self.zmat.oop_variables[i]]
-                    )
+                    float(self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]])
                     > 180.0
                 )
                 condition_2 = (
-                    float(
-                        self.zmat.variable_dictionary_final[self.zmat.oop_variables[i]]
-                    )
+                    float(self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]])
                     < -180.0
                 )
                 if condition_1:
@@ -999,20 +860,20 @@ class TransfDisp(object):
         n_disp,
         n_coord,
         ref_carts,
-        max_iter,
-        tolerance,
+        # max_iter,
+        # tolerance,
         A,
         tight_disp,
         zmat,
         options,
     ):
-        # tol = 1.0e-3
-        # conv_iter = 10
         disp = n_disp.copy()
         new_n = n_coord + n_disp
         new_carts = np.array(ref_carts).astype(float)
-        for i in range(max_iter):
+        tolerance = options.transf_tol
+        for i in range(options.transf_max_it):
             cart_disp = np.dot(n_disp, A)
+            np.set_printoptions(precision=6, linewidth=240)
             # if self.options.second_order:
             # A2 = self.compute_A2(self.s_vectors.B2, A)
             # A2 = np.einsum("ipq,pr,qs->irs", A2, self.ted.proj, self.ted.proj)
@@ -1023,10 +884,9 @@ class TransfDisp(object):
             new_carts += cart_disp_shaped
             coord_check = self.int_c(new_carts, self.eig_inv, self.ted.proj)
             n_disp = new_n - coord_check
-            # n_disp[np.abs(n_disp) < tol * np.max(np.abs(n_disp))] = 0
 
             if tight_disp:
-                sVec = s_vec(zmat, options, zmat.variable_dictionary_final)
+                sVec = s_vec(zmat, options, zmat.variable_dictionary_a)
                 sVec.run(new_carts, False)
                 A = self.compute_A(
                     sVec.B, self.ted.proj, self.eig_inv, self.zmat.mass_weight
@@ -1035,17 +895,14 @@ class TransfDisp(object):
                 break
         if LA.norm(n_disp) > tolerance:
             print("This displacement did not converge.")
-            # if self.options.reduced_disp:
-            # disp = np.dot(disp, LA.inv(self.redu_norm_masses))
             print(np.where(abs(disp) == self.Disp))
             print("Norm:")
             print(LA.norm(n_disp))
             print("Tolerance:")
             print(tolerance)
-            # raise RuntimeError
         return new_carts
 
-    def compute_A(self, B, proj, eig_inv, u):
+    def compute_A(self, B, proj, eig_inv, u, cma_level="B"):
         """
         Construct 'A', the commented lines may be useful for getting
         intensities later. The BB^T product must be linearly independent
@@ -1053,21 +910,22 @@ class TransfDisp(object):
         """
 
         L = inv(eig_inv)
+
         A = LA.pinv(B)  # (3N x s)
         A = np.dot(A, proj)  # (3N x S)
         A = A.T  # (S x 3N)
 
-        # Alternative A-tensor computation
-        # L = inv(eig_inv)
-        # u = np.eye(np.shape(B)[1])
-        # A = inv(B.dot(u).dot(B.T)) # (s x s)
-        # A = (B.T).dot(A) (3N x s)
-        # A = np.dot(A, proj)  # (3N x S)
-        # A = A.T  # (S x 3N)
-
         # This could be necessary
         # for intensities.
-        # A = A.dot(np.sqrt(inv(u)))
+        # B = np.dot(proj.T,B)
+        # u = np.eye(len(B.T))
+        # # A = inv(B.dot(np.sqrt(u)).dot(B.T)) # (s x s)
+        # A = inv(B.dot(u).dot(B.T)) # (s x s)
+        # A = (B.T).dot(A) # (3N x s)
+        # # A = np.sqrt(u).dot(A)
+        # # A = u.dot(A)
+        # A = A.T  # (S x 3N)
+
         # This step modifies A to convert from normal coords to carts.
         A = np.dot(L.T, A)  # (Q x 3N)
 

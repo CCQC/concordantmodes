@@ -27,7 +27,7 @@ jobs:
       shell: bash
       run: |
         python -m pip install --upgrade pip
-        python -m pip install black==22.10  # pinned because the style changes with version
+        python -m pip install black==25.1.0  # pinned because the style changes with version
     - name: Lint
       shell: bash
       run: black concordantmodes --check

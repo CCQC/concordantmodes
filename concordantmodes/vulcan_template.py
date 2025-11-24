@@ -11,7 +11,7 @@ class VulcanTemplate(object):
     def __init__(self, options, job_num, prog_name, prog):
         self.prog_name = prog_name
         self.progdict = {
-            "molpro": "molpro -n $NSLOTS --nouse-logfile --no-xml-output -o \
+            "molpro": "molpro -n $NSLOTS --nouse-logfile -o \
                 output.dat input.dat",
             "psi4": "psi4 -n $NSLOTS",
             "cfour": prog + "+vectorization",

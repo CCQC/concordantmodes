@@ -11,23 +11,24 @@ class TED(object):
     coordinates are utilized, projection matrices will be stored here.
     """
 
-    def __init__(self, proj, zmat):
+    def __init__(self, proj, zmat, options):
         self.proj = proj
         self.zmat = zmat
+        self.options = options
 
-    def run(self, eigs, freq, rect_print=True):
+    def run(self, eigs, freq, symtext=None, rect_print=True):
+        self.symtext = symtext
         proj_eigs = eigs
         if len(np.shape(self.proj)) > 2 and np.shape(self.proj)[0] > 1:
             proj_buff = self.proj[0]
             for i in range(len(self.proj) - 1):
                 proj_buff = np.append(proj_buff, self.proj[i + 1], axis=1)
-            print(proj_buff)
-            raise RuntimeError
         if rect_print:
             proj_eigs = np.dot(self.proj, proj_eigs)
         proj_eigs_inv = LA.pinv(proj_eigs)
+        print("The eigenvectors (check these for phase):")
+        print(proj_eigs)
         self.TED = np.multiply(proj_eigs, proj_eigs_inv.T) * 100
-        self.ted_breakdown = self.TED
         self.table_print(freq, self.TED, rect_print)
 
     def table_print(self, freq, TED, rect_print):
@@ -59,9 +60,21 @@ class TED(object):
         for l in range(n):
             table_output += "--------"
         table_output += "\n"
+        irrep_labels = []
+        if self.symtext is not None:
+            table_output += "Point Group " + str(self.symtext.pg) + "           "
+            for ir, h in enumerate(self.symtext.salcblocks):
+                for s in range(h.shape[0]):
+                    irrep_labels.append(str(self.symtext.irreps[ir].symbol))
+            table_output += "\n"
         table_output += "{:>26s}".format("frequency: ")
         for l in range(n):
             table_output += " " + "{:7.1f}".format(freq[l])
+        table_output += "\n"
+        if self.symtext is not None:
+            table_output += "{:>26s}".format("Irreps: ")
+            for l in range(n):
+                table_output += " " + "{:>7}".format(irrep_labels[l])
         table_output += "\n"
         table_output += "--------------------------"
         for l in range(n):

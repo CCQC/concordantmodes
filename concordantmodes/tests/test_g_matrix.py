@@ -18,7 +18,7 @@ suite.run()
 
 def test_compute_G():
     errors = []
-    suite.s_vec.run(suite.ZMAT.cartesians_init, True)
+    suite.s_vec.run(suite.ZMAT.cartesians_b, True)
 
     g_mat = GMatrix(suite.ZMAT, suite.s_vec, suite.options)
     g_mat.run()
@@ -194,5 +194,5 @@ def test_compute_G():
         ],
     ]
     G_ref = np.array(G_ref)
-
+    os.chdir(suite.root)
     assert np.allclose(g_mat.G, G_ref, rtol=0.0, atol=1e-8)

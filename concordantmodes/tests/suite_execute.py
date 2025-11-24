@@ -12,6 +12,7 @@ from concordantmodes.gf_method import GFMethod
 from concordantmodes.g_matrix import GMatrix
 from concordantmodes.options import Options
 from concordantmodes.s_vectors import SVectors
+from concordantmodes.symmetry import Symmetry
 from concordantmodes.ted import TED
 from concordantmodes.transf_disp import TransfDisp
 from concordantmodes.zmat import Zmat
@@ -25,24 +26,22 @@ class execute_suite(object):
         self.disp_transf = disp_transf
 
     def run(self):
+        print(os.getcwd())
+        self.root = os.getcwd()
         os.chdir(self.path)
         self.options = Options()
-        # self.options.coords = "Redundant"
         self.options.coords = self.coords
         self.ZMAT = Zmat(self.options)
-        output_test = self.ZMAT.zmat_read("zmat")
-        self.ZMAT.zmat_process(output_test)
+        self.ZMAT.run(zmat_name="zmat")
 
-        self.ZMAT.zmat_calc()
+        self.symm_obj = Symmetry(self.ZMAT, self.options, np.array([]))
+        self.symm_obj.dummy_obj()
+        self.symm_obj.symtext = None
 
-        self.ZMAT.zmat_compile()
+        self.s_vec = SVectors(self.ZMAT, self.options, self.ZMAT.variable_dictionary_b)
+        self.s_vec.run(self.ZMAT.cartesians_b, True)
 
-        self.s_vec = SVectors(
-            self.ZMAT, self.options, self.ZMAT.variable_dictionary_init
-        )
-        self.s_vec.run(self.ZMAT.cartesians_init, True)
-
-        self.TED_obj = TED(self.s_vec.proj, self.ZMAT)
+        self.TED_obj = TED(self.s_vec.proj, self.ZMAT, self.options)
         self.g_mat = GMatrix(self.ZMAT, self.s_vec, self.options)
         self.g_mat.run()
         if self.s_vec_bool:
@@ -58,35 +57,29 @@ class execute_suite(object):
             "internal",
             False,
             self.TED_obj,
-            self.options.units,
+            self.options,
         )
         self.f_conv.run()
 
         self.F = np.dot(self.TED_obj.proj.T, np.dot(self.f_conv.F, self.TED_obj.proj))
         self.G = np.dot(self.TED_obj.proj.T, np.dot(self.g_mat.G, self.TED_obj.proj))
         self.GF = GFMethod(
-            self.G,
-            self.F,
-            self.options.tol,
-            self.options.proj_tol,
-            self.ZMAT,
-            self.TED_obj,
+            self.G, self.F, self.ZMAT, self.TED_obj, self.options, self.symm_obj.symtext
         )
 
         self.GF.run()
-        self.algo = Algorithm(len(self.GF.L), None, self.options)
+        self.algo = Algorithm(len(self.GF.L), None, self.options, None)
         self.algo.run()
 
         self.disps = TransfDisp(
             self.s_vec,
             self.ZMAT,
-            self.options.disp,
             self.GF.L,
             True,
-            self.options.disp_tol,
             self.TED_obj,
             self.options,
             self.algo.indices,
+            symm_obj=self.symm_obj,
         )
         self.disps.run()
         os.chdir("../../")

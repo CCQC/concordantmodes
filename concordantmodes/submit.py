@@ -29,7 +29,7 @@ class Submit(object):
                 job_match = re.findall(self.job_fin_regex, qacct_string)
                 if len(job_match) == len(self.disp_list):
                     break
-                time.sleep(10)
+                time.sleep(30)
 
             output = str(process.stdout)
             error = str(process.stderr)
@@ -47,8 +47,10 @@ class Submit(object):
                     ["sbatch", "./optstep.sh"], cwd=path, stdout=pipe, stderr=pipe
                 )
                 processes.append(job)
-                time.sleep(2)
+                time.sleep(3)
 
+            print("First Nap")
+            time.sleep(10)
             for q in range(len(processes)):
                 while True:
                     job = processes[q]
@@ -56,7 +58,6 @@ class Submit(object):
                     job_id = int(
                         re.search(outRegex, job.stdout.decode("UTF-8")).group(1)
                     )
-                    jobFinRegex = re.compile(r"taskid")
                     finish = subprocess.run(
                         ["sacct", "-j", str(job_id)], stdout=pipe, stderr=pipe
                     )
@@ -69,5 +70,5 @@ class Submit(object):
                             + str(q)
                         )
                         break
-            print("sleeping")
+            print("Second Nap")
             time.sleep(10)

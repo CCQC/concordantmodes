@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import time
 import numpy as np
+import copy
 from numpy import linalg as LA
 from numpy.linalg import inv
 from scipy.linalg import fractional_matrix_power
@@ -22,6 +23,7 @@ from concordantmodes.reap import Reap
 from concordantmodes.rmsd import RMSD
 from concordantmodes.s_vectors import SVectors
 from concordantmodes.submit import Submit
+from concordantmodes.symmetry import Symmetry
 from concordantmodes.ted import TED
 from concordantmodes.transf_disp import TransfDisp
 from concordantmodes.vulcan_template import VulcanTemplate
@@ -39,17 +41,20 @@ class ConcordantModes(object):
     BOHR_ANG: Standard uncertainty of 0.00000000080
     """
 
-    def __init__(self, options, proj=None, extra_indices=np.array([])):
+    def __init__(self, options, proj=None, extra_indices=[]):
         self.options = options
         self.MDYNE_HART = 4.3597447222071
         self.BOHR_ANG = 0.529177210903
         self.proj = proj
         self.extra_indices = extra_indices
 
-    def run(self):
+    def run(self, sym_sort=[]):
         t1 = time.time()
 
         rootdir = os.getcwd()
+
+        # string value to access "state" of CMA program. Are we in level A, B, C, etc...
+        cma_level = "B"
 
         # Parse the output to get all pertinent ZMAT info
         self.zmat_obj = Zmat(self.options)
@@ -57,17 +62,30 @@ class ConcordantModes(object):
         if self.options.geom_check:
             raise RuntimeError
 
-        # Compute the initial s-vectors
+        # Do we want to use molsym_symmetry or "manual" symmetry via sym_sort?
+        self.symm_obj = Symmetry(self.zmat_obj, self.options, self.proj)
+        if self.options.molsym_symmetry:
+            self.symm_obj.run()
+        else:
+            """
+            We won't run the symmetry code, but we'll create a dummy object to be passed as an argument.
+            #TODO: This is a hacky way to do this, but it's a quick fix for now. Maybe reincorporate symmetry as a s_vector obj?
+            """
+            self.symm_obj.dummy_obj()
+            self.symm_obj.symtext = None
+            # check if sym_sort object was passed in. If so, intialize sym_sort objects
+            if len(sym_sort) > 1:
+                self.symm_obj.create_flat_sym_sort(sym_sort)
+
+        # Compute the Level B s-vectors
         s_vec = SVectors(
-            self.zmat_obj, self.options, self.zmat_obj.variable_dictionary_init
+            self.zmat_obj, self.options, self.zmat_obj.variable_dictionary_b
         )
         if self.options.man_proj:
             proj = self.proj
             np.set_printoptions(precision=4, linewidth=240)
-            print(proj.shape)
-            print(proj)
             s_vec.run(
-                self.zmat_obj.cartesians_init,
+                self.zmat_obj.cartesians_b,
                 True,
                 proj=proj,
                 second_order=self.options.second_order,
@@ -75,15 +93,16 @@ class ConcordantModes(object):
             s_vec.proj = proj
         else:
             s_vec.run(
-                self.zmat_obj.cartesians_init,
+                self.zmat_obj.cartesians_b,
                 True,
                 second_order=self.options.second_order,
             )
-        self.TED_obj = TED(s_vec.proj, self.zmat_obj)
-        print(s_vec.proj.shape)
-        print(s_vec.proj)
-        print(self.TED_obj.proj.shape)
-        print(self.TED_obj.proj)
+
+        if self.options.molsym_symmetry:
+            self.symm_obj.make_proj(s_vec)
+            s_vec.proj = copy.deepcopy(self.symm_obj.salc_proj)
+
+        self.TED_obj = TED(s_vec.proj, self.zmat_obj, self.options)
 
         # Print out the percentage composition of the projected coordinates
         if self.options.coords != "ZMAT":
@@ -97,102 +116,136 @@ class ConcordantModes(object):
 
         G = g_mat.G.copy()
 
-        if os.path.exists(rootdir + "/fc.grad"):
-            print("HERE")
-            g_read_obj = GrRead("fc.grad")
-            g_read_obj.run(self.zmat_obj.cartesians_init)
+        if os.path.exists(rootdir + "/fc_b.grad"):
+            g_read_obj = GrRead("fc_b.grad")
+            g_read_obj.run(self.zmat_obj.cartesians_b)
+            print(self.zmat_obj.cartesians_b)
 
+        num_deg_free = s_vec.proj.shape[1]
         # Read in FC matrix in cartesians, then convert to internals.
         # Or compute an initial hessian in internal coordinates.
         self.options.init_bool = False
-        if os.path.exists(rootdir + "/fc.dat"):
-            f_read_obj = FcRead("fc.dat")
+        if os.path.exists(rootdir + "/fc_b.dat"):
+            f_read_obj = FcRead("fc_b.dat")
         elif os.path.exists(rootdir + "/FCMFINAL"):
             f_read_obj = FcRead("FCMFINAL")
         else:
             self.options.init_bool = True
 
             # First generate displacements in internal coordinates
-            eigs_init = np.eye(len(s_vec.proj.T))
-            if not self.options.deriv_level_init:
-                indices = np.triu_indices(len(s_vec.proj.T))
-                indices = np.array(indices).T
+            eigs_b = np.eye(len(s_vec.proj.T))
+            coord_type = "internal"
+            if self.options.cart_fc_b:
+                eigs_b = np.eye(len(self.zmat_obj.cartesians_b.flatten()))
+                coord_type = "cartesian"
+            if not self.options.deriv_level_b:
+                if not self.options.molsym_symmetry:
+                    algo = Algorithm(num_deg_free, cma_level, self.options)
+                    algo.run()
+                    # Sym_sort doesn't seem to be working
+                    print("symmetric displacements:")
+                    if len(sym_sort) > 1:
+                        algo.indices = self.symm_obj.create_sym_sort_disps(
+                            sym_sort, algo.indices
+                        )
+                        # indices = self.symm_obj.create_sym_sort_disps(sym_sort, algo.indices)
+                else:
+                    algo = Algorithm(
+                        num_deg_free,
+                        cma_level,
+                        self.options,
+                        proj_irreps=self.symm_obj.proj_irreps,
+                    )
+                    algo.run()
+                    self.symm_obj.indices_by_irrep = algo.indices_by_irrep
             else:
-                indices = np.arange(len(eigs_init))
+                self.symm_obj.proj_irreps = None
+                algo = Algorithm(
+                    num_deg_free,
+                    cma_level,
+                    self.options,
+                    proj_irreps=self.symm_obj.proj_irreps,
+                )
+                algo.run()
+                self.symm_obj.indices_by_irrep = algo.indices_by_irrep
 
-            init_disp = TransfDisp(
+            b_disp = TransfDisp(
                 s_vec,
                 self.zmat_obj,
-                self.options.disp,
-                eigs_init,
+                eigs_b,
                 True,
-                self.options.disp_tol,
                 self.TED_obj,
                 self.options,
-                indices,
-                deriv_level=self.options.deriv_level_init,
+                algo.indices,
+                symm_obj=self.symm_obj,
+                coord_type=coord_type,
+                deriv_level=self.options.deriv_level_b,
+                cma_level=cma_level,
             )
-            init_disp.run()
+            b_disp.run()
 
-            prog_init = self.options.program_init
-            prog_name_init = prog_init.split("@")[0]
+            prog_b = self.options.program_b
+            prog_name_b = prog_b.split("@")[0]
 
-            if self.options.gen_disps_init:
-                if os.path.exists(rootdir + "/DispsInit"):
-                    if os.path.exists(rootdir + "/oldDispsInit"):
-                        shutil.rmtree(rootdir + "/oldDispsInit")
-                    shutil.copytree(rootdir + "/DispsInit", rootdir + "/oldDispsInit")
-                    shutil.rmtree(rootdir + "/DispsInit")
+            if self.options.gen_disps_b:
+                if os.path.exists(rootdir + "/DispsB"):
+                    if os.path.exists(rootdir + "/oldDispsB"):
+                        shutil.rmtree(rootdir + "/oldDispsB")
+                    shutil.copytree(rootdir + "/DispsB", rootdir + "/oldDispsB")
+                    shutil.rmtree(rootdir + "/DispsB")
 
-                dir_obj_init = DirectoryTree(
-                    prog_name_init,
+                ref_geom_b = b_disp.disp_cart["ref"]
+
+                dir_obj_b = DirectoryTree(
+                    prog_name_b,
                     self.zmat_obj,
-                    init_disp,
-                    self.options.cart_insert_init,
-                    init_disp.p_disp,
-                    init_disp.m_disp,
+                    ref_geom_b,
+                    cma_level,
+                    b_disp.p_disp,
+                    b_disp.m_disp,
                     self.options,
-                    indices,
-                    "templateInit.dat",
-                    "DispsInit",
-                    deriv_level=self.options.deriv_level_init,
+                    algo.indices,
+                    self.symm_obj,
+                    "templateB.dat",
+                    "DispsB",
+                    deriv_level=self.options.deriv_level_b,
                 )
-                dir_obj_init.run()
+                dir_obj_b.run()
 
-                if not self.options.calc_init:
+                if not self.options.calc_b:
                     print(
-                        "The initial displacements have been generated, now they must be run locally."
+                        "The Level B displacements have been generated, now they must be run locally."
                     )
                     raise RuntimeError
             else:
-                if not os.path.exists(rootdir + "/DispsInit"):
+                if not os.path.exists(rootdir + "/DispsB"):
                     print(
-                        "You need to have a DispsInit directory already present if you want to proceed under current conditions!"
+                        "You need to have a DispsB directory already present if you want to proceed under current conditions!"
                     )
                     raise RuntimeError
 
-            os.chdir(rootdir + "/DispsInit")
+            os.chdir(rootdir + "/DispsB")
 
-            if self.options.calc_init:
+            if self.options.calc_b:
                 disp_list = []
-                for i in os.listdir(rootdir + "/DispsInit"):
+                for i in os.listdir(rootdir + "/DispsB"):
                     disp_list.append(i)
 
                 if self.options.cluster != "sapelo":
                     v_template = VulcanTemplate(
-                        self.options, len(disp_list), prog_name_init, prog_init
+                        self.options, len(disp_list), prog_name_b, prog_b
                     )
                     out = v_template.run()
                     with open("displacements.sh", "w") as file:
                         file.write(out)
 
                     # Submits an array, then checks if all jobs have finished every
-                    # 10 seconds.
+                    # 30 seconds.
                     sub = Submit(disp_list, self.options)
                     sub.run()
                 else:
                     s_template = SapeloTemplate(
-                        self.options, len(disp_list), prog_name_init, prog_init
+                        self.options, len(disp_list), prog_name_b, prog_b
                     )
                     out = s_template.run()
                     with open("optstep.sh", "w") as file:
@@ -206,66 +259,76 @@ class ConcordantModes(object):
                     sub = Submit(disp_list, self.options)
                     sub.run()
 
-            reap_obj_init = Reap(
-                # prog_name_init,
-                # self.zmat_obj,
-                # init_disp.disp_cart,
+            reap_obj_b = Reap(
                 self.options,
-                # init_disp.n_coord,
-                eigs_init,
-                indices,
-                self.options.energy_regex_init,
-                self.options.gradient_regex,
-                self.options.success_regex_init,
-                deriv_level=self.options.deriv_level_init,
-                # disp_sym = init_disp.disp_sym
+                len(eigs_b),
+                algo.indices,
+                self.symm_obj,
+                cma_level,
+                deriv_level=self.options.deriv_level_b,
             )
-            reap_obj_init.run()
+            reap_obj_b.run()
 
-            if not self.options.deriv_level_init:
-                p_array_init = reap_obj_init.p_en_array
-                m_array_init = reap_obj_init.m_en_array
-                ref_en_init = reap_obj_init.ref_en
-                deriv_level = 0
+            if not self.options.deriv_level_b:
+                p_array_b = reap_obj_b.p_en_array
+                m_array_b = reap_obj_b.m_en_array
+                ref_en_b = reap_obj_b.ref_en
+                deriv_level_b = 0
             else:
-                cart_p_array_init = reap_obj_init.p_grad_array
-                cart_m_array_init = reap_obj_init.m_grad_array
-                p_array_init = np.zeros(np.eye(len(eigs_init)).shape)
-                m_array_init = np.zeros(np.eye(len(eigs_init)).shape)
-                ref_en_init = None
+                cart_p_array_b = reap_obj_b.p_grad_array
+                cart_m_array_b = reap_obj_b.m_grad_array
+                p_array_b = np.zeros(np.eye(len(eigs_b)).shape)
+                m_array_b = np.zeros(np.eye(len(eigs_b)).shape)
+                ref_en_b = None
 
                 # Need to convert this array here from cartesians to internals using projected A-tensor
-                for i in indices:
+                for i in range(len(algo.indices)):
                     grad_s_vec = SVectors(
                         self.zmat_obj,
                         self.options,
-                        self.zmat_obj.variable_dictionary_init,
+                        self.zmat_obj.variable_dictionary_b,
                     )
-                    grad_s_vec.run(init_disp.p_disp[i], False)
-                    A_proj = np.dot(LA.pinv(grad_s_vec.B), self.TED_obj.proj)
-                    p_array_init[i] = np.dot(cart_p_array_init[i].T, A_proj)
-                    grad_s_vec.run(init_disp.m_disp[i], False)
-                    A_proj = np.dot(LA.pinv(grad_s_vec.B), self.TED_obj.proj)
-                    m_array_init[i] = np.dot(cart_m_array_init[i].T, A_proj)
 
-                deriv_level = 1
+                    grad_s_vec.run(b_disp.p_disp[i], False)
+                    A_proj = np.dot(LA.pinv(grad_s_vec.B), self.TED_obj.proj)
+                    p_array_b[i] = np.dot(cart_p_array_b[i].T, A_proj)
 
-            fc_init = ForceConstant(
-                init_disp,
-                p_array_init,
-                m_array_init,
-                ref_en_init,
+                    grad_s_vec.run(b_disp.m_disp[i], False)
+                    A_proj = np.dot(LA.pinv(grad_s_vec.B), self.TED_obj.proj)
+                    m_array_b[i] = np.dot(cart_m_array_b[i].T, A_proj)
+
+                deriv_level_b = 1
+
+            fc_b = ForceConstant(
+                b_disp,
+                p_array_b,
+                m_array_b,
+                ref_en_b,
                 self.options,
-                indices,
-                deriv_level=deriv_level,
+                algo.indices,
+                deriv_level=deriv_level_b,
+                coord_type_b=coord_type,
+                cma_level=cma_level,
             )
-            fc_init.run()
+            fc_b.run()
             print("Computed Force Constants:")
-            print(fc_init.FC)
+            print(fc_b.FC)
+            if self.options.second_order:
+                f_conv_obj = FcConv(
+                    fc_b.FC,
+                    s_vec,
+                    self.zmat_obj,
+                    "internal",
+                    False,
+                    self.TED_obj,
+                    self.options,
+                )
+                f_conv_obj.run(grad=fc_b.gradient)
+                fc_b.FC = f_conv_obj.F
 
-        # Temporary code to ensure nothing breaks in my code in the meantime
-        self.options.deriv_level_init = 0
-        self.options.deriv_level = 0
+        # Temporary code to ensure nothing breaks
+        self.options.deriv_level_b = 0
+        self.options.deriv_level_a = 0
 
         if not self.options.init_bool:
             f_read_obj.run()
@@ -276,8 +339,7 @@ class ConcordantModes(object):
                 "internal",
                 False,
                 self.TED_obj,
-                self.options.units,
-                self.options.second_order,
+                self.options,
             )
             if self.options.second_order:
                 f_conv_obj.run(grad=g_read_obj.cart_grad)
@@ -285,13 +347,7 @@ class ConcordantModes(object):
                 f_conv_obj.run()
             F = f_conv_obj.F
         else:
-            F = fc_init.FC
-
-        # f_conv_obj.N = len(g_mat.G)
-        # f_conv_obj.print_const(fc_name="fc_int.dat")
-        # print("F and then G:")
-        # print(F)
-        # print(g_mat.G)
+            F = fc_b.FC
 
         if self.options.coords != "ZMAT" and not self.options.init_bool:
             F = np.dot(self.TED_obj.proj.T, np.dot(F, self.TED_obj.proj))
@@ -299,96 +355,170 @@ class ConcordantModes(object):
             g_mat.G = np.dot(self.TED_obj.proj.T, np.dot(g_mat.G, self.TED_obj.proj))
 
         self.options.init_bool = False
-        print("F and then G:")
         F[np.abs(F) < self.options.tol] = 0
         g_mat.G[np.abs(g_mat.G) < self.options.tol] = 0
-        print(F)
-        print(g_mat.G / (5.48579909065 * (10 ** (-4))))
+        del_tol = 1.0e-3
+        for row in g_mat.G:
+            abs_row = np.abs(row)
+            row[abs_row < np.max(abs_row) * del_tol] = 0
+        g_mat.G = g_mat.G.T
+        for row in g_mat.G:
+            abs_row = np.abs(row)
+            row[abs_row < np.max(abs_row) * del_tol] = 0
+        g_mat.G = g_mat.G.T
+
+        for row in F:
+            abs_row = np.abs(row)
+            row[abs_row < np.max(abs_row) * del_tol] = 0
+        F = F.T
+        for row in F:
+            abs_row = np.abs(row)
+            row[abs_row < np.max(abs_row) * del_tol] = 0
+        F = F.T
+
+        if len(sym_sort) > 1:
+            F, g_mat.G = self.symm_obj.GF_sym_sort(F, g_mat, sym_sort)
 
         # Run the GF matrix method with the internal F-Matrix and computed G-Matrix!
-        print("Initial Frequencies:")
-        init_GF = GFMethod(
+        print("Level B Frequencies:")
+        b_GF = GFMethod(
             g_mat.G.copy(),
             F.copy(),
-            self.options.tol,
-            self.options.proj_tol,
             self.zmat_obj,
             self.TED_obj,
-            cma="init",
+            self.options,
+            self.symm_obj.symtext,
         )
-        init_GF.run()
+        b_GF.run()
+
+        # For a quick test, to be deleted later
+        g_b = g_mat.G.copy()
+        f_b = F.copy()
+
+        ted_b = b_GF.ted.TED
+        # more sym_sort stuff
+        if len(sym_sort):
+            self.irreps_b, flat_sym_freqs = self.symm_obj.mode_symmetry_sort(
+                b_GF.ted.TED, sym_sort, b_GF.freq
+            )
+            self.ref_b = np.array(flat_sym_freqs)
+            #### this block could probably be moved inside the symmetry.py module?
+            flat_sym_modes_b = [x for xs in self.irreps_b for x in xs]
+            print(flat_sym_modes_b)
+            del_list = []
+            # for i in range(len(self.irreps_b)):
+            # if len(self.irreps_b[i]) == 1:
+            # del_list.append(self.irreps_b[i][0])
+            flat_sym_modes_b = np.delete(np.array(flat_sym_modes_b), del_list)
+            ted_b = ted_b.T
+            ted_b = ted_b[flat_sym_modes_b]
+            ted_b = ted_b.T
+            #### end of block that could probably be moved inside the symmetry.py module?
 
         # Now for the TED check.
-        self.G = np.dot(np.dot(LA.inv(init_GF.L), g_mat.G), LA.inv(init_GF.L).T)
+        self.G = np.dot(np.dot(LA.inv(b_GF.L), g_mat.G), LA.inv(b_GF.L).T)
         self.G[np.abs(self.G) < self.options.tol] = 0
-        self.F = np.dot(np.dot(init_GF.L.T, F), init_GF.L)
+        self.F = np.dot(np.dot(b_GF.L.T, F), b_GF.L)
         self.F[np.abs(self.F) < self.options.tol] = 0
 
-        print("TED Frequencies:")
+        print("TED Frequencies: Degeneracy x Irrep")
         TED_GF = GFMethod(
             self.G,
             self.F,
-            self.options.tol,
-            self.options.proj_tol,
             self.zmat_obj,
             self.TED_obj,
+            self.options,
+            self.symm_obj.symtext,
             cma=False,
         )
         TED_GF.run()
 
-        initial_fc = TED_GF.eig_v
-        eigs = len(TED_GF.S)
+        # Insert statement here for CMA-2, if relevant, to compute level C hessian
+        if self.options.off_diag == 2:
+            # self.extra_indices = []
+            if self.options.de_novo_C:
+                pass
+            else:
+                print(
+                    "No extra computations, running back through level B single points"
+                )
+                os.chdir("DispsB")
+                print(os.getcwd())
+                reap_obj_c = Reap(
+                    self.options,
+                    len(eigs_b),
+                    algo.indices,
+                    self.symm_obj,
+                    "C",
+                    deriv_level=self.options.deriv_level_b,
+                )
+                reap_obj_c.run()
+                FC_c = ForceConstant(
+                    b_disp,
+                    reap_obj_c.p_en_array,
+                    reap_obj_c.m_en_array,
+                    reap_obj_c.ref_en,
+                    self.options,
+                    algo.indices,
+                    deriv_level=deriv_level_b,
+                    coord_type_b=coord_type,
+                    cma_level=cma_level,
+                )
+                FC_c.run()
+                np.set_printoptions(precision=4, linewidth=240)
+                fc_c = FC_c.FC
+                fc_c = np.dot(np.dot(b_GF.L.T, fc_c), b_GF.L)
+                fc_c[np.abs(fc_c) < self.options.tol] = 0
+                print("Level C normal mode Force Constants:")
+                print(fc_c)
+                xi = copy.deepcopy(fc_c) * 0.0
+                for i in range(len(xi)):
+                    for j in range(i + 1):
+                        if i != j:
+                            print(i, j)
+                            buff = np.abs(fc_c[i, j])
+                            xi[i, j] = buff / np.sqrt(
+                                np.abs(fc_c[i, i]) * np.abs(fc_c[j, j])
+                            )
+                            if xi[i, j] > self.options.xi_tol:
+                                self.extra_indices.append([j, i])
+                print("CMA-2 extra off-diag indices:")
+                print(self.extra_indices)
 
-        algo = Algorithm(eigs, initial_fc, self.options)
-        # algo.options.off_diag_bands = 2
-        # algo.options.off_diag_limit = False
-        # algo.options.off_diag = True
+        # Now switch state to cma_level = "A"
+        cma_level = "A"
+        if self.options.molsym_symmetry:
+            algo = Algorithm(
+                num_deg_free, cma_level, self.options, self.symm_obj.proj_irreps
+            )
+        else:
+            algo = Algorithm(num_deg_free, cma_level, self.options, None)
 
         algo.run()
+        if self.options.molsym_symmetry:
+            self.symm_obj.indices_by_irrep = algo.indices_by_irrep
         if len(self.extra_indices):
             algo.indices = np.append(algo.indices, self.extra_indices, axis=0)
-        print(algo.indices)
 
-        # Generate higher order indices here. Migrate to algorithm.py when properly prototyped.
-        # Cubics first
-
-        # This is hacky code, will need to be updated
-        if self.options.pert_off_diag:
-            offdiag_indices = np.triu_indices(len(algo.indices))
-            offdiag_indices = np.array(offdiag_indices).T
-
-            del_array = np.array([])
-            for i in range(len(offdiag_indices)):
-                if offdiag_indices[i][0] == offdiag_indices[i][1]:
-                    del_array = np.append(del_array, i)
-            offdiag_indices = np.delete(offdiag_indices, del_array.astype(int), axis=0)
-            algo.indices = np.append(algo.indices, offdiag_indices, axis=0)
-            print(algo.indices)
-            # print(offdiag_indices)
-
-            # raise RuntimeError
         # Recompute the B-Tensors to match the final geometry,
         # then generate the displacements.
 
         s_vec = SVectors(
-            self.zmat_obj, self.options, self.zmat_obj.variable_dictionary_final
+            self.zmat_obj, self.options, self.zmat_obj.variable_dictionary_a
         )
-        s_vec.run(self.zmat_obj.cartesians_final, False, proj=self.TED_obj.proj)
+        s_vec.run(self.zmat_obj.cartesians_a, False, proj=self.TED_obj.proj)
+
 
         transf_disp = TransfDisp(
             s_vec,
             self.zmat_obj,
-            self.options.disp,
-            init_GF.L,
+            b_GF.L,
             True,
-            self.options.disp_tol,
             self.TED_obj,
             self.options,
             algo.indices,
-            # GF=TED_GF,
-            # cubic_indices=cubic_indices,
-            # quartic_indices=quartic_indices,
-            # offdiag_indices=offdiag_indices
+            symm_obj=self.symm_obj,
+            cma_level=cma_level,
         )
         transf_disp.run(fc=self.F)
         p_disp = transf_disp.p_disp
@@ -397,48 +527,49 @@ class ConcordantModes(object):
             raise RuntimeError
 
         # The displacements have been generated, now we have to run them!
-        prog = self.options.program
+        prog = self.options.program_a
         progname = prog.split("@")[0]
-        if self.options.gen_disps:
-            if os.path.exists(rootdir + "Disps"):
-                if os.path.exists(rootdir + "/oldDisps"):
-                    shutil.rmtree(rootdir + "/oldDisps")
-                shutil.copytree(rootdir + "/Disps", rootdir + "/oldDisps")
-                shutil.rmtree(rootdir + "/Disps")
-            dir_obj = DirectoryTree(
+        if self.options.gen_disps_a:
+            if os.path.exists(rootdir + "DispsA"):
+                if os.path.exists(rootdir + "/oldDispsA"):
+                    shutil.rmtree(rootdir + "/oldDispsA")
+                shutil.copytree(rootdir + "/DispsA", rootdir + "/oldDispsA")
+                shutil.rmtree(rootdir + "/DispsA")
+
+            ref_geom_a = transf_disp.disp_cart["ref"]
+            dir_obj_a = DirectoryTree(
                 progname,
                 self.zmat_obj,
-                transf_disp,
-                self.options.cart_insert,
+                ref_geom_a,
+                cma_level,
                 p_disp,
                 m_disp,
                 self.options,
                 algo.indices,
-                "template.dat",
-                "Disps",
+                self.symm_obj,
+                "templateA.dat",
+                "DispsA",
             )
-            dir_obj.run()
+            dir_obj_a.run()
 
-            if not self.options.calc:
+            if not self.options.calc_a:
                 print(
                     "The displacements have been generated, now they must be run locally."
                 )
                 raise RuntimeError
         else:
-            if not os.path.exists(rootdir + "/Disps"):
+            if not os.path.exists(rootdir + "/DispsA"):
                 print(
-                    "You need to have a Disps directory already present if you want to proceed under current conditions!"
+                    "You need to have a DispsA directory already present if you want to proceed under current conditions!"
                 )
                 raise RuntimeError
 
-        os.chdir(rootdir + "/Disps")
+        os.chdir(rootdir + "/DispsA")
 
-        if self.options.calc:
+        if self.options.calc_a:
             disp_list = []
-            for i in os.listdir(rootdir + "/Disps"):
+            for i in os.listdir(rootdir + "/DispsA"):
                 disp_list.append(i)
-            print("printing disp list")
-            print(disp_list)
 
             # Generates the submit script for the displacements.
             if self.options.cluster != "sapelo":
@@ -471,36 +602,40 @@ class ConcordantModes(object):
 
         # After this point, all of the jobs have finished, and it's time
         # to reap the energies as well as checking for sucesses
-        print(eigs)
-        reap_obj = Reap(
-            # progname,
-            # self.zmat_obj,
-            # transf_disp.disp_cart,
+        reap_obj_a = Reap(
             self.options,
-            # transf_disp.n_coord,
-            eigs,
+            num_deg_free,
             algo.indices,
-            self.options.energy_regex,
-            self.options.gradient_regex,
-            self.options.success_regex,
+            self.symm_obj,
+            cma_level,
         )
-        reap_obj.run()
+        reap_obj_a.run()
 
-        p_en_array = reap_obj.p_en_array
-        m_en_array = reap_obj.m_en_array
-        ref_en = reap_obj.ref_en
+        p_en_array_a = reap_obj_a.p_en_array
+        m_en_array_a = reap_obj_a.m_en_array
+        ref_en_a = reap_obj_a.ref_en
 
-        fc = ForceConstant(
-            transf_disp, p_en_array, m_en_array, ref_en, self.options, algo.indices
+        fc_a = ForceConstant(
+            transf_disp,
+            p_en_array_a,
+            m_en_array_a,
+            ref_en_a,
+            self.options,
+            algo.indices,
+            cma_level=cma_level,
         )
-        fc.run()
+        fc_a.run()
+
+        np.set_printoptions(precision=4, linewidth=240)
         print("Computed Force Constants:")
-        print(fc.FC)
+        print(fc_a.FC)
 
-        self.F = fc.FC
-        if self.options.benchmark_full:
-            with open("Full_fc_levelB.npy", "wb") as z:
-                np.save(z, fc.FC)
+        self.F = fc_a.FC
+        # f_b = np.dot(
+            # np.dot(LA.inv(transf_disp.eig_inv).T, f_b), LA.inv(transf_disp.eig_inv)
+        # )
+        # print("Level B FC in same basis:")
+        # print(f_b)
 
         # Recompute the G-matrix with the new geometry, and then transform
         # the G-matrix using the lower level of theory eigenvalue matrix.
@@ -513,7 +648,9 @@ class ConcordantModes(object):
         if self.options.coords != "ZMAT":
             g_mat.G = np.dot(self.TED_obj.proj.T, np.dot(g_mat.G, self.TED_obj.proj))
 
-        self.G = np.dot(np.dot(transf_disp.eig_inv, g_mat.G), transf_disp.eig_inv.T)
+        self.G = g_mat.G
+
+        self.G = np.dot(np.dot(transf_disp.eig_inv, self.G), transf_disp.eig_inv.T)
         self.G[np.abs(self.G) < self.options.tol] = 0
 
         if self.options.benchmark_full:
@@ -523,40 +660,43 @@ class ConcordantModes(object):
 
         # Final GF Matrix run
         print("Final Harmonic Frequencies:")
-        final_GF = GFMethod(
+        a_GF = GFMethod(
             self.G,
             self.F,
-            self.options.tol,
-            self.options.proj_tol,
             self.zmat_obj,
             self.TED_obj,
+            self.options,
+            self.symm_obj.symtext,
             cma=cma,
         )
-        final_GF.run()
+        a_GF.run()
 
-        # This code below is a rudimentary table of the TED for the final
-        # frequencies. Actually right now it uses the initial L-matrix,
-        # which may need to be modified by the final L-matrix.
+        # This code below is a table of the TED for the final
+        # frequencies in the basis of the initial internal coordinates.
         print("////////////////////////////////////////////")
         print("//{:^40s}//".format(" Final TED"))
         print("////////////////////////////////////////////")
-        self.TED_obj.run(np.dot(init_GF.L, final_GF.L), final_GF.freq)
+        self.TED_obj.run(np.dot(b_GF.L, a_GF.L), a_GF.freq, self.symm_obj.symtext)
 
         # This code prints out the frequencies in order of energy as well
         # as the ZPVE in several different units.
         print(
             "Final Harmonic ZPVE in: "
-            + "{:6.2f}".format(np.sum(final_GF.freq) / 2)
+            + "{:6.2f}".format(np.sum(a_GF.freq) / 2)
             + " (cm^-1) "
-            + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 349.7550881133)
+            + "{:6.2f}".format(0.5 * np.sum(a_GF.freq) / 349.7550881133)
             + " (kcal mol^-1) "
-            + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 219474.6313708)
+            + "{:6.2f}".format(0.5 * np.sum(a_GF.freq) / 219474.6313708)
             + " (hartrees) "
         )
 
         # This code converts the force constants back into cartesian
         # coordinates and writes out an "output.default.hess" file, which
         # is of the same format as FCMFINAL of CFOUR.
+
+        # To be implemented: logic for when the final force constants are computed
+        # atop a non-stationary point.
+
         self.F = np.dot(np.dot(transf_disp.eig_inv.T, self.F), transf_disp.eig_inv)
         if self.options.coords != "ZMAT":
             self.F = np.dot(self.TED_obj.proj, np.dot(self.F, self.TED_obj.proj.T))
@@ -567,8 +707,7 @@ class ConcordantModes(object):
             "cartesian",
             True,
             self.TED_obj,
-            self.options.units,
-            self.options.second_order,
+            self.options,
         )
         cart_conv.run()
 
@@ -578,370 +717,13 @@ class ConcordantModes(object):
         #        rmsd_geom.run(mol1,mol2)
 
         print("Frequency Shift (cm^-1): ")
-        print(final_GF.freq - init_GF.freq)
+        print(a_GF.freq - b_GF.freq)
+        for i in a_GF.freq - b_GF.freq:
+            print(i)
 
         # Write a molden file
-        molden = MoldenWriter(self.zmat_obj, transf_disp, final_GF.freq)
+        molden = MoldenWriter(self.zmat_obj, transf_disp, a_GF.freq)
         molden.run()
 
         t2 = time.time()
         print("This program took " + str(t2 - t1) + " seconds to run.")
-
-        # after this point, you could loop through the full FC matrix and compute several other benchmark frequencies
-        if self.options.benchmark_full:
-            # self.options.off_diag = True
-            # # nate
-            # with open("Full_fc_levelB.npy", "rb") as z:
-            # FC = np.load(z)
-            # self.F = np.zeros((eigs, eigs))
-            # for q in range(eigs):
-            # self.F = np.zeros((eigs, eigs))
-            # self.options.off_diag_bands = q
-            # a = eigs
-            # algo = Algorithm(eigs, initial_fc, self.options)
-            # algo.run()
-            # print(algo.indices)
-            # if q == 0:
-            # cma = None
-            # else:
-            # cma = False
-            # for index in algo.indices:
-            # i, j = index[0], index[1]
-            # self.F[i, j] = FC[i, j]
-            # cf = np.triu_indices(a, 1)
-            # il = (cf[1], cf[0])
-            # self.F[il] = self.F[cf]
-            # # Final GF Matrix run
-            # print("Final Frequencies:")
-            # final_GF = GFMethod(
-            # self.G,
-            # self.F,
-            # self.options.tol,
-            # self.options.proj_tol,
-            # self.zmat_obj,
-            # self.TED_obj,
-            # cma=cma,
-            # )
-            # final_GF.run()
-
-            # # This code below is a rudimentary table of the TED for the final
-            # # frequencies. Actually right now it uses the initial L-matrix,
-            # # which may need to be modified by the final L-matrix.
-            # print("////////////////////////////////////////////")
-            # print("//{:^40s}//".format(" Final TED"))
-            # print("////////////////////////////////////////////")
-            # self.TED_obj.run(np.dot(init_GF.L, final_GF.L), final_GF.freq)
-
-            # # This code prints out the frequencies in order of energy as well
-            # # as the ZPVE in several different units.
-            # print(
-            # "Final ZPVE in: "
-            # + "{:6.2f}".format(np.sum(final_GF.freq) / 2)
-            # + " (cm^-1) "
-            # + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 349.7550881133)
-            # + " (kcal mol^-1) "
-            # + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 219474.6313708)
-            # + " (hartrees) "
-            # )
-
-            # # This code converts the force constants back into cartesian
-            # # coordinates and writes out an "output.default.hess" file, which
-            # # is of the same format as FCMFINAL of CFOUR.
-            # # self.F = np.dot(np.dot(transf_disp.eig_inv.T, self.F), transf_disp.eig_inv)
-            # # if self.options.coords != "ZMAT":
-            # #    self.F = np.dot(self.TED_obj.proj, np.dot(self.F, self.TED_obj.proj.T))
-            # # cart_conv = FcConv(
-            # #    self.F,
-            # #    s_vec,
-            # #    self.zmat_obj,
-            # #    "cartesian",
-            # #    True,
-            # #    self.TED_obj,
-            # #    self.options.units,
-            # # )
-            # # cart_conv.run()
-
-            # t2 = time.time()
-            # print("Frequency Shift (cm^-1): ")
-            # print(final_GF.freq - init_GF.freq)
-            # print("This program took " + str(t2 - t1) + " seconds to run.")
-
-            # print("////////////////////////////////////////////")
-            # print("//{:^40s}//".format(" END OF LOOP"))
-            # print("////////////////////////////////////////////")
-
-            print("////////////////////////////////////////////")
-            print("//{:^40s}//".format("Begin Selective Diagnostic Benchmark"))
-            print("////////////////////////////////////////////")
-            self.options.off_diag = False
-            self.options.mode_coupling_check = True
-
-            algo = Algorithm(eigs, initial_fc, self.options)
-            algo.run()
-            print("printing algo indices", algo.indices)
-            diagnostic_indices = algo.indices
-            self.options.mode_coupling_check = False
-            algo = Algorithm(eigs, initial_fc, self.options)
-            algo.run()
-            newlist = algo.indices + diagnostic_indices
-            print(newlist)
-
-            for index in newlist:
-                i, j = index[0], index[1]
-                self.F[i, j] = FC[i, j]
-            cf = np.triu_indices(a, 1)
-            il = (cf[1], cf[0])
-            self.F[il] = self.F[cf]
-            # Final GF Matrix run
-            print("Final Harmonic Frequencies:")
-            cma = False
-            final_GF = GFMethod(
-                self.G,
-                self.F,
-                self.options.tol,
-                self.options.proj_tol,
-                self.zmat_obj,
-                self.TED_obj,
-                cma=cma,
-            )
-            final_GF.run()
-
-            # This code below is a rudimentary table of the TED for the final
-            # frequencies. Actually right now it uses the initial L-matrix,
-            # which may need to be modified by the final L-matrix.
-            print("////////////////////////////////////////////")
-            print("//{:^40s}//".format(" Final TED"))
-            print("////////////////////////////////////////////")
-            self.TED_obj.run(np.dot(init_GF.L, final_GF.L), final_GF.freq)
-
-            # This code prints out the frequencies in order of energy as well
-            # as the ZPVE in several different units.
-            print(
-                "Final Harmonic ZPVE in: "
-                + "{:6.2f}".format(np.sum(final_GF.freq) / 2)
-                + " (cm^-1) "
-                + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 349.7550881133)
-                + " (kcal mol^-1) "
-                + "{:6.2f}".format(0.5 * np.sum(final_GF.freq) / 219474.6313708)
-                + " (hartrees) "
-            )
-
-        if self.options.anharm:
-            cubic_indices = []
-            temp_indices = []
-            # diagonals first
-            if self.options.anharm_class[0]:
-                for i in range(len(final_GF.freq)):
-                    temp_indices.append([i, i, i])
-            cubic_indices.append(temp_indices)
-            temp_indices = []
-            if self.options.anharm_class[1]:
-                for i in range(len(final_GF.freq)):
-                    for j in range(len(final_GF.freq) - i - 1):
-                        if i != j + i + 1:
-                            temp_indices.append([i, i, j + i + 1])
-                            temp_indices.append([j + i + 1, j + i + 1, i])
-            cubic_indices.append(temp_indices)
-            temp_indices = []
-            if self.options.anharm_class[2]:
-                for i in range(len(final_GF.freq)):
-                    for j in range(len(final_GF.freq) - i - 1):
-                        for k in range(len(final_GF.freq) - i - j - 2):
-                            if i != j + i + 1 and j != k + j + i + 2:
-                                temp_indices.append([i, j + i + 1, k + j + i + 2])
-            cubic_indices.append(temp_indices)
-            quartic_indices = []
-            temp_indices = []
-            # diagonals first
-            if self.options.anharm_class[3]:
-                for i in range(len(final_GF.freq)):
-                    temp_indices.append([i, i, i, i])
-            quartic_indices.append(temp_indices)
-            temp_indices = []
-            if self.options.anharm_class[4]:
-                for i in range(len(final_GF.freq)):
-                    for j in range(len(final_GF.freq) - i - 1):
-                        if i != j + i + 1:
-                            temp_indices.append([i, i, i, j + i + 1])
-                            temp_indices.append([j + i + 1, j + i + 1, j + i + 1, i])
-            quartic_indices.append(temp_indices)
-            temp_indices = []
-            if self.options.anharm_class[5]:
-                for i in range(len(final_GF.freq)):
-                    for j in range(len(final_GF.freq) - i - 1):
-                        if i != j + i + 1:
-                            temp_indices.append([i, i, j + i + 1, j + i + 1])
-            quartic_indices.append(temp_indices)
-            temp_indices = []
-            if self.options.anharm_class[6]:
-                for i in range(len(final_GF.freq)):
-                    for j in range(len(final_GF.freq) - i - 1):
-                        for k in range(len(final_GF.freq) - i - j - 2):
-                            if i != j + i + 1 and j != k + j + i + 2:
-                                temp_indices.append([i, i, j + i + 1, k + j + i + 2])
-                                temp_indices.append(
-                                    [j + i + 1, j + i + 1, i, k + j + i + 2]
-                                )
-                                temp_indices.append(
-                                    [k + j + i + 2, k + j + i + 2, j + i + 1, i]
-                                )
-            quartic_indices.append(temp_indices)
-            temp_indices = []
-            if self.options.anharm_class[7]:
-                for i in range(len(final_GF.freq)):
-                    for j in range(len(final_GF.freq) - i - 1):
-                        for k in range(len(final_GF.freq) - i - j - 2):
-                            for l in range(len(final_GF.freq) - i - j - k - 3):
-                                if (
-                                    i != j + i + 1
-                                    and j != k + j + i + 2
-                                    and k != l + k + j + i + 3
-                                ):
-                                    temp_indices.append(
-                                        [i, j + i + 1, k + j + i + 2, l + k + j + i + 3]
-                                    )
-            quartic_indices.append(temp_indices)
-
-            anharm_transf_disp = TransfDisp(
-                s_vec,
-                self.zmat_obj,
-                self.options.disp,
-                np.dot(init_GF.L, final_GF.L),
-                True,
-                self.options.disp_tol,
-                self.TED_obj,
-                self.options,
-                algo.indices,
-                cubic_indices=cubic_indices,
-                quartic_indices=quartic_indices,
-                anharm=True,
-            )
-            anharm_transf_disp.run(fc=final_GF.F)
-            if self.options.gen_disps_anharm_init:
-                p_disp = [
-                    *anharm_transf_disp.p_disp_xxx,
-                    *anharm_transf_disp.p_disp_xxy,
-                    *anharm_transf_disp.p_disp_xyz,
-                    *anharm_transf_disp.p_disp_xxxy,
-                    *anharm_transf_disp.p_disp_xxyy,
-                    *anharm_transf_disp.p_disp_xxyz,
-                    *anharm_transf_disp.p_disp_wxyz,
-                ]
-                m_disp = [
-                    *anharm_transf_disp.m_disp_xxx,
-                    *anharm_transf_disp.m_disp_xxy,
-                    *anharm_transf_disp.m_disp_xyz,
-                    *anharm_transf_disp.m_disp_xxxy,
-                    *anharm_transf_disp.m_disp_xxyy,
-                    *anharm_transf_disp.m_disp_xxyz,
-                    *anharm_transf_disp.m_disp_wxyz,
-                ]
-                dir_obj = DirectoryTree(
-                    progname,
-                    self.zmat_obj,
-                    anharm_transf_disp,
-                    self.options.cart_insert,
-                    p_disp,
-                    m_disp,
-                    self.options,
-                    algo.indices,
-                    "templateAnharmInit.dat",
-                    "anharmDispsInit",
-                    anharm=True,
-                )
-                dir_obj.run()
-            else:
-                os.chdir(rootdir + "/anharmDispsInit")
-            if self.options.calc_anharm_init:
-                disp_list = []
-                for i in os.listdir(rootdir + "/anharmDispsInit"):
-                    disp_list.append(i)
-                if self.options.cluster != "sapelo":
-                    v_template = VulcanTemplate(
-                        self.options, len(disp_list), progname, prog
-                    )
-                    out = v_template.run()
-                    with open("displacements.sh", "w") as file:
-                        file.write(out)
-
-                    # Submits an array, then checks if all jobs have finished every
-                    # 10 seconds.
-                    sub = Submit(disp_list, self.options)
-                    sub.run()
-                else:
-                    s_template = SapeloTemplate(
-                        self.options, len(disp_list), progname, prog
-                    )
-                    out = s_template.run()
-                    with open("optstep.sh", "w") as file:
-                        file.write(out)
-                    for z in range(0, len(disp_list)):
-                        source = os.getcwd() + "/optstep.sh"
-                        os.chdir("./" + str(z + 1))
-                        destination = os.getcwd()
-                        shutil.copy2(source, destination)
-                        os.chdir("../")
-                    sub = Submit(disp_list, self.options)
-                    sub.run()
-            anharm_indices = [*cubic_indices, *quartic_indices]
-            # print(len(cubic_indices))
-            # print(cubic_indices)
-            # print(len(quartic_indices))
-            # print(quartic_indices)
-            # print(len(anharm_indices))
-            # print(anharm_indices)
-            os.chdir(rootdir + "/anharmDispsInit")
-
-            reap_obj_anharm = Reap(
-                self.options,
-                eigs,
-                anharm_indices,  # Need cubic + quartic indices
-                self.options.energy_regex_init_anharm,
-                self.options.gradient_regex,
-                self.options.success_regex_init_anharm,
-                deriv_level=self.options.deriv_level_init,
-                anharm=True,
-            )
-            reap_obj_anharm.run()
-
-            p_en_anharm = [
-                *reap_obj_anharm.p_e_xxx,
-                *reap_obj_anharm.p_e_xxy,
-                *reap_obj_anharm.p_e_xyz,
-                *reap_obj_anharm.p_e_xxx,
-                *reap_obj_anharm.p_e_xxxy,
-                *reap_obj_anharm.p_e_xxyy,
-                *reap_obj_anharm.p_e_xxyz,
-                *reap_obj_anharm.p_e_wxyz,
-            ]
-            m_en_anharm = [
-                *reap_obj_anharm.m_e_xxx,
-                *reap_obj_anharm.m_e_xxy,
-                *reap_obj_anharm.m_e_xyz,
-                *reap_obj_anharm.m_e_xxx,
-                *reap_obj_anharm.m_e_xxxy,
-                *reap_obj_anharm.m_e_xxyy,
-                *reap_obj_anharm.m_e_xxyz,
-                *reap_obj_anharm.m_e_wxyz,
-            ]
-            p_en_array = reap_obj_init.p_en_array
-            m_en_array = reap_obj_init.m_en_array
-            ref_en = reap_obj_init.ref_en
-
-            anharm_fc = ForceConstant(
-                transf_disp,
-                p_en_array,
-                m_en_array,
-                ref_en,
-                self.options,
-                indices,
-                anharm=True,
-                anharm_indices=anharm_indices,
-                p_anharm=p_en_anharm,
-                m_anharm=m_en_anharm,
-            )
-            anharm_fc.run()
-            # print(anharm_fc.f_cube.shape)
-            # print(anharm_fc.f_cube)
-            # print(anharm_fc.f_quart.shape)
-            # print(anharm_fc.f_quart)

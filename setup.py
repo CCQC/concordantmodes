@@ -24,12 +24,20 @@ if __name__ == "__main__":
             "numpy>=1.13.3",
             "qcelemental>=0.24.0",
             "sympy",
-            "scipy >= 1.4"
+            "scipy >= 1.4",
         ],
         extras_require={
-            "tests": ["pytest", "pytest-cov", "pytest-pep8",],
+            "tests": [
+                "pytest",
+                "pytest-cov",
+                "pytest-pep8",
+            ],
         },
-        tests_require=["pytest", "pytest-cov", "pytest-pep8",],
+        tests_require=[
+            "pytest",
+            "pytest-cov",
+            "pytest-pep8",
+        ],
         classifiers=[
             "Development Status :: 4 - Beta",
             "Intended Audience :: Science/Research",

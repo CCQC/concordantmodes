@@ -7,75 +7,105 @@ from scipy import stats
 class Algorithm(object):
     """
     The purpose of this class is to return a list of indices by which the force constants of the CMA method
-    will be computed. These indices will be determined by user input or by a scoring function which takes into
-    consideration the overlap of the normal coordinates and the difference in force constants for a particular normal
-    mode.
+    will be computed. These indices will be determined by user input where nonabelian symmetry can be
+    exploited.
     """
 
-    def __init__(self, eigs, initial_fc, options):
-        self.eigs = eigs
+    def __init__(self, num_deg_free, cma_level, options, proj_irreps=None):
+        self.num_deg_free = num_deg_free
+        self.cma_level = cma_level
         self.options = options
-        self.initial_fc = initial_fc
+        self.proj_irreps = proj_irreps
 
     def run(self):
-        initial_fc = self.initial_fc
-
-        tolerance = 5e-32
-        a = self.eigs
-        self.options.mode_coupling_check = False
-        if self.options.mode_coupling_check:
-            self.indices = self.coupling_diagnostic(a, initial_fc, tolerance)
-        else:
-            if self.options.off_diag:
-                off_diag = self.options.off_diag_bands + 1
-                if self.options.off_diag_limit != False:
-                    lim = self.options.off_diag_limit - 1
-                else:
-                    lim = a + 1
+        if self.options.molsym_symmetry:
+            if self.cma_level == "A" or self.options.deriv_level_b:
+                self.loop_symmetry_diagonal()
             else:
-                lim = a + 1
-                off_diag = 1
-            self.indices = self.loop(a, off_diag, lim)
+                self.loop_symmetry()
+        else:
+            if self.cma_level == "A" or self.options.deriv_level_b:
+                self.loop_diagonal()
+            else:
+                self.loop()
 
-    def loop(self, a, off_diag, lim):
-        a = self.eigs
-        indices = []
-        Sum = 2
-        for i in range(a):
-            for j in range(i, i + off_diag):
-                if j > a - 1:
+    # Indices for high level A looping or deriv_level_b == 1
+    def loop_symmetry_diagonal(self):
+        self.indices = []
+        self.indices_by_irrep = []
+        offset = 0
+        for h, irrep in enumerate(self.proj_irreps):
+            irrep_indices = []
+            if type(irrep) is list:
+                degen_list = []
+                for irrepl in irrep:
+                    irrep_indices = []
+                    for i in range(offset, irrepl + offset):
+                        irrep_indices.append([i, i])
+                    degen_list.append(irrep_indices)
+                    offset += irrepl
+                self.indices_by_irrep.append(degen_list)
+            else:
+                for i in range(offset, irrep + offset):
+                    irrep_indices.append([i, i])
+                self.indices_by_irrep.append(irrep_indices)
+                offset += irrep
+        for i, irrep_ind in enumerate(self.indices_by_irrep):
+            if type(self.proj_irreps[i]) is list:
+                self.indices.append(irrep_ind[0])
+            else:
+                self.indices.append(irrep_ind)
+        self.indices = [item for sublist in self.indices for item in sublist]
+
+    # Indices for level B where deriv_level_b == 0
+    def loop_symmetry(self):
+        self.indices = []
+        self.indices_by_irrep = []
+        offset = 0
+        for h, irrep in enumerate(self.proj_irreps):
+            irrep_indices = []
+            if type(irrep) is list:
+                degen_list = []
+                for irrepl in irrep:
+                    irrep_indices = []
+                    for i in range(offset, irrepl + offset):
+                        for j in range(i, irrepl + offset):
+                            irrep_indices.append([i, j])
+                    degen_list.append(irrep_indices)
+                    offset += irrepl
+                self.indices_by_irrep.append(degen_list)
+            else:
+                for i in range(offset, irrep + offset):
+                    for j in range(i, irrep + offset):
+                        irrep_indices.append([i, j])
+                self.indices_by_irrep.append(irrep_indices)
+                offset += self.proj_irreps[h]
+        for i, irrep_ind in enumerate(self.indices_by_irrep):
+            if type(self.proj_irreps[i]) is list:
+                self.indices.append(irrep_ind[0])
+            else:
+                self.indices.append(irrep_ind)
+        self.indices = [item for sublist in self.indices for item in sublist]
+
+    def loop_diagonal(self):
+        self.indices = []
+        for i in range(self.num_deg_free):
+            self.indices.append([i, i])
+        self.indices_by_irrep = None
+        self.degens = None
+
+    # Generates level B indices where no symmetry is being used
+    def loop(self):
+        if self.cma_level == "A":
+            addem = 1
+        else:
+            addem = self.num_deg_free
+        self.indices = []
+        for i in range(self.num_deg_free):
+            for j in range(i, i + addem):
+                if j > self.num_deg_free - 1:
                     break
                 else:
-                    if i == j:
-                        indices.append([i, j])
-                    elif i != j:
-                        if i > lim:
-                            break
-                        else:
-                            indices.append([i, j])
-                    Sum += 2
-        return indices
-
-    def coupling_diagnostic(self, a, initial_fc, tolerance):
-        indices = []
-        diag = np.zeros((a, a))
-        for x in range(a):
-            for y in range(a):
-                if x == y:
-                    diag[x, x] = 0
-                elif x != y:
-                    diag[x, y] = S[x, y] / (initial_fc[x] - initial_fc[y])
-        diag = np.absolute(diag)
-        print(diag)
-        data = np.abs(diag)
-        hist, bin_edges = np.histogram(data, bins=a)
-        for index, i in np.ndenumerate(data):
-            if data[index] >= bin_edges[1]:
-                indices.append(list(index))
-        indices_new = []
-        for index in indices:
-            if index[1] > index[0]:
-                indices_new.append(index)
-        indices = indices_new
-
-        return indices
+                    self.indices.append([i, j])
+        self.indices_by_irrep = None
+        self.degens = None

@@ -9,23 +9,41 @@ class Reap(object):
     def __init__(
         self,
         options,
-        eigs,
+        num_deg_free,
         indices,
-        energy_regex,
-        gradient_regex,
-        success_regex,
+        symm_obj,
+        cma_level,
         deriv_level=0,
         disp_sym=None,
-        anharm=False,
     ):
         self.options = options
-        self.eigs = eigs
-        self.energy_regex = energy_regex
-        self.gradient_regex = gradient_regex
-        self.success_regex = success_regex
+        self.num_deg_free = num_deg_free
         self.indices = indices
+        self.symm_obj = symm_obj
         self.deriv_level = deriv_level
-        self.anharm = anharm
+        self.cma_level = cma_level
+        if cma_level == "B":
+            if self.deriv_level:
+                self.gradient_regex = self.options.gradient_regex_b
+                self.energy_regex = self.options.energy_regex_b
+                self.success_regex = self.options.success_regex_b
+            else:
+                self.energy_regex = self.options.energy_regex_b
+                self.success_regex = self.options.success_regex_b
+        elif cma_level == "C":
+            if self.deriv_level:
+                pass
+            else:
+                self.energy_regex = self.options.energy_regex_c
+                self.success_regex = self.options.success_regex_c
+        else:  # cma_level = "A"
+            if self.deriv_level:
+                self.gradient_regex = self.options.gradient_regex_a
+                self.energy_regex = self.options.energy_regex_a
+                self.success_regex = self.options.success_regex_a
+            else:
+                self.energy_regex = self.options.energy_regex_a
+                self.success_regex = self.options.success_regex_a
 
     def run(self):
         # Define energy/gradient search regex
@@ -36,332 +54,161 @@ class Reap(object):
         else:
             grad_regex1 = re.compile(self.gradient_regex[0])
             grad_regex2 = re.compile(self.gradient_regex[1])
-        eigs = self.eigs
-        if type(eigs) == int:
-            size = eigs
-        else:
-            size = len(eigs)
+        size = self.num_deg_free
 
+        if self.options.second_order:
+            size = self.indices[-1][0] + 1
+
+        self.fail_list = []
         if not self.deriv_level:
-            if not self.anharm:
-                print(
-                    "If something looks wrong with the final frequencies, check these energies!"
-                )
-                print("(Job number 1 == Reference energy) :D")
-                print(os.getcwd())
-                if self.options.dir_reap:
-                    os.chdir("./" + str(1))
-                    with open("output.dat", "r") as file:
-                        data = file.read()
-                    if not re.search(success_regex, data):
-                        print("Energy failed at " + str("ref"))
-                        raise RuntimeError
-                    os.chdir("..")
+            print(
+                "If something looks wrong with the final frequencies, check these energies!"
+            )
+            print("(Job number 1 == Reference energy) :D")
+            print(os.getcwd())
+            os.chdir("./" + str(1))
+            with open("output.dat", "r") as file:
+                data = file.read()
+            print(f"Success regex {success_regex}")
+            if not re.search(success_regex, data):
+                print("Energy failed at " + str("ref"))
+                raise RuntimeError
+            os.chdir("..")
+
+            ref_en = float(re.findall(energy_regex, data)[0])
+            print("Reference energy: " + str(ref_en))
+
+            indices = self.indices
+            p_en_array = np.zeros((size, size))
+            m_en_array = np.zeros((size, size))
+            rel_en_p = np.zeros((size, size))
+            rel_en_m = np.zeros((size, size))
+            relative_energies = []
+            absolute_energies = [[("ref", "ref"), "ref", ref_en, 1]]
+
+            direc = 2
+
+            if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
+                if self.options.only_TSIR:
+                    print("Reap only the TSIR displacements")
+                    indices = self.symm_obj.indices_by_irrep[0]
                 else:
-                    with open("output.1.dat", "r") as file:
-                        data = file.read()
-                    if not re.search(success_regex, data):
-                        print("Energy failed at " + str("ref"))
-                        raise RuntimeError
+                    print("Reap displacements from all irreps")
+                    indices = self.symm_obj.indices_by_irrep.flatten().reshape((-1, 2))
 
-                # ref_en = float(re.findall(re.compile(self.options.energy_regex_add[-1]), data)[0])
-                ref_en = float(re.findall(energy_regex, data)[0])
-                print("Reference energy: " + str(ref_en))
-                if len(self.options.energy_regex_add) and not self.options.init_bool:
-                    energy_add = np.array([])
-                    for i in range(len(self.options.energy_regex_add)):
-                        energy_add = np.append(
-                            energy_add,
-                            float(
-                                re.findall(self.options.energy_regex_add[i], data)[0]
-                            ),
-                        )
-                    np.set_printoptions(precision=8, linewidth=120)
-
-                    energy_add -= energy_add[0]
-                    energy_add = energy_add[1:]
-                    self.energy_add_total = np.array([energy_add])
-
-                indices = self.indices
-                p_en_array = np.zeros((size, size))
-                m_en_array = np.zeros((size, size))
-                rel_en_p = np.zeros((size, size))
-                rel_en_m = np.zeros((size, size))
-                relative_energies = []
-                absolute_energies = [[("ref", "ref"), "ref", ref_en, 1]]
-
-                direc = 2
-                for index in indices:
-                    i, j = index[0], index[1]
-                    if self.options.init_bool:
-                        p_en_array[i, j] = energy = self.reap_energies(
-                            direc, success_regex, energy_regex, True
-                        )
-                        rel = energy - ref_en
-                        print(
-                            "Relative plus  "
-                            + "{:4d}".format(direc)
-                            + "{:4d}".format(i)
-                            + " "
-                            + "{:4d}".format(j)
-                            + ": "
-                            + "{: 10.9f}".format(rel)
-                        )
-                        rel_en_p[i, j] = rel
-                        relative_energies.append([(i, j), "plus", rel, direc])
-                        absolute_energies.append([(i, j), "plus", energy, direc])
-
-                        m_en_array[i, j] = energy = self.reap_energies(
-                            direc + 1, success_regex, energy_regex, True
-                        )
-                        rel = energy - ref_en
-                        print(
-                            "Relative minus "
-                            + "{:4d}".format(direc + 1)
-                            + "{:4d}".format(i)
-                            + " "
-                            + "{:4d}".format(j)
-                            + ": "
-                            + "{: 10.9f}".format(rel)
-                        )
-                        rel_en_m[i, j] = rel
-                        relative_energies.append([(i, j), "minus", rel, direc + 1])
-                        absolute_energies.append([(i, j), "minus", energy, direc + 1])
-                        direc += 2
-                    elif len(self.options.energy_regex_add):
-                        p_en_array[i, j] = self.reap_energies(
-                            direc, success_regex, energy_regex, True
-                        )
-                        m_en_array[i, j] = self.reap_energies(
-                            direc + 1, success_regex, energy_regex, True
-                        )
-                        direc += 2
-                    else:
-                        p_en_array[i, j] = self.reap_energies(
-                            direc, success_regex, energy_regex, False
-                        )
-                        m_en_array[i, j] = energy = self.reap_energies(
-                            direc + 1, success_regex, energy_regex, False
-                        )
-                        direc += 2
-
-                self.p_en_array = p_en_array
-                self.m_en_array = m_en_array
-                self.ref_en = ref_en
-                print_en = absolute_energies
-                np.set_printoptions(precision=2, linewidth=120)
-                print(
-                    "Relative energies plus-displacements on the diagonal and plus/plus-displacements on the off-diagonal elements"
+            Sum = 1
+            h = 0
+            for index in indices:
+                i, j = index[0], index[1]
+                p_en_array[i, j] = energy = self.reap_energies(
+                    direc, success_regex, energy_regex
                 )
-                print(rel_en_p)
+                print("p_en")
+                print(energy)
+                rel = energy - ref_en
                 print(
-                    "Relative energies minus-displacements on the diagonal and minus/minus-displacements on the off-diagonal elements"
+                    "Relative plus  "
+                    + "{:4d}".format(direc)
+                    + "{:4d}".format(i)
+                    + " "
+                    + "{:4d}".format(j)
+                    + ": "
+                    + "{: 10.9f}".format(rel)
                 )
-                print(rel_en_m)
-                os.chdir("..")
-            else:
-                self.p_e_xxx = []
-                self.m_e_xxx = []
-                for i in range(len(self.indices[0])):
-                    energy = self.reap_energies(
-                        2 * i + 1, success_regex, energy_regex, False
+                rel_en_p[i, j] = rel
+                relative_energies.append([(i, j), "plus", rel, direc])
+                absolute_energies.append([(i, j), "plus", energy, direc])
+
+                if h != 0:
+                    m_en_array[i, j] = energy = self.reap_energies(
+                        direc, success_regex, energy_regex
                     )
-                    self.p_e_xxx.append(energy)
-                    energy = self.reap_energies(
-                        2 * i + 2, success_regex, energy_regex, False
+                    direc += 1
+                else:
+                    m_en_array[i, j] = energy = self.reap_energies(
+                        direc + 1, success_regex, energy_regex
                     )
-                    self.m_e_xxx.append(energy)
-                self.p_e_xxy = []
-                self.m_e_xxy = []
-                l = 2 * len(self.indices[0])
-                for i in range(len(self.indices[1])):
-                    energy = self.reap_energies(
-                        2 * i + 1 + l, success_regex, energy_regex, False
+                    print("m_en")
+                    print(energy)
+                    rel = energy - ref_en
+                    print(
+                        "Relative minus "
+                        + "{:4d}".format(direc + 1)
+                        + "{:4d}".format(i)
+                        + " "
+                        + "{:4d}".format(j)
+                        + ": "
+                        + "{: 10.9f}".format(rel)
                     )
-                    self.p_e_xxy.append(energy)
-                    energy = self.reap_energies(
-                        2 * i + 2 + l, success_regex, energy_regex, False
-                    )
-                    self.m_e_xxy.append(energy)
-                self.p_e_xyz = []
-                self.m_e_xyz = []
-                l += 2 * len(self.indices[1])
-                for i in range(len(self.indices[2])):
-                    energy = self.reap_energies(
-                        2 * i + 1 + l, success_regex, energy_regex, False
-                    )
-                    self.p_e_xyz.append(energy)
-                    energy = self.reap_energies(
-                        2 * i + 2 + l, success_regex, energy_regex, False
-                    )
-                    self.m_e_xyz.append(energy)
-                self.p_e_xxxy = []
-                self.m_e_xxxy = []
-                l += 2 * len(self.indices[2])
-                for i in range(len(self.indices[4])):
-                    energy = self.reap_energies(
-                        2 * i + 1 + l, success_regex, energy_regex, False
-                    )
-                    self.p_e_xxxy.append(energy)
-                    energy = self.reap_energies(
-                        2 * i + 2 + l, success_regex, energy_regex, False
-                    )
-                    self.m_e_xxxy.append(energy)
-                self.p_e_xxyy = []
-                self.m_e_xxyy = []
-                l += 2 * len(self.indices[4])
-                for i in range(len(self.indices[5])):
-                    energy = self.reap_energies(
-                        2 * i + 1 + l, success_regex, energy_regex, False
-                    )
-                    self.p_e_xxyy.append(energy)
-                    energy = self.reap_energies(
-                        2 * i + 2 + l, success_regex, energy_regex, False
-                    )
-                    self.m_e_xxyy.append(energy)
-                self.p_e_xxyz = []
-                self.m_e_xxyz = []
-                l += 2 * len(self.indices[5])
-                for i in range(len(self.indices[6])):
-                    energy = self.reap_energies(
-                        2 * i + 1 + l, success_regex, energy_regex, False
-                    )
-                    self.p_e_xxyz.append(energy)
-                    energy = self.reap_energies(
-                        2 * i + 2 + l, success_regex, energy_regex, False
-                    )
-                    self.m_e_xxyz.append(energy)
-                self.p_e_wxyz = []
-                self.m_e_wxyz = []
-                l += 2 * len(self.indices[6])
-                for i in range(len(self.indices[7])):
-                    energy = self.reap_energies(
-                        2 * i + 1 + l, success_regex, energy_regex, False
-                    )
-                    self.p_e_wxyz.append(energy)
-                    energy = self.reap_energies(
-                        2 * i + 2 + l, success_regex, energy_regex, False
-                    )
-                    self.m_e_wxyz.append(energy)
+                    rel_en_m[i, j] = rel
+                    relative_energies.append([(i, j), "minus", rel, direc + 1])
+                    absolute_energies.append([(i, j), "minus", energy, direc + 1])
+                    direc += 2
+
+                if (
+                    self.symm_obj.symtext is not None
+                    and self.options.exploit_pm_symm
+                    and not self.options.only_TSIR
+                    and Sum > len(self.symm_obj.indices_by_irrep[0])
+                ):
+                    h += 1
+                Sum += 1
+
+            self.p_en_array = p_en_array
+            self.m_en_array = m_en_array
+            self.ref_en = ref_en
+            print_en = absolute_energies
+            np.set_printoptions(precision=2, linewidth=120)
+            os.chdir("..")
+
         else:
             indices = self.indices
-            p_grad_array = np.array([])
-            m_grad_array = np.array([])
+            p_grad_array = np.array([], dtype=object)
+            m_grad_array = np.array([], dtype=object)
             Sum = 0
+            print(indices)
             for index in indices:
                 grad = self.reap_gradients(
-                    2 * index + 1 - Sum, grad_regex1, grad_regex2
+                    2 * index[0] + 1 - Sum, grad_regex1, grad_regex2
                 )
                 p_grad_array = np.append(p_grad_array, grad, axis=0)
                 grad = self.reap_gradients(
-                    2 * index + 2 - Sum, grad_regex1, grad_regex2
+                    2 * index[0] + 2 - Sum, grad_regex1, grad_regex2
                 )
                 m_grad_array = np.append(m_grad_array, grad, axis=0)
             self.p_grad_array = p_grad_array.reshape((-1, len(grad)))
             self.m_grad_array = m_grad_array.reshape((-1, len(grad)))
             os.chdir("..")
+        if len(self.fail_list):
+            print("Some jobs have failed:")
+            print(self.fail_list)
+            raise RuntimeError
 
-    def reap_molly(self, direc, molly1_regex, molly2_regex):
+    def reap_energies(self, direc, success_regex, energy_regex):
         os.chdir("./" + str(direc))
-        with open("output.dat", "r") as file:
-            datta = file.read()
-        # try to grab init geom
-        initmolreg = r"\s*\{([^}]+)\}"
-        reggie = re.compile(initmolreg)
-        initmol = re.findall(initmolreg, datta)
-        initmol = initmol[0].split("\n")
-        label_xyz = r"(\s*.*(\s*-?\d+\.\d+){3})+"
-        molly_init = np.array([])
-        insertion = []
-        c = 0
-        for x, line in enumerate(initmol):
-            if re.search(label_xyz, line):
-                if re.search(r"\s*[xX]", line):
-                    insertion.append(succ)
-                else:
-                    re.search(label_xyz, line)
-                    temp = line.split()[-3:]
-                    molly_init = np.append(molly_init, np.array(temp))
-                c += 1
-
-        molly_init = molly_init.astype("float64")
-        molly_init = np.split(molly_init, len(molly_init) / 3)
 
         with open("output.dat", "r") as file:
-            data = file.readlines()
-        for i in range(len(data)):
-            molly1 = re.search(molly1_regex, data[i])
-            if molly1:
-                beg_molly = i + 1
-                break
-        for i in range(len(data) - beg_molly):
-            molly2 = re.search(molly2_regex, data[i + beg_molly])
-            if molly2:
-                end_molly = i + beg_molly
-                break
-        label_xyz = r"(\s*.*(\s*-?\d+\.\d+){3})+"
-        molly_array = np.array([])
-        for line in data[beg_molly:end_molly]:
-            if re.search(label_xyz, line):
-                temp = line.split()[-3:]
-                molly_array = np.append(molly_array, np.array(temp))
+            data = file.read()
 
-        molly_array = molly_array.astype("float64")
-        molly_array = np.split(molly_array, len(molly_array) / 3)
-        rearrange = []
-        for i, initial in enumerate(molly_init):
-            for j, final in enumerate(molly_array):
-                if sum(np.abs(initial - final)) < 1e-6:
-                    rearrange.append(j)
-        os.chdir("..")
-        return rearrange, insertion
-
-    def reap_energies(self, direc, success_regex, energy_regex, diag):
-        if self.options.dir_reap:
-            os.chdir("./" + str(direc))
-            with open("output.dat", "r") as file:
-                data = file.read()
-            if not re.search(success_regex, data):
-                print("Energy failed at " + os.getcwd())
-                raise RuntimeError
-            energy = float(re.findall(energy_regex, data)[0])
-            if (
-                len(self.options.energy_regex_add)
-                and not self.options.init_bool
-                and diag
-            ):
-                energy_add = []
-                for i in range(len(self.options.energy_regex_add)):
-                    energy_add = np.append(
-                        energy_add,
-                        float(re.findall(self.options.energy_regex_add[i], data)[0]),
-                    )
-                print("Multi energy check:")
-                print(self.options.energy_regex_add)
-                print(energy_add)
-                np.set_printoptions(precision=8, linewidth=120)
-                energy_add -= energy_add[0]
-                energy_add = energy_add[1:]
-
-                self.energy_add_total = np.append(
-                    self.energy_add_total, [energy_add], axis=0
-                )
-            os.chdir("..")
+        if not re.search(success_regex, data):
+            self.fail_list.append(direc)
+            energy = 0.0
         else:
-            with open("output." + str(direc) + ".dat", "r") as file:
-                data = file.read()
-            if not re.search(success_regex, data):
-                print("Energy failed at " + os.getcwd())
-                raise RuntimeError
             energy = float(re.findall(energy_regex, data)[0])
+
+        os.chdir("..")
 
         return energy
 
     def reap_gradients(self, direc, grad_regex1, grad_regex2):
         os.chdir("./" + str(direc))
         grad_array = []
-        with open("output.dat", "r") as file:
-            data = file.readlines()
+        if self.options.program_b == "molpro":
+            with open("output.xml", "r") as file:
+                data = file.readlines()
+        else:
+            with open("output.dat", "r") as file:
+                data = file.readlines()
         for i in range(len(data)):
             grad1 = re.search(grad_regex1, data[i])
             if grad1:
@@ -386,3 +233,4 @@ class Reap(object):
         os.chdir("..")
 
         return grad_array
+

@@ -17,40 +17,52 @@ from concordantmodes.g_matrix import GMatrix
 from concordantmodes.options import Options
 from concordantmodes.reap import Reap
 from concordantmodes.s_vectors import SVectors
+from concordantmodes.symmetry import Symmetry
 from concordantmodes.ted import TED
 from concordantmodes.transf_disp import TransfDisp
 from concordantmodes.zmat import Zmat
 
-suite = execute_suite("./ref_data/reap_test/", "Redundant")
+suite = execute_suite("./ref_data/reap_test/", "Delocalized")
 suite.run()
 
 
 def test_reap():
-    suite.options.program = "psi4@master"
-    prog = suite.options.program
+    suite.options.program_a = "psi4@master"
+    prog = suite.options.program_a
     prog_name = prog.split("@")[0]
 
-    suite.options.energy_regex = r"Giraffe The Energy is\s+(\-\d+\.\d+)"
-    suite.options.success_regex = r"beer"
+    suite.options.energy_regex_a = r"Giraffe The Energy is\s+(\-\d+\.\d+)"
+    suite.options.success_regex_a = r"beer"
     # print(os.getcwd())
     os.chdir(suite.path + "/Disps")
+    # reap_obj = Reap(
+    #    prog_name,
+    #    suite.ZMAT,
+    #    suite.disps.disp_cart,
+    #    suite.options,
+    #    suite.disps.n_coord,
+    #    suite.GF.L,
+    #    suite.algo.indices,
+    #    suite.options.energy_regex,
+    #    suite.options.gradient_regex,
+    #    suite.options.molly_regex_init,
+    #    suite.options.success_regex,
+    # )
+    # suite.options.init_bool = False
+    suite.algo.indices = [[0, 0], [1, 1], [2, 2]]
     reap_obj = Reap(
-        prog_name,
-        suite.ZMAT,
-        suite.disps.disp_cart,
         suite.options,
-        suite.disps.n_coord,
-        suite.GF.L,
+        # suite.GF.L,
+        len(suite.GF.L),
         suite.algo.indices,
-        suite.options.energy_regex,
-        suite.options.gradient_regex,
-        suite.options.molly_regex_init,
-        suite.options.success_regex,
+        suite.symm_obj,
+        "A",
+        deriv_level=suite.options.deriv_level_a,
     )
     reap_obj.run()
 
     ref_en = -76.332189646734
 
     os.chdir("../..")
-
+    os.chdir(suite.root)
     assert math.isclose(ref_en, reap_obj.m_en_array[1][1], rel_tol=0.0, abs_tol=1e-10)
