@@ -436,7 +436,7 @@ class ConcordantModes(object):
         # Insert statement here for CMA-2, if relevant, to compute level C hessian
         if self.options.off_diag == 2:
             # self.extra_indices = []
-            if self.options.de_novo_c:
+            if self.options.de_novo_C:
                 pass
             else:
                 print(
