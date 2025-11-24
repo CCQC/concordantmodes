@@ -7,7 +7,7 @@ options_kwargs = {
     "program_a": "molpro",
     "energy_regex_a": r"\(T\) total energy\s+(\-\d+\.\d+)",
     "energy_regex_b": r"!MP2 total energy\s*\s+(\-\d+\.\d+)",
-    "energy_regex_c": r"!Reference energy\s*\s+(\-\d+\.\d+)",
+    "energy_regex_c": r"!?Reference energy\s*\s+(\-\d+\.\d+)",
     "cart_insert_c": 7,
     "cart_insert_b": 7,
     "cart_insert_a": 7,
