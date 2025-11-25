@@ -46,7 +46,7 @@ jobs:
         python -m pip install .
     - name: Test with pytest
       shell: bash -l {0}
-      working-directory: concordantmodes/tests
+      working-directory: ${{ github.workspace }}
       run: |
         export PYTHONPATH="${PYTHONPATH}:$(pwd)"
         pytest --cov="ConcordantModes" --color=yes --cov-report=xml
