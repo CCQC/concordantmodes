@@ -38,6 +38,7 @@ jobs:
     - name: Install MolSym
       shell: bash -l {0}
       run: | 
+        pip install pint
         pip install git+https://github.com/NASymmetry/MolSym.git
     - name: Install ConcordantModes
       shell: bash -l {0}
