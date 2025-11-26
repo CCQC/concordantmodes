@@ -44,10 +44,17 @@ jobs:
       shell: bash -l {0}
       run: | 
         python -m pip install .
+    - name: Make ref_data available from repo root
+        shell: bash -l {0}
+        run: |
+          ln -sfn "${GITHUB_WORKSPACE}/concordantmodes/tests/ref_data" ref_data
+          echo "Symlink created:"
+          ls -l ref_data
     - name: Test with pytest
-      shell: bash -l {0}
-      run: |
-        pytest --cov="concordantmodes" --color=yes --cov-report=xml concordantmodes/tests/
+        shell: bash -l {0}
+        run: |
+          export PYTHONPATH="${GITHUB_WORKSPACE}:${PYTHONPATH}"
+          pytest --cov="concordantmodes" --color=yes --cov-report=xml concordantmodes/tests
 #    - name: Upload Coverage to Codecov
 #      uses: codecov/codecov-action@v5
 #      with:
