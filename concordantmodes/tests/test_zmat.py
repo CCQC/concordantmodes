@@ -327,9 +327,22 @@ def test_zmat_compile():
         "Ly1": ("3", "1", "2", "6"),
     }
     index_dict_custom = ZMAT.index_dictionary
+    errors = []
 
-    if np.setdiff1d(index_dict_ref, index_dict_custom).size:
-        errors.append("Custom indices do not match.")
-
+    for key, ref_val in index_dict_ref.items():
+    
+        if key not in index_dict_custom:
+            errors.append(f"Missing key {key}")
+            continue
+    
+        custom_val = index_dict_custom[key]
+    
+        # Compare tuples of strings literally
+        if ref_val != custom_val:
+            errors.append(
+                f"Index mismatch for {key}: expected {ref_val}, got {custom_val}"
+            )
+    
+    
     os.chdir("../../")
     assert not errors, "errors occured:\n{}".format("\n".join(errors))
