@@ -280,7 +280,8 @@ def test_zmat_calc():
         "Ly1": -0.0022793163188044303,
     }
     var_dict_custom = ZMAT.variable_dictionary_a
-
+    print("var_dict_custom")
+    print(var_dict_custom)
     if np.setdiff1d(var_dict_ref, var_dict_custom).size:
         errors.append("Custom variables do not match.")
 
