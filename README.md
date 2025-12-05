@@ -36,31 +36,16 @@ dependencies will be installed and `concordantmodes` will be made available as a
 
 ## Quickstart Guide
 
-A myriad of examples are is provided in the "Example" directory.
+A myriad of examples are provided in the "examples" directory.
 
-4 files are necessary: "zmat", "template.dat", "main.py", "fc.dat"
+4 files are necessary for CMA-0A: "zmat", "templateA.dat", "templateB.dat",  "main.py"
 
-zmat:
-This file contains geometric information about the system of interest. There is a "ZMAT" block and a "cart" block.
-
-The "ZMAT" block contains connectivity information for specifying the internal coordinates of the molecule by which the normal modes will be described.
-The user may consult the "Example" directory contained herein for more guidance on how to construct the different connectivities.
+zmat: This file contains geometric information about the system of interest. There is a "ZMAT" block and a "cart" block.
+The "ZMAT" block contains connectivity information for specifying the internal coordinates of the molecule by which the normal modes will be described. The user may consult the "examples" directory contained herein for more guidance on how to construct the different connectivities.
 
 The "cart" block contains the cartesian structures for the system. If two structures are entered (separated by a --- on a new line), the first structure will be used to construct the starting normal modes from the provided force constants. These normal modes are then placed atop the second structure and the requisite displacements are generated to compute force constants for these modes and the subsequent frequencies (CMA-0B). If only one structure is entered, the same process will take place but all atop a single structure (CMA-0A). The default units are bohr.
 
-template.dat:
-This is the template input file for an interfacing quantum chemistry code. The displaced geometries are inserted to this file and single point energies for each displaced geometry are computed. The energies are then reaped and a second order numerical derivative is performed to calculate force constants from these energies.
+templateA/B.dat: This is the template input file for an interfacing quantum chemistry code. The displaced geometries are inserted into this file and single point energies/gradients for each displaced geometry are computed. The energies/gradients are then reaped and a second/first order numerical derivative is performed to calculate force constants from these energies.
 
-templateInit.dat:
-This file is only used in the CMA-0A procedure. It serves the same purpose as the template.dat, but it is instead used in the computation of the initial Hessian.
+main.py: This file imports the Concordant Mode options and program, and then runs the program. A manual detailing each keyword is in the works. In the meantime consult the examples directory for templates of different procedures. To run the program, simply enter "python main.py" or "nohup python -u main.py &" if you would like to retain the output.
 
-An *experimental* procedure exists to compute the initial Hessian via findif of gradients. User beware as this code is, again, experimantal.
-
-main.py:
-This file imports the Concordant Mode options and program, and then runs the program. 
-A manual detailing each keyword is in the works.
-In the meantime consult the Example directory for templates of different procedures.
-To run the program, simply enter "python main.py" or "nohup python -u main.py &" if you would like to retain the output.
-
-fc.dat:
-This file is only used in the CMA-0B procedure and it contains the cartesian force constants of the first structure if CMA-0B is performed.
