@@ -4,31 +4,15 @@
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 </p>
 
-This program facilitates the computation of molecular force constants at a desired level of theory in the basis of normal modes from a lower level of theory.
-The higher and lower levels of theory are denoted as levels A and B, respectively.
-Two proecures for approximate hessians currently exist entitled CMA-0A and CMA-0B.
-CMA-0A computes an initial level B Hessian atop the level A stationary point to obtain the normal mode basis for force constant computation.
-CMA-0B reads in level B cartesian force constants computed atop the corresponding level B structure to obtain the normal mode basis for force constant computation.
-In both cases, only the diagonal force constants are computed to obtain the final, approximate frequencies.
+This program utilizes the Concordant Modes theoretical framework to compute highly accurate Hessians with linear scaling. The CMA protocol is detailed in literature (J. Am. Chem. Soc., 2022, 144, 51, 23271–23274.; J. Chem. Theory Comput., 2024, 20, 24, 10886–10898.).
+As of right now, the user must be on a cluster with either a Sun Grid Engine or Slurm queueing system and have access to CCQC programs to use the built in computation submission procedure. A feature to allow for custom submit scripts to be utilized is in the works.
+The following procedure may be used to enact the CMA-0A procedure using manual submission of computations for any electronic structure program on any machine. To use CMA-0A, the following files must be present in the working directory: templateA.dat, templateB.dat, main.py, and zmat. These files are discussed below, and sample versions are present in the examples directory. When the files are set, then follow this procedure.
+1)	Set the "gen_disps_b" keyword to True and the "calc_b" keyword to False, then run the CMA program
+2)	Compute the generated initial displacements using your quantum chemistry package of choice.
+3)	Set the "gen_disps_b" and "calc_a" keywords to False and the "gen_disps_a" keyword to True, then run the CMA program again.
+4)	Compute the generated displacements using your quantum chemistry package of choice.
+5)	Set the "gen_disps_a" keyword to False and run the CMA program one more time.
 
-As of right now, the user must be on a cluster with a Sun Grid Engine queueing system to use the built in computation submission procedure.
-
-The following procedure may be used to enact the CMA-0A/B procedure using manual submission of computations for any electronic structure program on any machine.
-CMA-0A:
-To use CMA-0A, the following files must be present in the working directory: template.dat, templateInit.dat, main.py, and zmat.
-These files are discussed below. When the initial files are set, then follow this procedure.
-1) Set the "gen_disps_init" keyword to True and the "calc_init" keyword to False, then run the CMA program
-2) Compute the generated initial displacements using your quantum chemistry package of choice.
-3) Set the "gen_disps_init" and "calc" keywords to False and the "gen_disps" keyword to True, then run the CMA program again.
-4) Compute the generated displacements using your quantum chemistry package of choice.
-5) Set the "gen_disps" keyword to False and run the CMA program one more time.
-An example is available at the following directory concordantmodes/Example/1_H2O/psi4/CMA_0A/manual_submission
-CMA-0B:
-To use CMA-0B, the following files must be present in the working directory: template.dat, fc.dat, main.py, and zmat. These files are discussed below. When the initial files are set, then follow this procedure.
-1) Set the "gen_disps" keyword to True and the "calc" keyword to False, then run the CMA program.
-2) Compute the generated displacements using your quantum chemistry package of choice.
-3) Set the "gen_disps" keyword to False and run the CMA program one more time.
-An example is available at the following directory concordantmodes/Example/1_H2O/psi4/CMA_0B/Redundants/manual_submission
 
 ## Installation
 
