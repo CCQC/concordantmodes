@@ -508,7 +508,6 @@ class ConcordantModes(object):
         )
         s_vec.run(self.zmat_obj.cartesians_a, False, proj=self.TED_obj.proj)
 
-
         transf_disp = TransfDisp(
             s_vec,
             self.zmat_obj,
@@ -632,7 +631,7 @@ class ConcordantModes(object):
 
         self.F = fc_a.FC
         # f_b = np.dot(
-            # np.dot(LA.inv(transf_disp.eig_inv).T, f_b), LA.inv(transf_disp.eig_inv)
+        # np.dot(LA.inv(transf_disp.eig_inv).T, f_b), LA.inv(transf_disp.eig_inv)
         # )
         # print("Level B FC in same basis:")
         # print(f_b)

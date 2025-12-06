@@ -233,4 +233,3 @@ class Reap(object):
         os.chdir("..")
 
         return grad_array
-

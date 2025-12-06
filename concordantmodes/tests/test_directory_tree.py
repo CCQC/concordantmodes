@@ -11,6 +11,7 @@ from concordantmodes.zmat import Zmat
 
 
 def test_make_input():
+
     os.chdir("./ref_data/dir_tree/")
 
     options = Options()

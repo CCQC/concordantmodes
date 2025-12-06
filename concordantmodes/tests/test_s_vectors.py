@@ -5,7 +5,7 @@ from concordantmodes.ted import TED
 from numpy.linalg import inv
 from numpy import linalg as LA
 
-from suite_execute import execute_suite
+from .suite_execute import execute_suite
 
 from concordantmodes.options import Options
 from concordantmodes.s_vectors import SVectors

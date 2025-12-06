@@ -5,7 +5,7 @@ from concordantmodes.ted import TED
 from numpy.linalg import inv
 from numpy import linalg as LA
 
-from suite_execute import execute_suite
+from .suite_execute import execute_suite
 
 from concordantmodes.algorithm import Algorithm
 from concordantmodes.f_convert import FcConv
@@ -50,5 +50,6 @@ def test_transf_disp():
     os.chdir(suite.root)
 
     assert np.allclose(np.asarray(disp_ref), disps.p_disp[3][3], rtol=0.0, atol=1e-5)
+
 
 test_transf_disp()
