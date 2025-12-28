@@ -74,6 +74,11 @@ class DirectoryTree(object):
         data_buff = data.copy()
         if os.path.exists(os.getcwd() + "/old" + self.dir_name):
             shutil.rmtree("old" + self.dir_name, ignore_errors=True)
+        if os.path.exists(os.getcwd() + "/" + self.dir_name):
+            shutil.copytree(
+                os.getcwd() + "/" + self.dir_name, os.getcwd() + "/old" + self.dir_name
+            )
+            shutil.rmtree(os.getcwd() + "/" + self.dir_name)
         inp = ""
         if self.prog_name == "cfour":
             inp = "ZMAT"

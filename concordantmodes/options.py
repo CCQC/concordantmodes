@@ -63,7 +63,7 @@ class Options(object):
         self.success_regex_c = kwargs.pop("success_regex_c", "")
         self.molsym_symmetry = kwargs.pop("molsym_symmetry", False)
         self.tight_disp = kwargs.pop("tight_disp", False)
-        self.time_limit = kwargs.pop("time_limit", "4:00:00")
+        self.time_limit = kwargs.pop("time_limit", "10:00:00")
         self.tol = kwargs.pop("tol", 1.0e-14)
         self.topo_analysis = kwargs.pop("topo_analysis", False)
         self.topo_max_it = kwargs.pop("topo_max_it", 20)

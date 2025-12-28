@@ -56,8 +56,11 @@ class Reap(object):
             grad_regex2 = re.compile(self.gradient_regex[1])
         size = self.num_deg_free
 
-        if self.options.second_order:
-            size = self.indices[-1][0] + 1
+        # if self.options.second_order:
+        # print(self.indices)
+        # print(self.indices[-1])
+        # raise RuntimeError
+        # size = self.indices[-1][0] + 1
 
         self.fail_list = []
         if not self.deriv_level:
@@ -98,6 +101,9 @@ class Reap(object):
 
             Sum = 1
             h = 0
+            # print(p_en_array.shape)
+            # print(p_en_array)
+            # print(indices)
             for index in indices:
                 i, j = index[0], index[1]
                 p_en_array[i, j] = energy = self.reap_energies(
@@ -233,4 +239,3 @@ class Reap(object):
         os.chdir("..")
 
         return grad_array
-
