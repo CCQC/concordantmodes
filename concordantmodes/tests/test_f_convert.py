@@ -32,6 +32,7 @@ def test_f_convert2int():
         suite.options,
     )
     FCint.run()
+    FCint.F = np.dot(suite.TED_obj.proj, np.dot(FCint.F, suite.TED_obj.proj.T))
 
     FCintR = FcRead(suite.path + "/fc_int.dat")
     FCintR.run()

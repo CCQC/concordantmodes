@@ -61,7 +61,8 @@ class execute_suite(object):
         )
         self.f_conv.run()
 
-        self.F = np.dot(self.TED_obj.proj.T, np.dot(self.f_conv.F, self.TED_obj.proj))
+        self.F = self.f_conv.F
+        # self.F = np.dot(self.TED_obj.proj.T, np.dot(self.f_conv.F, self.TED_obj.proj))
         self.G = np.dot(self.TED_obj.proj.T, np.dot(self.g_mat.G, self.TED_obj.proj))
         self.GF = GFMethod(
             self.G, self.F, self.ZMAT, self.TED_obj, self.options, self.symm_obj.symtext
