@@ -103,4 +103,4 @@ class Submit(object):
                         break
             # print("Second Nap")
             print("Napping")
-            time.sleep(10)
+            time.sleep(15)
