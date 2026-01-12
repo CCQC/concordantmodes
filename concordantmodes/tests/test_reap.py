@@ -7,7 +7,7 @@ import numpy as np
 from numpy.linalg import inv
 from numpy import linalg as LA
 
-from suite_execute import execute_suite
+from .suite_execute import execute_suite
 
 from concordantmodes.algorithm import Algorithm
 from concordantmodes.f_convert import FcConv

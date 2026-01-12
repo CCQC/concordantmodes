@@ -1,11 +1,33 @@
-recursive-include concordantmodes *.py
-recursive-include examples
-
-include setup.py
-include setup.cfg
+###############################################
+# Core project metadata
+###############################################
 include README.md
 include LICENSE
-include MANIFEST.in
+include setup.py
+include pyproject.toml
+include setup.cfg
 
-include versioneer.py
-include concordantmodes/_version.py
+# Include package source code
+
+recursive-include concordantmodes *.py
+
+# Include test suite
+
+recursive-include concordantmodes/tests *.py
+recursive-include concordantmodes/tests/ref_data *
+
+# Include any templates, example files, etc.
+
+recursive-include concordantmodes *.txt
+recursive-include concordantmodes *.dat
+recursive-include concordantmodes *.json
+recursive-include concordantmodes *.yaml
+recursive-include concordantmodes *.yml
+
+# junk
+
+global-exclude __pycache__/*
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude *.swp
+global-exclude *.swo

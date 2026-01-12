@@ -20,6 +20,13 @@ if __name__ == "__main__":
         cmdclass=versioneer.get_cmdclass(),
         packages=setuptools.find_packages(),
         include_package_data=True,
+        package_data={
+        "concordantmodes": [
+        "tests/*.py",
+        "tests/ref_data/*",
+        "tests/ref_data/**/*",
+        ],
+        },
         install_requires=[
             "numpy>=1.13.3",
             "qcelemental>=0.24.0",

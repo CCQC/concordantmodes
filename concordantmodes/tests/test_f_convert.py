@@ -4,7 +4,7 @@ import re
 from numpy.linalg import inv
 from numpy import linalg as LA
 
-from suite_execute import execute_suite
+from .suite_execute import execute_suite
 
 from concordantmodes.f_convert import FcConv
 from concordantmodes.f_read import FcRead
