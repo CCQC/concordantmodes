@@ -30,7 +30,7 @@ jobs:
     - name: Install test dependencies
       shell: bash -l {0}
       run: |
-        conda install -y pytest pytest-cov
+        conda install -y pytest=9.0.1 pytest-cov
     - name: Install MolSym
       shell: bash -l {0}
       run: | 
