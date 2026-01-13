@@ -12,6 +12,7 @@ jobs:
             python-version: "3.12"
           - conda-env: base
             python-version: "3.13"
+            pytest-vesrion: "9.0.1"
     env:
       PYVER: ${{ matrix.cfg.python-version }}
       CONDA_ENV: ${{ matrix.cfg.conda-env }}
@@ -30,7 +31,7 @@ jobs:
     - name: Install test dependencies
       shell: bash -l {0}
       run: |
-        conda install -y pytest=9.0.1 pytest-cov
+        conda install -y pytest pytest-cov
     - name: Install MolSym
       shell: bash -l {0}
       run: | 
