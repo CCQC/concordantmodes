@@ -12,7 +12,7 @@ jobs:
             python-version: "3.12"
           - conda-env: base
             python-version: "3.13"
-            pytest-vesrion: "9.0.1"
+            pytest-version: "9.0.1"
     env:
       PYVER: ${{ matrix.cfg.python-version }}
       CONDA_ENV: ${{ matrix.cfg.conda-env }}
