@@ -3,7 +3,9 @@ import shutil
 import subprocess
 import time
 import os
+
 from subprocess import Popen
+
 from concordantmodes.vulcan_template import VulcanTemplate
 from concordantmodes.sapelo_template import SapeloTemplate
 
@@ -18,10 +20,11 @@ class Submit(object):
 
     def run(self):
         disp_list = []
+
         for i in os.listdir(self.rootdir + "/Disps" + self.cma_level):
             disp_list.append(i)
 
-        if self.options.cluster != "sapelo":
+        if self.options.cluster.lower() == "vulcan":
             v_template = VulcanTemplate(
                 self.options, len(disp_list), self.prog_name, self.prog
             )
@@ -53,7 +56,7 @@ class Submit(object):
             error = str(process.stderr)
             pass
 
-        else:
+        elif self.options.cluster.lower() == "sapelo":
             s_template = SapeloTemplate(
                 self.options, len(disp_list), self.prog_name, self.prog
             )
@@ -61,7 +64,8 @@ class Submit(object):
 
             with open("optstep.sh", "w") as file:
                 file.write(out)
-            for z in range(0, len(disp_list)):
+
+            for z in range(len(disp_list)):
                 source = os.getcwd() + "/optstep.sh"
                 os.chdir("./" + str(z + 1))
                 destination = os.getcwd()
@@ -69,7 +73,7 @@ class Submit(object):
                 os.chdir("../")
 
             processes = []
-            print(os.getcwd())
+
             for z in range(len(disp_list)):
                 path = str(z + 1) + "/"
                 pipe = subprocess.PIPE
@@ -79,9 +83,6 @@ class Submit(object):
                 processes.append(job)
                 time.sleep(3)
 
-            # print("First Nap")
-            # print("Napping")
-            # time.sleep(10)
             for q in range(len(processes)):
                 while True:
                     job = processes[q]
@@ -101,6 +102,26 @@ class Submit(object):
                             + str(q)
                         )
                         break
-            # print("Second Nap")
             print("Napping")
             time.sleep(15)
+        elif self.options.cluster.lower() == "custom":
+            # To be implemented.
+            # Here we will need move into the disp directory then execute
+            # a command line argument specified by the user.
+            
+            if not len(self.options.custom_submit_str):
+                print("The custom_submit_str option cannot be empty when using this option.")
+                raise RuntimeError
+
+            for z in range(len(disp_list)):
+                path = str(z + 1) + "/"
+                os.system(self.options.custom_submit_str)
+                time.sleep(3)
+
+            print("Jobs have been submitted. You will need to come back when they finish and run CMA again with relevent gen_disps and calc keywords set to false.")
+            raise RuntimeError
+        
+        else:
+            print("Only Vulcan, Sapelo, or Custom cluster options are available, select one of those!")
+            raise RuntimeError
+

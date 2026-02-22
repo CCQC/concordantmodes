@@ -64,12 +64,15 @@ class DirectoryTree(object):
         self.init = False
         self.genbas = False
         self.ecp = False
+        self.sub = False
         if os.path.exists(root + "/initden.dat"):
             self.init = True
         if os.path.exists(root + "/GENBAS"):
             self.genbas = True
         if os.path.exists(root + "/ECPDATA"):
             self.ecp = True
+        if os.path.exists(root + "/sub_script.sh"):
+            self.sub = True
 
         data_buff = data.copy()
         if os.path.exists(os.getcwd() + "/old" + self.dir_name):
@@ -219,6 +222,8 @@ class DirectoryTree(object):
                     shutil.copy("../../GENBAS", ".")
                 if self.ecp:
                     shutil.copy("../../ECPDATA", ".")
+                if self.sub:
+                    shutil.copy("../../sub_script.sh", ".")
             os.chdir("..")
 
         return data_final

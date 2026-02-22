@@ -15,7 +15,7 @@ class SVectors(object):
     for each atom in the molecular system of interest.
     """
 
-    def __init__(self, zmat, options, variable_dict):
+    def __init__(self, zmat, options):
         self.s_2center_dict = {}
         self.s_3center_dict = {}
         self.s_4center_dict = {}
@@ -28,7 +28,7 @@ class SVectors(object):
         self.linx_indices = zmat.linx_indices
         self.liny_indices = zmat.liny_indices
         self.options = options
-        self.variable_dict = variable_dict
+        # self.variable_dict = variable_dict
         self.zmat = zmat
 
     def run(self, carts, B_proj, proj=None, second_order=False):

@@ -1,7 +1,40 @@
 [build-system]
-requires = [
-    "setuptools>=42",
-    "wheel",
-    "versioneer"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "Concordant Modes"
+dynamic = ["version"]
+description = "Uses normal modes at a lower level of theory to compute higher level force constants"
+readme = "README.md"
+license = "BSD-3C"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
 ]
-build-backend = "setuptools.build_meta"
+dependencies = [
+    "numpy>=1.13.3",
+    "qcelemental>=0.24.0",
+    "scipy >= 1.4",
+    "sympy",
+]
+
+[project.optional-dependencies]
+tests = [
+    "pytest",
+    "pytest-cov",
+    "pytest-pep8",
+]
+
+[project.urls]
+Homepage = "https://github.com/CCQC/ConcordantModes"
+
+[tool.hatch.version]
+path = "concordantmodes/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/concordantmodes",
+]
+

@@ -26,7 +26,7 @@ suite = execute_suite("./ref_data/reap_test/", "Delocalized")
 suite.run()
 
 
-def test_reap():
+def test_h2o():
     suite.options.program_a = "psi4@master"
     prog = suite.options.program_a
     prog_name = prog.split("@")[0]

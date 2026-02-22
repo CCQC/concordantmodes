@@ -17,7 +17,7 @@ file1 = "zmat_del"
 file2 = "zmat_zmat"
 file3 = "zmat_custom"
 # ZMAT read data
-ref_Red = ["1 2\n", "1 3\n", "1 4\n", "1 5\n", "2 6\n"]
+ref_Deloc = ["1 2\n", "1 3\n", "1 4\n", "1 5\n", "2 6\n"]
 ref_ZMAT = ["C\n", "O 1\n", "H 1 2\n", "H 1 2 3\n", "H 1 2 4\n", "H 2 1 3\n"]
 ref_Custom = [
     "1 2\n",
@@ -39,7 +39,7 @@ ref_Custom = [
     "5 1 2 4 L\n",
 ]
 zmat_read = [
-    (coord1, ref_Red, file1),
+    (coord1, ref_Deloc, file1),
     (coord2, ref_ZMAT, file2),
     (coord2, ref_Custom, file3),
 ]
