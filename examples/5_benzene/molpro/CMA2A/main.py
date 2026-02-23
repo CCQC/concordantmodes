@@ -1,7 +1,7 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    "cluster": "sapelo",
+    "cluster": "slurm",
     "program_c": "molpro",
     "program_b": "molpro",
     "program_a": "molpro",

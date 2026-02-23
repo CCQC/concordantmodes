@@ -12,7 +12,7 @@ class Options(object):
         self.cart_insert_b = kwargs.pop("cart_insert_b", -1)
         self.cart_insert_c = kwargs.pop("cart_insert_c", -1)
         self.clean_house = kwargs.pop("clean_house", True)
-        self.cluster = kwargs.pop("cluster", "vulcan")
+        self.cluster = kwargs.pop("cluster", "sge")
         self.coords = kwargs.pop("coords", "ZMAT")
         self.conv_grad = kwargs.pop("conv_grad", True)
         self.covalent_radii = kwargs.pop("covalent_radii", False)

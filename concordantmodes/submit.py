@@ -24,7 +24,8 @@ class Submit(object):
         for i in os.listdir(self.rootdir + "/Disps" + self.cma_level):
             disp_list.append(i)
 
-        if self.options.cluster.lower() == "vulcan":
+        #TODO move Vulcan and Sapelo templates to more general sge and slurm templates.
+        if self.options.cluster.lower() == "sge":
             v_template = VulcanTemplate(
                 self.options, len(disp_list), self.prog_name, self.prog
             )
@@ -56,17 +57,17 @@ class Submit(object):
             error = str(process.stderr)
             pass
 
-        elif self.options.cluster.lower() == "sapelo":
+        elif self.options.cluster.lower() == "slurm":
             s_template = SapeloTemplate(
                 self.options, len(disp_list), self.prog_name, self.prog
             )
             out = s_template.run()
 
-            with open("optstep.sh", "w") as file:
+            with open("sub_script.sh", "w") as file:
                 file.write(out)
 
             for z in range(len(disp_list)):
-                source = os.getcwd() + "/optstep.sh"
+                source = os.getcwd() + "/sub_script.sh"
                 os.chdir("./" + str(z + 1))
                 destination = os.getcwd()
                 shutil.copy2(source, destination)
@@ -78,7 +79,7 @@ class Submit(object):
                 path = str(z + 1) + "/"
                 pipe = subprocess.PIPE
                 job = subprocess.run(
-                    ["sbatch", "./optstep.sh"], cwd=path, stdout=pipe, stderr=pipe
+                    ["sbatch", "./sub_script.sh"], cwd=path, stdout=pipe, stderr=pipe
                 )
                 processes.append(job)
                 time.sleep(3)
@@ -105,18 +106,20 @@ class Submit(object):
             print("Napping")
             time.sleep(15)
         elif self.options.cluster.lower() == "custom":
-            # To be implemented.
-            # Here we will need move into the disp directory then execute
+            # Here we move into the disp directory then execute
             # a command line argument specified by the user.
-            
+
             if not len(self.options.custom_submit_str):
                 print("The custom_submit_str option cannot be empty when using this option.")
                 raise RuntimeError
-
+            
             for z in range(len(disp_list)):
                 path = str(z + 1) + "/"
-                os.system(self.options.custom_submit_str)
+                os.chdir(path)
+                os.system(self.options.custom_submit_str + ' ' + os.getcwd() + '/sub_script.sh')
+                os.chdir('..')
                 time.sleep(3)
+            os.chdir('..')
 
             print("Jobs have been submitted. You will need to come back when they finish and run CMA again with relevent gen_disps and calc keywords set to false.")
             raise RuntimeError

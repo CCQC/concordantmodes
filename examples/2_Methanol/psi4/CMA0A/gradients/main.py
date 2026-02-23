@@ -1,7 +1,7 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    "cluster": "sapelo",
+    "cluster": "slurm",
     "program_b": "psi4",
     "program_a": "psi4",
     "deriv_level_b": 1,

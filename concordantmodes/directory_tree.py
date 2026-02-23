@@ -65,6 +65,8 @@ class DirectoryTree(object):
         self.genbas = False
         self.ecp = False
         self.sub = False
+        print('Giraffe')
+        print(root)
         if os.path.exists(root + "/initden.dat"):
             self.init = True
         if os.path.exists(root + "/GENBAS"):
@@ -72,7 +74,9 @@ class DirectoryTree(object):
         if os.path.exists(root + "/ECPDATA"):
             self.ecp = True
         if os.path.exists(root + "/sub_script.sh"):
+            print('We made it here.')
             self.sub = True
+        # raise RuntimeError
 
         data_buff = data.copy()
         if os.path.exists(os.getcwd() + "/old" + self.dir_name):
@@ -215,6 +219,8 @@ class DirectoryTree(object):
                 file.writelines(data)
             data_final = copy.deepcopy(data)
             data = copy.deepcopy(data_buff)
+            if self.options.cluster.lower() == 'custom':
+                copy_files = True
             if copy_files:
                 if self.init:
                     shutil.copy("../../initden.dat", ".")
@@ -224,6 +230,7 @@ class DirectoryTree(object):
                     shutil.copy("../../ECPDATA", ".")
                 if self.sub:
                     shutil.copy("../../sub_script.sh", ".")
+                    print('we also made it here')
             os.chdir("..")
 
         return data_final
