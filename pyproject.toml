@@ -31,7 +31,9 @@ tests = [
 Homepage = "https://github.com/CCQC/ConcordantModes"
 
 [tool.hatch.version]
+source = "code"
 path = "concordantmodes/__init__.py"
+search-paths = ["concordantmodes"]
 
 [tool.hatch.build.targets.sdist]
 include = [
