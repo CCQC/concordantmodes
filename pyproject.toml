@@ -7,7 +7,7 @@ name = "Concordant_Modes"
 dynamic = ["version"]
 description = "Uses normal modes at a lower level of theory to compute higher level force constants"
 readme = "README.md"
-#license = "BSD-3C"
+license = "BSD-3-Clause"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
