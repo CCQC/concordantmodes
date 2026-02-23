@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "Concordant Modes"
+name = "Concordant_Modes"
 dynamic = ["version"]
 description = "Uses normal modes at a lower level of theory to compute higher level force constants"
 readme = "README.md"
