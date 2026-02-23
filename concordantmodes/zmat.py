@@ -206,6 +206,8 @@ class Zmat(object):
                 # Second atom of the ZMAT, will have one bond term
                 if re.search(self.second_atom_regex, zmat_output[i]):
                     List = re.findall(self.second_atom_regex, zmat_output[i])[0]
+                    print('Zebra2')
+                    print(List)
                     # self.bond_indices = np.append(
                         # self.bond_indices, np.array([str(i - first_index + 1), List[1]])
                     # )

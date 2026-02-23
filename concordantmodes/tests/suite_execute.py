@@ -38,7 +38,7 @@ class execute_suite(object):
         self.symm_obj.dummy_obj()
         self.symm_obj.symtext = None
 
-        self.s_vec = SVectors(self.ZMAT, self.options, self.ZMAT.variable_dictionary_b)
+        self.s_vec = SVectors(self.ZMAT, self.options)
         self.s_vec.run(self.ZMAT.cartesians_b, True)
 
         self.TED_obj = TED(self.s_vec.proj, self.ZMAT, self.options)
@@ -62,7 +62,6 @@ class execute_suite(object):
         self.f_conv.run()
 
         self.F = self.f_conv.F
-        # self.F = np.dot(self.TED_obj.proj.T, np.dot(self.f_conv.F, self.TED_obj.proj))
         self.G = np.dot(self.TED_obj.proj.T, np.dot(self.g_mat.G, self.TED_obj.proj))
         self.GF = GFMethod(
             self.G, self.F, self.ZMAT, self.TED_obj, self.options, self.symm_obj.symtext

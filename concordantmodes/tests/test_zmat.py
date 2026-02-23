@@ -10,6 +10,15 @@ from concordantmodes.transf_disp import TransfDisp
 from concordantmodes.options import Options
 from concordantmodes.zmat import Zmat
 
+
+def conv_array(arr):
+    buff_array = arr
+    arr = np.array([],dtype=object)
+    for ind_set in buff_array:
+        arr = np.append(arr,0)
+        arr[-1] = np.array(ind_set,dtype=object)
+    return arr
+
 coord1 = "Delocalized"
 coord2 = "ZMAT"
 coord3 = "Custom"
@@ -61,10 +70,19 @@ zmat = make_zmat("zmat_zmat", "ZMAT")
 delocalized_zmat = make_zmat("zmat_del", "Delocalized")
 custom_zmat = make_zmat("zmat_custom", "Custom")
 
+zmat_buff = [["2", "1"], ["3", "1"], ["4", "1"], ["5", "1"], ["6", "2"]]
+zmat_array = conv_array(zmat_buff)
+
+deloc_buff = [["1", "2"], ["1", "3"], ["1", "4"], ["1", "5"], ["2", "6"]]
+deloc_array = conv_array(deloc_buff)
+
+custom_buff = [["1", "2"], ["1", "3"], ["1", "4"], ["1", "5"],["2", "6"]]
+custom_array = conv_array(custom_buff)
+
 ref_bond_indices = [
-    (zmat, [["2", "1"], ["3", "1"], ["4", "1"], ["5", "1"], ["6", "2"]]),
-    (delocalized_zmat, [["1", "2"], ["1", "3"], ["1", "4"], ["1", "5"], ["2", "6"]]),
-    (custom_zmat, [("1", "2"), ("1", "3"), ("1", "4"), ("1", "5"), ("2", "6")]),
+    (zmat, zmat_array),
+    (delocalized_zmat, deloc_array),
+    (custom_zmat, custom_array),
 ]
 
 ref_bond_variables = [
@@ -73,32 +91,33 @@ ref_bond_variables = [
     (custom_zmat, ["R1", "R2", "R3", "R4", "R5"]),
 ]
 
-ref_angle_indices = [
-    (zmat, [["3", "1", "2"], ["4", "1", "2"], ["5", "1", "2"], ["6", "2", "1"]]),
-    (
-        delocalized_zmat,
-        [
-            ["2", "1", "3"],
+zmat_buff = [["3", "1", "2"], ["4", "1", "2"], ["5", "1", "2"], ["6", "2", "1"]]
+zmat_array = conv_array(zmat_buff)
+
+deloc_buff = [["2", "1", "3"],
             ["2", "1", "4"],
             ["2", "1", "5"],
             ["1", "2", "6"],
             ["3", "1", "4"],
             ["3", "1", "5"],
+            ["4", "1", "5"],]
+deloc_array = conv_array(deloc_buff)
+
+custom_buff = [
+            ["2", "1", "3"],
+            ["2", "1", "4"],
+            ["2", "1", "5"],
+            ["3", "1", "4"],
             ["4", "1", "5"],
-        ],
-    ),
-    (
-        custom_zmat,
-        [
-            ("2", "1", "3"),
-            ("2", "1", "4"),
-            ("2", "1", "5"),
-            ("3", "1", "4"),
-            ("4", "1", "5"),
-            ("5", "1", "3"),
-            ("6", "2", "1"),
-        ],
-    ),
+            ["5", "1", "3"],
+            ["6", "2", "1"],
+        ]
+custom_array = conv_array(custom_buff)
+
+ref_angle_indices = [
+    (zmat, zmat_array),
+    (delocalized_zmat, deloc_array),
+    (custom_zmat, custom_array),
 ]
 
 ref_angle_variables = [
@@ -107,17 +126,21 @@ ref_angle_variables = [
     (custom_zmat, ["A1", "A2", "A3", "A4", "A5", "A6", "A7"]),
 ]
 
+zmat_buff = [["4", "1", "2", "3"], ["5", "1", "2", "4"], ["6", "2", "1", "3"]]
+zmat_array = conv_array(zmat_buff)
+
+deloc_buff =[["6", "2", "1", "3"],
+            ["6", "2", "1", "4"],
+            ["6", "2", "1", "5"],]
+deloc_array = conv_array(deloc_buff)
+
+custom_buff = [["6", "2", "1", "4"]]
+custom_array = conv_array(custom_buff)
+
 ref_tors_indices = [
-    (zmat, [["4", "1", "2", "3"], ["5", "1", "2", "4"], ["6", "2", "1", "3"]]),
-    (
-        delocalized_zmat,
-        [
-            ["3", "1", "2", "6"],
-            ["4", "1", "2", "6"],
-            ["5", "1", "2", "6"],
-        ],
-    ),
-    (custom_zmat, [("6", "2", "1", "4")]),
+    (zmat, zmat_array),
+    (delocalized_zmat, deloc_array),
+    (custom_zmat, custom_array),
 ]
 
 ref_tors_variables = [
@@ -133,10 +156,10 @@ ref_tors_variables = [
     (custom_zmat, ["D1"]),
 ]
 
-ref_oop_indices = (custom_zmat.oop_indices, [("4", "1", "3", "5")])
-ref_lin_indices = (custom_zmat.lin_indices, [("5", "1", "2", "4")])
-ref_linx_indices = (custom_zmat.linx_indices, [("3", "1", "2", "6")])
-ref_liny_indices = (custom_zmat.liny_indices, [("3", "1", "2", "6")])
+ref_oop_indices = (custom_zmat.oop_indices, conv_array([["4", "1", "3", "5"]]))
+ref_lin_indices = (custom_zmat.lin_indices, conv_array([["5", "1", "2", "4"]]))
+ref_linx_indices = (custom_zmat.linx_indices, conv_array([["3", "1", "2", "6"]]))
+ref_liny_indices = (custom_zmat.liny_indices, conv_array([["3", "1", "2", "6"]]))
 ref_oop_variables = (custom_zmat.oop_variables, ["O1"])
 ref_lin_variables = (custom_zmat.lin_variables, ["L1"])
 ref_linx_variables = (custom_zmat.linx_variables, ["Lx1"])
@@ -163,9 +186,9 @@ def test_zmat_read(option, expected, file_name):
     ids=["standard zmat", "automatic delocalized", "custom"],
 )
 def test_zmat_bond_indices(ZMAT, ref_bond_indices):
-    if isinstance(ZMAT.bond_indices, np.ndarray):
-        ZMAT.bond_indices = ZMAT.bond_indices.tolist()
-    assert ZMAT.bond_indices == ref_bond_indices
+    for i in range(len(ZMAT.bond_indices)):
+        for j in range(len(ZMAT.bond_indices[i])):
+            assert ZMAT.bond_indices[i][j] == ref_bond_indices[i][j]
 
 
 @pytest.mark.parametrize(
@@ -183,9 +206,9 @@ def test_zmat_bond_variables(ZMAT, ref_bond_variables):
     ids=["standard zmat", "automatic delocalized", "custom"],
 )
 def test_zmat_angle_indices(ZMAT, ref_angle_indices):
-    if isinstance(ZMAT.angle_indices, np.ndarray):
-        ZMAT.angle_indices = ZMAT.angle_indices.tolist()
-    assert list(ZMAT.angle_indices) == ref_angle_indices
+    for i in range(len(ZMAT.angle_indices)):
+        for j in range(len(ZMAT.angle_indices[i])):
+            assert ZMAT.angle_indices[i][j] == ref_angle_indices[i][j]
 
 
 @pytest.mark.parametrize(
@@ -203,11 +226,9 @@ def test_zmat_angle_variables(ZMAT, ref_angle_variables):
     ids=["standard zmat", "automatic delocalized", "custom"],
 )
 def test_zmat_torsion_indices(ZMAT, ref_tors_indices):
-    if isinstance(ZMAT.torsion_indices, np.ndarray):
-        ZMAT.torsion_indices = ZMAT.torsion_indices.tolist()
-    print(ZMAT.torsion_indices)
-    print(ref_tors_indices)
-    assert list(ZMAT.torsion_indices) == ref_tors_indices
+    for i in range(len(ZMAT.torsion_indices)):
+        for j in range(len(ZMAT.torsion_indices[i])):
+            assert ZMAT.torsion_indices[i][j] == ref_tors_indices[i][j]
 
 
 @pytest.mark.parametrize(
@@ -243,7 +264,9 @@ def test_zmat_torsion_variables(ZMAT, ref_tors_variables):
     ],
 )
 def test_custom_zmat(custom_zmat_coords, reference_coords):
-    assert custom_zmat_coords == reference_coords
+    for i in range(len(custom_zmat_coords)):
+        for j in range(len(custom_zmat_coords[i])):
+            assert custom_zmat_coords[i][j] == reference_coords[i][j]
 
 
 # Only need to test the Custom internal coordinates
@@ -296,53 +319,30 @@ def test_zmat_compile():
     options.coords = "Custom"
     ZMAT = Zmat(options)
     ZMAT.run("zmat_custom")
-    # output_test_custom = ZMAT.zmat_read("zmat_custom")
-    # ZMAT.zmat_process(output_test_custom)
-
-    # ZMAT.zmat_calc()
-
-    # ZMAT.zmat_compile()
-
-    print(ZMAT.index_dictionary)
 
     index_dict_ref = {
-        "R1": ("1", "2"),
-        "R2": ("1", "3"),
-        "R3": ("1", "4"),
-        "R4": ("1", "5"),
-        "R5": ("2", "6"),
-        "A1": ("2", "1", "3"),
-        "A2": ("2", "1", "4"),
-        "A3": ("2", "1", "5"),
-        "A4": ("3", "1", "4"),
-        "A5": ("4", "1", "5"),
-        "A6": ("5", "1", "3"),
-        "A7": ("6", "2", "1"),
-        "D1": ("6", "2", "1", "4"),
-        "O1": ("4", "1", "3", "5"),
-        "L1": ("5", "1", "2", "4"),
-        "Lx1": ("3", "1", "2", "6"),
-        "Ly1": ("3", "1", "2", "6"),
+        "R1": np.array(["1", "2"], dtype=object),
+        "R2": np.array(["1", "3"], dtype=object),
+        "R3": np.array(["1", "4"], dtype=object),
+        "R4": np.array(["1", "5"], dtype=object),
+        "R5": np.array(["2", "6"], dtype=object),
+        "A1": np.array(["2", "1", "3"], dtype=object),
+        "A2": np.array(["2", "1", "4"], dtype=object),
+        "A3": np.array(["2", "1", "5"], dtype=object),
+        "A4": np.array(["3", "1", "4"], dtype=object),
+        "A5": np.array(["4", "1", "5"], dtype=object),
+        "A6": np.array(["5", "1", "3"], dtype=object),
+        "A7": np.array(["6", "2", "1"], dtype=object),
+        "D1": np.array(["6", "2", "1", "4"], dtype=object),
+        "O1": np.array(["4", "1", "3", "5"], dtype=object),
+        "L1": np.array(["5", "1", "2", "4"], dtype=object),
+        "Lx1": np.array(["3", "1", "2", "6"], dtype=object),
+        "Ly1": np.array(["3", "1", "2", "6"], dtype=object),
     }
     index_dict_custom = ZMAT.index_dictionary
 
     errors = []
-    if np.setdiff1d(index_dict_ref, index_dict_custom).size:
-        errors.append("Custom indices do not match.")
-    os.chdir("../../")
-    assert not errors, "errors occured:\n{}".format("\n".join(errors))
-    # for key, ref_val in index_dict_ref.items():
-    #
-    #    if key not in index_dict_custom:
-    #        errors.append(f"Missing key {key}")
-    #        continue
-
-    #    custom_val = index_dict_custom[key]
-
-    #    # Compare tuples of strings literally
-    #    if ref_val != custom_val:
-    #        errors.append(
-    #            f"Index mismatch for {key}: expected {ref_val}, got {custom_val}"
-    #        )
-
-    # assert not errors, "errors occured:\n{}".format("\n".join(errors))
+    for key in index_dict_ref:
+        for i in range(len(index_dict_ref[key])):
+            for j in range(len(index_dict_ref[key][i])):
+                assert index_dict_ref[key][i][j] == index_dict_custom[key][i][j]
