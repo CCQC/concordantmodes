@@ -24,7 +24,7 @@ class Submit(object):
         for i in os.listdir(self.rootdir + "/Disps" + self.cma_level):
             disp_list.append(i)
 
-        #TODO move Vulcan and Sapelo templates to more general sge and slurm templates.
+        # TODO move Vulcan and Sapelo templates to more general sge and slurm templates.
         if self.options.cluster.lower() == "sge":
             v_template = VulcanTemplate(
                 self.options, len(disp_list), self.prog_name, self.prog
@@ -110,21 +110,31 @@ class Submit(object):
             # a command line argument specified by the user.
 
             if not len(self.options.custom_submit_str):
-                print("The custom_submit_str option cannot be empty when using this option.")
+                print(
+                    "The custom_submit_str option cannot be empty when using this option."
+                )
                 raise RuntimeError
-            
+
             for z in range(len(disp_list)):
                 path = str(z + 1) + "/"
                 os.chdir(path)
-                os.system(self.options.custom_submit_str + ' ' + os.getcwd() + '/sub_script.sh')
-                os.chdir('..')
+                os.system(
+                    self.options.custom_submit_str
+                    + " "
+                    + os.getcwd()
+                    + "/sub_script.sh"
+                )
+                os.chdir("..")
                 time.sleep(3)
-            os.chdir('..')
+            os.chdir("..")
 
-            print("Jobs have been submitted. You will need to come back when they finish and run CMA again with relevent gen_disps and calc keywords set to false.")
+            print(
+                "Jobs have been submitted. You will need to come back when they finish and run CMA again with relevent gen_disps and calc keywords set to false."
+            )
             raise RuntimeError
-        
+
         else:
-            print("Only Vulcan, Sapelo, or Custom cluster options are available, select one of those!")
+            print(
+                "Only Vulcan, Sapelo, or Custom cluster options are available, select one of those!"
+            )
             raise RuntimeError
-

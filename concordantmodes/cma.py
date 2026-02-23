@@ -80,7 +80,7 @@ class ConcordantModes(object):
 
         # Compute the Level B s-vectors
         s_vec = SVectors(
-            self.zmat_obj, self.options#, self.zmat_obj.variable_dictionary_b
+            self.zmat_obj, self.options  # , self.zmat_obj.variable_dictionary_b
         )
         s_vec.run(
             self.zmat_obj.cartesians_b,
@@ -206,7 +206,7 @@ class ConcordantModes(object):
                 deriv_level=self.options.deriv_level_b,
                 disp=b_disp,
                 ted=self.TED_obj,
-                zmat=self.zmat_obj
+                zmat=self.zmat_obj,
             )
             reap_obj_b.run()
 
@@ -214,8 +214,6 @@ class ConcordantModes(object):
             m_array_b = reap_obj_b.m_en_array
             # can this be folded into reap obj?
             if not self.options.deriv_level_b:
-                # p_array_b = reap_obj_b.p_en_array
-                # m_array_b = reap_obj_b.m_en_array
                 ref_en_b = reap_obj_b.ref_en
             else:
                 cart_p_array_b = reap_obj_b.p_grad_array
@@ -413,8 +411,8 @@ class ConcordantModes(object):
                 fc_c = FC_c.FC
                 fc_c = np.dot(np.dot(b_GF.L.T, fc_c), b_GF.L)
                 fc_c[np.abs(fc_c) < self.options.tol] = 0
-                print("Level C normal mode Force Constants:")
-                print(fc_c)
+                # print("Level C normal mode Force Constants:")
+                # print(fc_c)
                 xi = copy.deepcopy(fc_c) * 0.0
                 for i in range(len(xi)):
                     for j in range(i + 1):
@@ -448,7 +446,7 @@ class ConcordantModes(object):
         # then generate the displacements.
 
         s_vec = SVectors(
-            self.zmat_obj, self.options#, self.zmat_obj.variable_dictionary_a
+            self.zmat_obj, self.options  # , self.zmat_obj.variable_dictionary_a
         )
         s_vec.run(
             self.zmat_obj.cartesians_a,

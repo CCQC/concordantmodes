@@ -19,7 +19,7 @@ class Reap(object):
         disp_sym=None,
         disp=None,
         ted=None,
-        zmat=None
+        zmat=None,
     ):
         self.options = options
         self.num_deg_free = num_deg_free
@@ -192,7 +192,7 @@ class Reap(object):
                 m_grad_array = np.append(m_grad_array, grad, axis=0)
             self.p_grad_array = p_grad_array.reshape((-1, len(grad)))
             self.m_grad_array = m_grad_array.reshape((-1, len(grad)))
-            
+
             zmat_bool = self.zmat is not None
             ted_bool = self.ted is not None
             disp_bool = self.disp is not None
@@ -211,7 +211,7 @@ class Reap(object):
                     grad_s_vec.run(disp.m_disp[i], False)
                     A_proj = np.dot(LA.pinv(grad_s_vec.B), self.ted.proj)
                     self.m_array_b[i] = np.dot(cart_m_array_b[i].T, A_proj)
-                
+
             os.chdir("..")
         if len(self.fail_list):
             print("Some jobs have failed:")

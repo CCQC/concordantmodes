@@ -13,11 +13,12 @@ from concordantmodes.zmat import Zmat
 
 def conv_array(arr):
     buff_array = arr
-    arr = np.array([],dtype=object)
+    arr = np.array([], dtype=object)
     for ind_set in buff_array:
-        arr = np.append(arr,0)
-        arr[-1] = np.array(ind_set,dtype=object)
+        arr = np.append(arr, 0)
+        arr[-1] = np.array(ind_set, dtype=object)
     return arr
+
 
 coord1 = "Delocalized"
 coord2 = "ZMAT"
@@ -76,7 +77,7 @@ zmat_array = conv_array(zmat_buff)
 deloc_buff = [["1", "2"], ["1", "3"], ["1", "4"], ["1", "5"], ["2", "6"]]
 deloc_array = conv_array(deloc_buff)
 
-custom_buff = [["1", "2"], ["1", "3"], ["1", "4"], ["1", "5"],["2", "6"]]
+custom_buff = [["1", "2"], ["1", "3"], ["1", "4"], ["1", "5"], ["2", "6"]]
 custom_array = conv_array(custom_buff)
 
 ref_bond_indices = [
@@ -94,24 +95,26 @@ ref_bond_variables = [
 zmat_buff = [["3", "1", "2"], ["4", "1", "2"], ["5", "1", "2"], ["6", "2", "1"]]
 zmat_array = conv_array(zmat_buff)
 
-deloc_buff = [["2", "1", "3"],
-            ["2", "1", "4"],
-            ["2", "1", "5"],
-            ["1", "2", "6"],
-            ["3", "1", "4"],
-            ["3", "1", "5"],
-            ["4", "1", "5"],]
+deloc_buff = [
+    ["2", "1", "3"],
+    ["2", "1", "4"],
+    ["2", "1", "5"],
+    ["1", "2", "6"],
+    ["3", "1", "4"],
+    ["3", "1", "5"],
+    ["4", "1", "5"],
+]
 deloc_array = conv_array(deloc_buff)
 
 custom_buff = [
-            ["2", "1", "3"],
-            ["2", "1", "4"],
-            ["2", "1", "5"],
-            ["3", "1", "4"],
-            ["4", "1", "5"],
-            ["5", "1", "3"],
-            ["6", "2", "1"],
-        ]
+    ["2", "1", "3"],
+    ["2", "1", "4"],
+    ["2", "1", "5"],
+    ["3", "1", "4"],
+    ["4", "1", "5"],
+    ["5", "1", "3"],
+    ["6", "2", "1"],
+]
 custom_array = conv_array(custom_buff)
 
 ref_angle_indices = [
@@ -129,9 +132,11 @@ ref_angle_variables = [
 zmat_buff = [["4", "1", "2", "3"], ["5", "1", "2", "4"], ["6", "2", "1", "3"]]
 zmat_array = conv_array(zmat_buff)
 
-deloc_buff =[["6", "2", "1", "3"],
-            ["6", "2", "1", "4"],
-            ["6", "2", "1", "5"],]
+deloc_buff = [
+    ["6", "2", "1", "3"],
+    ["6", "2", "1", "4"],
+    ["6", "2", "1", "5"],
+]
 deloc_array = conv_array(deloc_buff)
 
 custom_buff = [["6", "2", "1", "4"]]

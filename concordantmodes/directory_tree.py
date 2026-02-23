@@ -65,7 +65,7 @@ class DirectoryTree(object):
         self.genbas = False
         self.ecp = False
         self.sub = False
-        print('Giraffe')
+        print("Giraffe")
         print(root)
         if os.path.exists(root + "/initden.dat"):
             self.init = True
@@ -74,7 +74,7 @@ class DirectoryTree(object):
         if os.path.exists(root + "/ECPDATA"):
             self.ecp = True
         if os.path.exists(root + "/sub_script.sh"):
-            print('We made it here.')
+            print("We made it here.")
             self.sub = True
         # raise RuntimeError
 
@@ -219,7 +219,7 @@ class DirectoryTree(object):
                 file.writelines(data)
             data_final = copy.deepcopy(data)
             data = copy.deepcopy(data_buff)
-            if self.options.cluster.lower() == 'custom':
+            if self.options.cluster.lower() == "custom":
                 copy_files = True
             if copy_files:
                 if self.init:
@@ -230,7 +230,7 @@ class DirectoryTree(object):
                     shutil.copy("../../ECPDATA", ".")
                 if self.sub:
                     shutil.copy("../../sub_script.sh", ".")
-                    print('we also made it here')
+                    print("we also made it here")
             os.chdir("..")
 
         return data_final

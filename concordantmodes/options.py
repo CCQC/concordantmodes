@@ -59,7 +59,7 @@ class Options(object):
         self.reduced_disp_size = kwargs.pop("reduced_disp_size", 0.0025)
         self.second_order = kwargs.pop("second_order", False)
         self.rmsd = kwargs.pop("rmsd", False)
-        self.ted_check = kwargs.pop("ted_check",False)
+        self.ted_check = kwargs.pop("ted_check", False)
         self.spin = kwargs.pop("spin", 1)
         self.subgroup = kwargs.pop("subgroup", False)
         self.success_regex_a = kwargs.pop("success_regex_a", "")
