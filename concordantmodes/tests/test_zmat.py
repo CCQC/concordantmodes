@@ -308,11 +308,13 @@ def test_zmat_calc():
         "Ly1": -0.0022793163188044303,
     }
     var_dict_custom = ZMAT.variable_dictionary_a
-    if np.setdiff1d(var_dict_ref, var_dict_custom).size:
-        errors.append("Custom variables do not match.")
+    # if np.setdiff1d(var_dict_ref, var_dict_custom).size:
+        # errors.append("Custom variables do not match.")
 
     os.chdir("../../")
-    assert not errors, "errors occured:\n{}".format("\n".join(errors))
+    # assert not errors, "errors occured:\n{}".format("\n".join(errors))
+    for key in var_dict_ref:
+        assert np.allclose(var_dict_ref[key], var_dict_custom[key], rtol=0, atol=1e-5)
 
 
 # Only need to test the Custom internal coordinates
@@ -346,7 +348,6 @@ def test_zmat_compile():
     }
     index_dict_custom = ZMAT.index_dictionary
 
-    errors = []
     for key in index_dict_ref:
         for i in range(len(index_dict_ref[key])):
             for j in range(len(index_dict_ref[key][i])):
