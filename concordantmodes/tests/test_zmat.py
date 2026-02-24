@@ -309,7 +309,7 @@ def test_zmat_calc():
     }
     var_dict_custom = ZMAT.variable_dictionary_a
     # if np.setdiff1d(var_dict_ref, var_dict_custom).size:
-        # errors.append("Custom variables do not match.")
+    # errors.append("Custom variables do not match.")
 
     os.chdir("../../")
     # assert not errors, "errors occured:\n{}".format("\n".join(errors))
