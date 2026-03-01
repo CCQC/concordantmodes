@@ -1,7 +1,7 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
-    "cluster": "slurm",
+    "cluster": "custom",
     "program_b": "molpro",
     "program_a": "molpro",
     "energy_regex_a": r"\(T\) total energy\s+(\-\d+\.\d+)",
@@ -9,6 +9,12 @@ options_kwargs = {
     "cart_insert_b": 9,
     "cart_insert_a": 9,
     "coords": "Delocalized",
+    "covalent_radii": True,
+    "custom_submit_str": "sbatch",
+    "calc_b": False,
+    "gen_disps_b": False,
+    "calc_a": False,
+    "gen_disps_a": False,
     "success_regex_b": r"Molpro calculation terminated",
     "success_regex_a": r"Molpro calculation terminated",
 }

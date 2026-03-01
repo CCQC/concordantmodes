@@ -2,6 +2,7 @@ import numpy as np
 import os
 import shutil
 import re
+import collections
 from . import masses
 from qcelemental.covalent_radii import CovalentRadii
 from concordantmodes.int2cart import Int2Cart
@@ -173,21 +174,21 @@ class Zmat(object):
 
     def zmat_process(self, zmat_output):
         # Initialize necessary lists
-        self.bond_indices = []
+        self.bond_indices = np.array([], dtype=object)
         self.bond_variables = []
-        self.angle_indices = []
+        self.angle_indices = np.array([], dtype=object)
         self.angle_variables = []
-        self.torsion_indices = []
+        self.torsion_indices = np.array([], dtype=object)
         self.torsion_variables = []
-        self.oop_indices = []
+        self.oop_indices = np.array([], dtype=object)
         self.oop_variables = []
-        self.lin_indices = []
+        self.lin_indices = np.array([], dtype=object)
         self.lin_variables = []
-        self.linx_indices = []
+        self.linx_indices = np.array([], dtype=object)
         self.linx_variables = []
-        self.liny_indices = []
+        self.liny_indices = np.array([], dtype=object)
         self.liny_variables = []
-        self.rcom_indices = []
+        self.rcom_indices = np.array([], dtype=object)
         self.rcom_variables = []
         self.variable_dictionary_b = {}
         self.variable_dictionary_a = {}
@@ -205,37 +206,58 @@ class Zmat(object):
                 # Second atom of the ZMAT, will have one bond term
                 if re.search(self.second_atom_regex, zmat_output[i]):
                     List = re.findall(self.second_atom_regex, zmat_output[i])[0]
-                    self.bond_indices.append([str(i - first_index + 1), List[1]])
+                    print("Zebra2")
+                    print(List)
+                    # self.bond_indices = np.append(
+                    # self.bond_indices, np.array([str(i - first_index + 1), List[1]])
+                    # )
+                    self.bond_indices = np.append(self.bond_indices, 0)
+                    self.bond_indices[-1] = np.array(
+                        [str(i - first_index + 1), List[1]], dtype=object
+                    )
                     self.bond_variables.append("R" + str(i - first_index))
                 # Third atom of the ZMAT, will have bond and angle term
                 if re.search(self.third_atom_regex, zmat_output[i]):
                     List = re.findall(self.third_atom_regex, zmat_output[i])[0]
-                    self.bond_indices.append([str(i - first_index + 1), List[1]])
+                    self.bond_indices = np.append(self.bond_indices, 0)
+                    self.bond_indices[-1] = np.array(
+                        [str(i - first_index + 1), List[1]], dtype=object
+                    )
                     self.bond_variables.append("R" + str(i - first_index))
-                    self.angle_indices.append(
-                        [str(i - first_index + 1), List[1], List[2]]
+                    # self.angle_indices.append(
+                    # [str(i - first_index + 1), List[1], List[2]]
+                    # )
+                    self.angle_indices = np.append(self.angle_indices, 0)
+                    self.angle_indices[-1] = np.array(
+                        [str(i - first_index + 1), List[1], List[2]], dtype=object
                     )
                     self.angle_variables.append("A" + str(i - first_index))
                 # All remaining ZMAT atoms, will have bond, angle, and torsion
                 # term
                 if re.search(self.full_atom_regex, zmat_output[i]):
                     List = re.findall(self.full_atom_regex, zmat_output[i])[0]
-                    self.bond_indices.append([str(i - first_index + 1), List[1]])
+                    self.bond_indices = np.append(self.bond_indices, 0)
+                    self.bond_indices[-1] = np.array(
+                        [str(i - first_index + 1), List[1]], dtype=object
+                    )
                     self.bond_variables.append("R" + str(i - first_index))
-                    self.angle_indices.append(
-                        [str(i - first_index + 1), List[1], List[2]]
+
+                    self.angle_indices = np.append(self.angle_indices, 0)
+                    self.angle_indices[-1] = np.array(
+                        [str(i - first_index + 1), List[1], List[2]], dtype=object
                     )
                     self.angle_variables.append("A" + str(i - first_index))
-                    self.torsion_indices.append(
-                        [str(i - first_index + 1), List[1], List[2], List[3]]
+
+                    self.torsion_indices = np.append(self.torsion_indices, 0)
+                    self.torsion_indices[-1] = np.array(
+                        [str(i - first_index + 1), List[1], List[2], List[3]],
+                        dtype=object,
                     )
                     self.torsion_variables.append("D" + str(i - first_index))
         elif self.options.coords.upper() == "DELOCALIZED":
             count = 0
             if self.options.covalent_radii:
-                # This program yields the covalent radius of an atom in bohr.
                 c_r = CovalentRadii()
-                self.bond_indices = np.array([])
                 indices = []
                 transdisp_inter = TransfDisp(
                     None,
@@ -262,11 +284,11 @@ class Zmat(object):
                             count += 1
                             adj_mat[i, j] = 1
                             adj_mat[j, i] = 1
-                            self.bond_indices = np.append(
-                                self.bond_indices, np.array([str(j + 1), str(i + 1)])
+                            self.bond_indices = np.append(self.bond_indices, 0)
+                            self.bond_indices[-1] = np.array(
+                                [str(j + 1), str(i + 1)], dtype=object
                             )
                             self.bond_variables.append("R" + str(count))
-                    self.bond_indices = np.reshape(self.bond_indices, (-1, 2))
                 print("Interatomic Distance Matrix:")
                 print(inter_atomic_len)
                 print("Adjacency Matrix:")
@@ -286,12 +308,11 @@ class Zmat(object):
                     if re.search(self.bond_regex, zmat_output[i]):
                         count += 1
                         List = re.findall(self.bond_regex, zmat_output[i])[0]
-                        self.bond_indices.append(List)
+                        self.bond_indices = np.append(self.bond_indices, 0)
+                        self.bond_indices[-1] = np.array(List, dtype=object)
                         self.bond_variables.append("R" + str(count))
-                self.bond_indices = np.array(self.bond_indices)
 
             # Form all possible angles from bonds
-            self.angle_indices = np.array([])
             count = 0
             for i in range(len(self.bond_indices)):
                 for j in range(len(self.bond_indices) - i - 1):
@@ -302,14 +323,12 @@ class Zmat(object):
                     c = np.setdiff1d(self.bond_indices[i + j + 1], self.bond_indices[i])
                     if len(a) and len(b) and len(c):
                         d = np.array([a[0], b[0], c[0]])
-                        self.angle_indices = np.append(self.angle_indices, d)
+                        self.angle_indices = np.append(self.angle_indices, 0)
+                        self.angle_indices[-1] = np.array(d, dtype=object)
                         count += 1
                         self.angle_variables.append("A" + str(count))
-            self.angle_indices = self.angle_indices.reshape((-1, 3))
 
             # Form all possible torsions from angles
-            self.torsion_indices = np.array([])
-            self.oop_indices = np.array([])
             tor_count = 0
             oop_count = 0
             for i in range(len(self.angle_indices)):
@@ -330,9 +349,14 @@ class Zmat(object):
                                     self.bond_indices[j][f],
                                     a[0],
                                     a[1],
-                                ]
+                                ],
+                                dtype=object,
                             )
-                            self.oop_indices = np.append(self.oop_indices, oop, axis=0)
+
+                            cont_bool = self.np_contains(self.oop_indices, oop)
+                            if not cont_bool:
+                                self.oop_indices = np.append(self.oop_indices, 0)
+                                self.oop_indices[-1] = np.array(oop, dtype=object)
                         else:
                             # This is a torsion
                             if h:
@@ -345,34 +369,14 @@ class Zmat(object):
                                     self.bond_indices[j][d],
                                     self.angle_indices[i].copy(),
                                 )
-                            self.torsion_indices = np.append(
-                                self.torsion_indices, tor, axis=0
+                            cont_bool = self.np_contains(
+                                self.torsion_indices, tor, tor=True
                             )
-
-            self.torsion_indices = self.torsion_indices.reshape((-1, 4))
-
-            print(self.torsion_indices)
-            # Eliminate all redundancies
-            self.torsion_indices = np.unique(self.torsion_indices, axis=0)
-
-            print(self.torsion_indices)
-            del_list = np.array([])
-            for i in range(len(self.torsion_indices)):
-                for j in range(len(self.torsion_indices) - i - 1):
-                    a = np.array(
-                        [
-                            self.torsion_indices[i],
-                            np.flip(self.torsion_indices[i + j + 1]),
-                        ]
-                    )
-                    a = np.unique(a, axis=0)
-                    if len(a) == 1:
-                        del_list = np.append(del_list, [i + j + 1])
-
-            del_list = del_list.astype(int)
-            print(self.torsion_indices)
-            self.torsion_indices = np.delete(self.torsion_indices, del_list, axis=0)
-            self.oop_indices = self.oop_indices.reshape((-1, 4))
+                            if not cont_bool:
+                                self.torsion_indices = np.append(
+                                    self.torsion_indices, 0
+                                )
+                                self.torsion_indices[-1] = np.array(tor, dtype=object)
 
             for i in range(len(self.torsion_indices)):
                 self.torsion_variables.append("D" + str(i + 1))
@@ -494,7 +498,8 @@ class Zmat(object):
             for i in range(len(zmat_output)):
                 if re.search(self.bond_regex, zmat_output[i]):
                     List = re.findall(self.bond_regex, zmat_output[i])[0]
-                    self.bond_indices.append(List)
+                    self.bond_indices = np.append(self.bond_indices, 0)
+                    self.bond_indices[-1] = np.array(List, dtype=object)
                     self.bond_variables.append(
                         "R" + str(i + 1 - Sum + len(self.bond_variables))
                     )
@@ -507,13 +512,15 @@ class Zmat(object):
                             ListBuff.append(SubList)
                     List = ListBuff
 
-                    self.bond_indices.append(List)
+                    self.bond_indices = np.append(self.bond_indices, 0)
+                    self.bond_indices[-1] = np.array(List, dtype=object)
                     self.bond_variables.append(
                         "R" + str(i + 1 - Sum + len(self.bond_variables))
                     )
                 elif re.search(self.angle_regex, zmat_output[i]):
                     List = re.findall(self.angle_regex, zmat_output[i])[0]
-                    self.angle_indices.append(List)
+                    self.angle_indices = np.append(self.angle_indices, 0)
+                    self.angle_indices[-1] = np.array(List, dtype=object)
                     self.angle_variables.append(
                         "A" + str(i + 1 - Sum + len(self.angle_variables))
                     )
@@ -525,13 +532,15 @@ class Zmat(object):
                             SubList = re.findall(self.centroid_regex2, j)
                             ListBuff.append(SubList)
                     List = ListBuff
-                    self.angle_indices.append(List)
+                    self.angle_indices = np.append(self.angle_indices, 0)
+                    self.angle_indices[-1] = np.array(List, dtype=object)
                     self.angle_variables.append(
                         "A" + str(i + 1 - Sum + len(self.angle_variables))
                     )
                 elif re.search(self.torsion_regex, zmat_output[i]):
                     List = re.findall(self.torsion_regex, zmat_output[i])[0]
-                    self.torsion_indices.append(List)
+                    self.torsion_indices = np.append(self.torsion_indices, 0)
+                    self.torsion_indices[-1] = np.array(List, dtype=object)
                     self.torsion_variables.append(
                         "D" + str(i + 1 - Sum + len(self.torsion_variables))
                     )
@@ -543,13 +552,15 @@ class Zmat(object):
                             SubList = re.findall(self.centroid_regex2, j)
                             ListBuff.append(SubList)
                     List = ListBuff
-                    self.torsion_indices.append(List)
+                    self.torsion_indices = np.append(self.torsion_indices, 0)
+                    self.torsion_indices[-1] = np.array(List, dtype=object)
                     self.torsion_variables.append(
                         "D" + str(i + 1 - Sum + len(self.torsion_variables))
                     )
                 elif re.search(self.oop_regex, zmat_output[i]):
                     List = re.findall(self.oop_regex, zmat_output[i])[0]
-                    self.oop_indices.append(List)
+                    self.oop_indices = np.append(self.oop_indices, 0)
+                    self.oop_indices[-1] = np.array(List, dtype=object)
                     self.oop_variables.append(
                         "O" + str(i + 1 - Sum + len(self.oop_variables))
                     )
@@ -561,13 +572,15 @@ class Zmat(object):
                             SubList = re.findall(self.centroid_regex2, j)
                             ListBuff.append(SubList)
                     List = ListBuff
-                    self.oop_indices.append(List)
+                    self.oop_indices = np.append(self.oop_indices, 0)
+                    self.oop_indices[-1] = np.array(List, dtype=object)
                     self.oop_variables.append(
                         "O" + str(i + 1 - Sum + len(self.oop_variables))
                     )
                 elif re.search(self.lin_regex, zmat_output[i]):
                     List = re.findall(self.lin_regex, zmat_output[i])[0]
-                    self.lin_indices.append(List)
+                    self.lin_indices = np.append(self.lin_indices, 0)
+                    self.lin_indices[-1] = np.array(List, dtype=object)
                     self.lin_variables.append(
                         "L" + str(i + 1 - Sum + len(self.lin_variables))
                     )
@@ -579,13 +592,15 @@ class Zmat(object):
                             SubList = re.findall(self.centroid_regex2, j)
                             ListBuff.append(SubList)
                     List = ListBuff
-                    self.lin_indices.append(List)
+                    self.lin_indices = np.append(self.lin_indices, 0)
+                    self.lin_indices[-1] = np.array(List, dtype=object)
                     self.lin_variables.append(
                         "L" + str(i + 1 - Sum + len(self.lin_variables))
                     )
                 elif re.search(self.linx_regex, zmat_output[i]):
                     List = re.findall(self.linx_regex, zmat_output[i])[0]
-                    self.linx_indices.append(List)
+                    self.linx_indices = np.append(self.linx_indices, 0)
+                    self.linx_indices[-1] = np.array(List, dtype=object)
                     self.linx_variables.append(
                         "Lx" + str(i + 1 - Sum + len(self.linx_variables))
                     )
@@ -597,13 +612,15 @@ class Zmat(object):
                             SubList = re.findall(self.centroid_regex2, j)
                             ListBuff.append(SubList)
                     List = ListBuff
-                    self.linx_indices.append(List)
+                    self.linx_indices = np.append(self.linx_indices, 0)
+                    self.linx_indices[-1] = np.array(List, dtype=object)
                     self.linx_variables.append(
                         "Lx" + str(i + 1 - Sum + len(self.linx_variables))
                     )
                 elif re.search(self.liny_regex, zmat_output[i]):
                     List = re.findall(self.liny_regex, zmat_output[i])[0]
-                    self.liny_indices.append(List)
+                    self.liny_indices = np.append(self.liny_indices, 0)
+                    self.liny_indices[-1] = np.array(List, dtype=object)
                     self.liny_variables.append(
                         "Ly" + str(i + 1 - Sum + len(self.liny_variables))
                     )
@@ -615,7 +632,8 @@ class Zmat(object):
                             SubList = re.findall(self.centroid_regex2, j)
                             ListBuff.append(SubList)
                     List = ListBuff
-                    self.liny_indices.append(List)
+                    self.liny_indices = np.append(self.liny_indices, 0)
+                    self.liny_indices[-1] = np.array(List, dtype=object)
                     self.liny_variables.append(
                         "Ly" + str(i + 1 - Sum + len(self.liny_variables))
                     )
@@ -626,7 +644,8 @@ class Zmat(object):
                     List = [List1, List2]
                     print("RCOM List:")
                     print(List)
-                    self.rcom_indices.append(List)
+                    self.rcom_indices = np.append(self.rcom_indices, 0)
+                    self.rcom_indices[-1] = np.array(List, dtype=object)
                     self.rcom_variables.append(
                         "Rc" + str(i + 1 - Sum + len(self.rcom_variables))
                     )
@@ -863,3 +882,14 @@ class Zmat(object):
             r += 1 / self.masses[int(i) - 1]
 
         return r
+
+    def np_contains(self, array1, array2, tor=False):
+        cont_bool = False
+        for i in range(len(array1)):
+            if np.array_equiv(array2, array1[i]):
+                cont_bool = True
+            if tor:
+                if np.array_equiv(np.flip(array2), array1[i]):
+                    cont_bool = True
+
+        return cont_bool

@@ -22,6 +22,7 @@ class Symmetry(object):
         self.zmat = zmat
         self.options = options
         self.proj = proj
+        self.proj_irreps = None
 
     def dummy_obj(self):
         pass
@@ -315,21 +316,25 @@ class Symmetry(object):
         sym_freqs = copy.deepcopy(sym_modes)
         del_list = []
         for i in range(len(sym_modes)):
-            if len(sym_modes[i]) > 1:
-                for j in range(len(sym_modes[i])):
-                    index = sym_modes[i][j]
-                    sym_freqs[i][j] = freqs[index].copy()
-                sym_freqs[i].reverse()
-            elif len(sym_modes[i]) == 1:
-                del_list.append(i)
-            else:
-                pass
+            # if len(sym_modes[i]) > 1:
+            # for j in range(len(sym_modes[i])):
+            # index = sym_modes[i][j]
+            # sym_freqs[i][j] = freqs[index].copy()
+            # sym_freqs[i].reverse()
+            # elif len(sym_modes[i]) == 1:
+            # del_list.append(i)
+            # else:
+            # pass
+            for j in range(len(sym_modes[i])):
+                index = sym_modes[i][j]
+                sym_freqs[i][j] = freqs[index].copy()
+            sym_freqs[i].reverse()
         del_list.reverse()
         if len(del_list):
             for i in del_list:
                 print(freqs[sym_modes[i][0]])
-        for i in del_list:
-            del sym_freqs[i]
+        # for i in del_list:
+        # del sym_freqs[i]
         flat_sym_freqs = [x for xs in sym_freqs for x in xs]
         flat_sym_freqs = np.array(flat_sym_freqs)
 

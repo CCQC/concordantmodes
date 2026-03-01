@@ -89,16 +89,22 @@ class TransfDisp(object):
                 u[i] = 1.0 / u[i]
         u = np.repeat(u, 3)
         u = np.diag(u)
-        self.A = self.compute_A(
-            self.B.copy(), self.ted.proj, self.eig_inv, u, cma_level=self.cma_level
-        )
+        # print(self.coord_type)
+        # raise RuntimeError
+        if self.coord_type != "cartesian":
+            # print(self.coord_type)
+            self.A = self.compute_A(
+                self.B.copy(), self.ted.proj, self.eig_inv, u, cma_level=self.cma_level
+            )
 
-        # Generate the normal coordinate values for the reference structure
-        self.n_coord = self.int_c(self.ref_carts, self.eig_inv, self.ted.proj)
+            # Generate the normal coordinate values for the reference structure
+            self.n_coord = self.int_c(self.ref_carts, self.eig_inv, self.ted.proj)
 
-        print("Normal Coordinate Values:")
-        for i in range(len(self.n_coord)):
-            print("Normal Coordinate #{:<4n}: {: 3.5f}".format(i + 1, self.n_coord[i]))
+            print("Normal Coordinate Values:")
+            for i in range(len(self.n_coord)):
+                print(
+                    "Normal Coordinate #{:<4n}: {: 3.5f}".format(i + 1, self.n_coord[i])
+                )
 
         # Next, we will have to specify our Normal mode internal coordinate
         # displacement sizes
@@ -311,6 +317,8 @@ class TransfDisp(object):
                         (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
                         dtype=object,
                     )
+                    # print(self.indices)
+                    # raise RuntimeError
                     for index in self.indices:
                         i, j = index[0], index[1]
                         if i == j:

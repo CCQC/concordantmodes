@@ -26,8 +26,9 @@ from concordantmodes.submit import Submit
 from concordantmodes.symmetry import Symmetry
 from concordantmodes.ted import TED
 from concordantmodes.transf_disp import TransfDisp
-from concordantmodes.vulcan_template import VulcanTemplate
-from concordantmodes.sapelo_template import SapeloTemplate
+
+# from concordantmodes.vulcan_template import VulcanTemplate
+# from concordantmodes.sapelo_template import SapeloTemplate
 from concordantmodes.zmat import Zmat
 
 
@@ -79,36 +80,20 @@ class ConcordantModes(object):
 
         # Compute the Level B s-vectors
         s_vec = SVectors(
-            self.zmat_obj, self.options, self.zmat_obj.variable_dictionary_b
+            self.zmat_obj, self.options  # , self.zmat_obj.variable_dictionary_b
         )
-        if self.options.man_proj:
-            proj = self.proj
-            np.set_printoptions(precision=4, linewidth=240)
-            s_vec.run(
-                self.zmat_obj.cartesians_b,
-                True,
-                proj=proj,
-                second_order=self.options.second_order,
-            )
-            s_vec.proj = proj
-        else:
-            s_vec.run(
-                self.zmat_obj.cartesians_b,
-                True,
-                second_order=self.options.second_order,
-            )
+        s_vec.run(
+            self.zmat_obj.cartesians_b,
+            True,
+            proj=self.proj,
+            second_order=self.options.second_order,
+        )
 
         if self.options.molsym_symmetry:
             self.symm_obj.make_proj(s_vec)
             s_vec.proj = copy.deepcopy(self.symm_obj.salc_proj)
 
         self.TED_obj = TED(s_vec.proj, self.zmat_obj, self.options)
-
-        # Print out the percentage composition of the projected coordinates
-        if self.options.coords != "ZMAT":
-            self.TED_obj.run(
-                np.eye(len(self.TED_obj.proj.T)), np.zeros(len(self.TED_obj.proj.T))
-            )
 
         # Compute G-Matrix
         g_mat = GMatrix(self.zmat_obj, s_vec, self.options)
@@ -119,7 +104,6 @@ class ConcordantModes(object):
         if os.path.exists(rootdir + "/fc_b.grad"):
             g_read_obj = GrRead("fc_b.grad")
             g_read_obj.run(self.zmat_obj.cartesians_b)
-            print(self.zmat_obj.cartesians_b)
 
         num_deg_free = s_vec.proj.shape[1]
         # Read in FC matrix in cartesians, then convert to internals.
@@ -127,6 +111,7 @@ class ConcordantModes(object):
         self.options.init_bool = False
         if os.path.exists(rootdir + "/fc_b.dat"):
             f_read_obj = FcRead("fc_b.dat")
+            self.options.cart_fc_b = True
         elif os.path.exists(rootdir + "/FCMFINAL"):
             f_read_obj = FcRead("FCMFINAL")
         else:
@@ -138,35 +123,22 @@ class ConcordantModes(object):
             if self.options.cart_fc_b:
                 eigs_b = np.eye(len(self.zmat_obj.cartesians_b.flatten()))
                 coord_type = "cartesian"
-            if not self.options.deriv_level_b:
-                if not self.options.molsym_symmetry:
-                    algo = Algorithm(num_deg_free, cma_level, self.options)
-                    algo.run()
-                    # Sym_sort doesn't seem to be working
-                    print("symmetric displacements:")
-                    if len(sym_sort) > 1:
-                        algo.indices = self.symm_obj.create_sym_sort_disps(
-                            sym_sort, algo.indices
-                        )
-                        # indices = self.symm_obj.create_sym_sort_disps(sym_sort, algo.indices)
-                else:
-                    algo = Algorithm(
-                        num_deg_free,
-                        cma_level,
-                        self.options,
-                        proj_irreps=self.symm_obj.proj_irreps,
+
+            algo = Algorithm(
+                num_deg_free,
+                cma_level,
+                self.options,
+                proj_irreps=self.symm_obj.proj_irreps,
+            )
+            algo.run()
+            if not self.options.deriv_level_b and not self.options.molsym_symmetry:
+                # Sym_sort doesn't seem to be working
+                print("symmetric displacements:")
+                if len(sym_sort) > 1:
+                    algo.indices = self.symm_obj.create_sym_sort_disps(
+                        sym_sort, algo.indices
                     )
-                    algo.run()
-                    self.symm_obj.indices_by_irrep = algo.indices_by_irrep
             else:
-                self.symm_obj.proj_irreps = None
-                algo = Algorithm(
-                    num_deg_free,
-                    cma_level,
-                    self.options,
-                    proj_irreps=self.symm_obj.proj_irreps,
-                )
-                algo.run()
                 self.symm_obj.indices_by_irrep = algo.indices_by_irrep
 
             b_disp = TransfDisp(
@@ -188,11 +160,6 @@ class ConcordantModes(object):
             prog_name_b = prog_b.split("@")[0]
 
             if self.options.gen_disps_b:
-                if os.path.exists(rootdir + "/DispsB"):
-                    if os.path.exists(rootdir + "/oldDispsB"):
-                        shutil.rmtree(rootdir + "/oldDispsB")
-                    shutil.copytree(rootdir + "/DispsB", rootdir + "/oldDispsB")
-                    shutil.rmtree(rootdir + "/DispsB")
 
                 ref_geom_b = b_disp.disp_cart["ref"]
 
@@ -227,37 +194,8 @@ class ConcordantModes(object):
             os.chdir(rootdir + "/DispsB")
 
             if self.options.calc_b:
-                disp_list = []
-                for i in os.listdir(rootdir + "/DispsB"):
-                    disp_list.append(i)
-
-                if self.options.cluster != "sapelo":
-                    v_template = VulcanTemplate(
-                        self.options, len(disp_list), prog_name_b, prog_b
-                    )
-                    out = v_template.run()
-                    with open("displacements.sh", "w") as file:
-                        file.write(out)
-
-                    # Submits an array, then checks if all jobs have finished every
-                    # 30 seconds.
-                    sub = Submit(disp_list, self.options)
-                    sub.run()
-                else:
-                    s_template = SapeloTemplate(
-                        self.options, len(disp_list), prog_name_b, prog_b
-                    )
-                    out = s_template.run()
-                    with open("optstep.sh", "w") as file:
-                        file.write(out)
-                    for z in range(0, len(disp_list)):
-                        source = os.getcwd() + "/optstep.sh"
-                        os.chdir("./" + str(z + 1))
-                        destination = os.getcwd()
-                        shutil.copy2(source, destination)
-                        os.chdir("../")
-                    sub = Submit(disp_list, self.options)
-                    sub.run()
+                sub = Submit(self.options, cma_level, rootdir, prog_name_b, prog_b)
+                sub.run()
 
             reap_obj_b = Reap(
                 self.options,
@@ -266,14 +204,17 @@ class ConcordantModes(object):
                 self.symm_obj,
                 cma_level,
                 deriv_level=self.options.deriv_level_b,
+                disp=b_disp,
+                ted=self.TED_obj,
+                zmat=self.zmat_obj,
             )
             reap_obj_b.run()
 
+            p_array_b = reap_obj_b.p_en_array
+            m_array_b = reap_obj_b.m_en_array
+            # can this be folded into reap obj?
             if not self.options.deriv_level_b:
-                p_array_b = reap_obj_b.p_en_array
-                m_array_b = reap_obj_b.m_en_array
                 ref_en_b = reap_obj_b.ref_en
-                deriv_level_b = 0
             else:
                 cart_p_array_b = reap_obj_b.p_grad_array
                 cart_m_array_b = reap_obj_b.m_grad_array
@@ -282,11 +223,13 @@ class ConcordantModes(object):
                 ref_en_b = None
 
                 # Need to convert this array here from cartesians to internals using projected A-tensor
+                # Surely this can be folded into reap_obj. Then we simply define p_array and m_array so
+                # so force_constant can read them in and determine what do do with them based off of
+                # deriv_level.
                 for i in range(len(algo.indices)):
                     grad_s_vec = SVectors(
                         self.zmat_obj,
                         self.options,
-                        self.zmat_obj.variable_dictionary_b,
                     )
 
                     grad_s_vec.run(b_disp.p_disp[i], False)
@@ -297,8 +240,6 @@ class ConcordantModes(object):
                     A_proj = np.dot(LA.pinv(grad_s_vec.B), self.TED_obj.proj)
                     m_array_b[i] = np.dot(cart_m_array_b[i].T, A_proj)
 
-                deriv_level_b = 1
-
             fc_b = ForceConstant(
                 b_disp,
                 p_array_b,
@@ -306,14 +247,24 @@ class ConcordantModes(object):
                 ref_en_b,
                 self.options,
                 algo.indices,
-                deriv_level=deriv_level_b,
+                deriv_level=self.options.deriv_level_b,
                 coord_type_b=coord_type,
                 cma_level=cma_level,
             )
             fc_b.run()
-            print("Computed Force Constants:")
-            print(fc_b.FC)
-            if self.options.second_order:
+
+            f_conv_test = FcConv(
+                fc_b.FC,
+                s_vec,
+                self.zmat_obj,
+                "cartesian",
+                False,
+                self.TED_obj,
+                self.options,
+            )
+            f_conv_test.run(grad=fc_b.gradient)
+
+            if self.options.second_order and self.options.cart_fc_b:
                 f_conv_obj = FcConv(
                     fc_b.FC,
                     s_vec,
@@ -325,10 +276,6 @@ class ConcordantModes(object):
                 )
                 f_conv_obj.run(grad=fc_b.gradient)
                 fc_b.FC = f_conv_obj.F
-
-        # Temporary code to ensure nothing breaks
-        self.options.deriv_level_b = 0
-        self.options.deriv_level_a = 0
 
         if not self.options.init_bool:
             f_read_obj.run()
@@ -349,11 +296,11 @@ class ConcordantModes(object):
         else:
             F = fc_b.FC
 
-        if self.options.coords != "ZMAT" and not self.options.init_bool:
-            F = np.dot(self.TED_obj.proj.T, np.dot(F, self.TED_obj.proj))
+        # Fold into g_mat
         if self.options.coords != "ZMAT":
             g_mat.G = np.dot(self.TED_obj.proj.T, np.dot(g_mat.G, self.TED_obj.proj))
 
+        # These can be folded into prior functions
         self.options.init_bool = False
         F[np.abs(F) < self.options.tol] = 0
         g_mat.G[np.abs(g_mat.G) < self.options.tol] = 0
@@ -375,6 +322,7 @@ class ConcordantModes(object):
             abs_row = np.abs(row)
             row[abs_row < np.max(abs_row) * del_tol] = 0
         F = F.T
+        # raise RuntimeError
 
         if len(sym_sort) > 1:
             F, g_mat.G = self.symm_obj.GF_sym_sort(F, g_mat, sym_sort)
@@ -391,10 +339,6 @@ class ConcordantModes(object):
         )
         b_GF.run()
 
-        # For a quick test, to be deleted later
-        g_b = g_mat.G.copy()
-        f_b = F.copy()
-
         ted_b = b_GF.ted.TED
         # more sym_sort stuff
         if len(sym_sort):
@@ -406,9 +350,6 @@ class ConcordantModes(object):
             flat_sym_modes_b = [x for xs in self.irreps_b for x in xs]
             print(flat_sym_modes_b)
             del_list = []
-            # for i in range(len(self.irreps_b)):
-            # if len(self.irreps_b[i]) == 1:
-            # del_list.append(self.irreps_b[i][0])
             flat_sym_modes_b = np.delete(np.array(flat_sym_modes_b), del_list)
             ted_b = ted_b.T
             ted_b = ted_b[flat_sym_modes_b]
@@ -416,24 +357,26 @@ class ConcordantModes(object):
             #### end of block that could probably be moved inside the symmetry.py module?
 
         # Now for the TED check.
-        self.G = np.dot(np.dot(LA.inv(b_GF.L), g_mat.G), LA.inv(b_GF.L).T)
-        self.G[np.abs(self.G) < self.options.tol] = 0
-        self.F = np.dot(np.dot(b_GF.L.T, F), b_GF.L)
-        self.F[np.abs(self.F) < self.options.tol] = 0
+        if self.options.ted_check:
+            self.G = np.dot(np.dot(LA.inv(b_GF.L), g_mat.G), LA.inv(b_GF.L).T)
+            self.G[np.abs(self.G) < self.options.tol] = 0
+            self.F = np.dot(np.dot(b_GF.L.T, F), b_GF.L)
+            self.F[np.abs(self.F) < self.options.tol] = 0
 
-        print("TED Frequencies: Degeneracy x Irrep")
-        TED_GF = GFMethod(
-            self.G,
-            self.F,
-            self.zmat_obj,
-            self.TED_obj,
-            self.options,
-            self.symm_obj.symtext,
-            cma=False,
-        )
-        TED_GF.run()
+            print("TED Frequencies: Degeneracy x Irrep")
+            TED_GF = GFMethod(
+                self.G,
+                self.F,
+                self.zmat_obj,
+                self.TED_obj,
+                self.options,
+                self.symm_obj.symtext,
+                cma=False,
+            )
+            TED_GF.run()
 
         # Insert statement here for CMA-2, if relevant, to compute level C hessian
+        # This code is incomplete ***.
         if self.options.off_diag == 2:
             # self.extra_indices = []
             if self.options.de_novo_C:
@@ -443,7 +386,6 @@ class ConcordantModes(object):
                     "No extra computations, running back through level B single points"
                 )
                 os.chdir("DispsB")
-                print(os.getcwd())
                 reap_obj_c = Reap(
                     self.options,
                     len(eigs_b),
@@ -460,7 +402,7 @@ class ConcordantModes(object):
                     reap_obj_c.ref_en,
                     self.options,
                     algo.indices,
-                    deriv_level=deriv_level_b,
+                    deriv_level=self.options.deriv_level_b,
                     coord_type_b=coord_type,
                     cma_level=cma_level,
                 )
@@ -469,8 +411,8 @@ class ConcordantModes(object):
                 fc_c = FC_c.FC
                 fc_c = np.dot(np.dot(b_GF.L.T, fc_c), b_GF.L)
                 fc_c[np.abs(fc_c) < self.options.tol] = 0
-                print("Level C normal mode Force Constants:")
-                print(fc_c)
+                # print("Level C normal mode Force Constants:")
+                # print(fc_c)
                 xi = copy.deepcopy(fc_c) * 0.0
                 for i in range(len(xi)):
                     for j in range(i + 1):
@@ -504,9 +446,14 @@ class ConcordantModes(object):
         # then generate the displacements.
 
         s_vec = SVectors(
-            self.zmat_obj, self.options, self.zmat_obj.variable_dictionary_a
+            self.zmat_obj, self.options  # , self.zmat_obj.variable_dictionary_a
         )
-        s_vec.run(self.zmat_obj.cartesians_a, False, proj=self.TED_obj.proj)
+        s_vec.run(
+            self.zmat_obj.cartesians_a,
+            False,
+            proj=self.TED_obj.proj,
+            second_order=self.options.second_order,
+        )
 
         transf_disp = TransfDisp(
             s_vec,
@@ -519,25 +466,20 @@ class ConcordantModes(object):
             symm_obj=self.symm_obj,
             cma_level=cma_level,
         )
-        transf_disp.run(fc=self.F)
+        transf_disp.run(fc=F)
         p_disp = transf_disp.p_disp
         m_disp = transf_disp.m_disp
         if self.options.disp_check:
             raise RuntimeError
 
         # The displacements have been generated, now we have to run them!
-        prog = self.options.program_a
-        progname = prog.split("@")[0]
+        prog_a = self.options.program_a
+        prog_name_a = prog_a.split("@")[0]
         if self.options.gen_disps_a:
-            if os.path.exists(rootdir + "DispsA"):
-                if os.path.exists(rootdir + "/oldDispsA"):
-                    shutil.rmtree(rootdir + "/oldDispsA")
-                shutil.copytree(rootdir + "/DispsA", rootdir + "/oldDispsA")
-                shutil.rmtree(rootdir + "/DispsA")
 
             ref_geom_a = transf_disp.disp_cart["ref"]
             dir_obj_a = DirectoryTree(
-                progname,
+                prog_name_a,
                 self.zmat_obj,
                 ref_geom_a,
                 cma_level,
@@ -566,38 +508,8 @@ class ConcordantModes(object):
         os.chdir(rootdir + "/DispsA")
 
         if self.options.calc_a:
-            disp_list = []
-            for i in os.listdir(rootdir + "/DispsA"):
-                disp_list.append(i)
-
-            # Generates the submit script for the displacements.
-            if self.options.cluster != "sapelo":
-                v_template = VulcanTemplate(
-                    self.options, len(disp_list), progname, prog
-                )
-                out = v_template.run()
-                with open("displacements.sh", "w") as file:
-                    file.write(out)
-
-                # Submits an array, then checks if all jobs have finished every
-                # 10 seconds.
-                sub = Submit(disp_list, self.options)
-                sub.run()
-            else:
-                s_template = SapeloTemplate(
-                    self.options, len(disp_list), progname, prog
-                )
-                out = s_template.run()
-                with open("optstep.sh", "w") as file:
-                    file.write(out)
-                for z in range(0, len(disp_list)):
-                    source = os.getcwd() + "/optstep.sh"
-                    os.chdir("./" + str(z + 1))
-                    destination = os.getcwd()
-                    shutil.copy2(source, destination)
-                    os.chdir("../")
-                sub = Submit(disp_list, self.options)
-                sub.run()
+            sub = Submit(self.options, cma_level, rootdir, prog_name_a, prog_a)
+            sub.run()
 
         # After this point, all of the jobs have finished, and it's time
         # to reap the energies as well as checking for sucesses
@@ -626,15 +538,13 @@ class ConcordantModes(object):
         fc_a.run()
 
         np.set_printoptions(precision=4, linewidth=240)
-        print("Computed Force Constants:")
-        print(fc_a.FC)
+        # print("Computed Force Constants:")
+        # print(fc_a.FC)
+
+        # print("Computed Normal Mode Gradient:")
+        # print(fc_a.gradient)
 
         self.F = fc_a.FC
-        # f_b = np.dot(
-        # np.dot(LA.inv(transf_disp.eig_inv).T, f_b), LA.inv(transf_disp.eig_inv)
-        # )
-        # print("Level B FC in same basis:")
-        # print(f_b)
 
         # Recompute the G-matrix with the new geometry, and then transform
         # the G-matrix using the lower level of theory eigenvalue matrix.
@@ -693,12 +603,9 @@ class ConcordantModes(object):
         # coordinates and writes out an "output.default.hess" file, which
         # is of the same format as FCMFINAL of CFOUR.
 
-        # To be implemented: logic for when the final force constants are computed
-        # atop a non-stationary point.
-
         self.F = np.dot(np.dot(transf_disp.eig_inv.T, self.F), transf_disp.eig_inv)
-        if self.options.coords != "ZMAT":
-            self.F = np.dot(self.TED_obj.proj, np.dot(self.F, self.TED_obj.proj.T))
+        self.gradient = np.dot(fc_a.gradient, transf_disp.eig_inv)
+
         cart_conv = FcConv(
             self.F,
             s_vec,
@@ -708,7 +615,13 @@ class ConcordantModes(object):
             self.TED_obj,
             self.options,
         )
-        cart_conv.run()
+        if self.options.second_order:
+            cart_conv.run(grad=self.gradient)
+            self.grad_cart = cart_conv.grad
+        else:
+            cart_conv.run()
+
+        self.F_cart = cart_conv.F
 
         # if mol2.size != 0:
         #    if self.options.rmsd:

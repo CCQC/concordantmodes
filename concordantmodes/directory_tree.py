@@ -64,16 +64,28 @@ class DirectoryTree(object):
         self.init = False
         self.genbas = False
         self.ecp = False
+        self.sub = False
+        print("Giraffe")
+        print(root)
         if os.path.exists(root + "/initden.dat"):
             self.init = True
         if os.path.exists(root + "/GENBAS"):
             self.genbas = True
         if os.path.exists(root + "/ECPDATA"):
             self.ecp = True
+        if os.path.exists(root + "/sub_script.sh"):
+            print("We made it here.")
+            self.sub = True
+        # raise RuntimeError
 
         data_buff = data.copy()
         if os.path.exists(os.getcwd() + "/old" + self.dir_name):
             shutil.rmtree("old" + self.dir_name, ignore_errors=True)
+        if os.path.exists(os.getcwd() + "/" + self.dir_name):
+            shutil.copytree(
+                os.getcwd() + "/" + self.dir_name, os.getcwd() + "/old" + self.dir_name
+            )
+            shutil.rmtree(os.getcwd() + "/" + self.dir_name)
         inp = ""
         if self.prog_name == "cfour":
             inp = "ZMAT"
@@ -207,6 +219,8 @@ class DirectoryTree(object):
                 file.writelines(data)
             data_final = copy.deepcopy(data)
             data = copy.deepcopy(data_buff)
+            if self.options.cluster.lower() == "custom":
+                copy_files = True
             if copy_files:
                 if self.init:
                     shutil.copy("../../initden.dat", ".")
@@ -214,6 +228,9 @@ class DirectoryTree(object):
                     shutil.copy("../../GENBAS", ".")
                 if self.ecp:
                     shutil.copy("../../ECPDATA", ".")
+                if self.sub:
+                    shutil.copy("../../sub_script.sh", ".")
+                    print("we also made it here")
             os.chdir("..")
 
         return data_final

@@ -36,36 +36,67 @@ class FcConv(object):
                 B = self.s_vec.B
             else:
                 B = np.dot(self.ted.proj.T, self.s_vec.B)
-            BT = B.T
-            G = np.dot(B, BT)
+            G = np.dot(B, B.T)
             self.A_T = np.dot(LA.inv(G), B)
-            if self.ted.proj is not None:
-                self.A_T = np.dot(self.ted.proj, self.A_T)
             if self.options.units == "MdyneAng":
                 self.F /= self.BOHR_ANG
                 self.F *= self.MDYNE_HART
             self.F = np.einsum("pi,rj,ij->pr", self.A_T, self.A_T, self.F)
             # Non-stationary, gradient correction to internal coordinate force constants
             V2 = self.F.copy() * 0
-            if len(grad) and self.options.second_order:
+            if len(grad) and self.options.second_order and self.options.cart_fc_b:
                 # Note: I may want to use projected A_T to reduce the size of the
                 # internal coordinate basis, thus speeding up the computation.
                 # The basis will eventually need to be projected anyways.
                 np.set_printoptions(precision=6, linewidth=240)
                 self.v_q = np.dot(self.A_T, grad)
-                C2 = np.einsum("rij,pi,qj->rpq", self.s_vec.B2, self.A_T, self.A_T)
+                if self.ted.proj is None:
+                    B2 = self.s_vec.B2
+                else:
+                    B2 = np.einsum("rp,pij->rij", self.ted.proj.T, self.s_vec.B2)
+                C2 = np.einsum("rij,pi,qj->rpq", B2, self.A_T, self.A_T)
                 V2 = np.einsum("q,qpr->pr", self.v_q, C2)
 
-            self.F = self.F - V2
+                grad = np.dot(grad, self.A_T.T)
+
+            self.F -= V2
 
             if self.print_f:
-                self.print_const(fc_name="fc_int.dat")
+                self.print_const(fc_name="fc_int.dat", grad=grad)
         elif self.coord.lower() == "cartesian":
-            self.F = np.einsum("pi,rj,pr->ij", self.s_vec.B, self.s_vec.B, self.F)
-            if self.print_f:
-                self.print_const()
 
-    def print_const(self, fc_name="fc_a.dat"):
+            if self.ted.proj is None:
+                B = self.s_vec.B
+            else:
+                B = np.dot(self.ted.proj.T, self.s_vec.B)
+
+            self.F = np.einsum("pi,rj,pr->ij", B, B, self.F)
+
+            V2 = self.F.copy() * 0
+
+            if len(grad) and self.options.second_order:
+                if self.ted.proj is None:
+                    B2 = self.s_vec.B2
+                else:
+                    B2 = np.einsum("rp,pij->rij", self.ted.proj.T, self.s_vec.B2)
+                V2 = np.einsum("rij,r->ij", B2, grad)
+
+                grad = np.dot(grad, B)
+                self.grad = grad
+
+            self.F += V2
+
+            # print("The Bs:")
+            # print(self.s_vec.B.shape)
+            # print(self.s_vec.B)
+            # print(B.shape)
+            # print(B)
+            # raise RuntimeError
+
+            if self.print_f:
+                self.print_const(grad=grad)
+
+    def print_const(self, fc_name="fc_a.dat", grad=np.array([])):
         self.N = len(self.F)
         fc_output = ""
         fc_output += "{:5d}{:5d}\n".format(len(self.zmat.atom_list), self.N)
@@ -85,3 +116,22 @@ class FcConv(object):
             fc_output += "\n"
         with open(fc_name, "w+") as file:
             file.write(fc_output)
+
+        if len(grad):
+            g_print = grad
+            # g_print = g_print.flatten()
+            gr_output = ""
+            for i in range(len(g_print) // 3):
+                gr_output += "{:20.10f}".format(g_print[3 * i])
+                gr_output += "{:20.10f}".format(g_print[3 * i + 1])
+                gr_output += "{:20.10f}".format(g_print[3 * i + 2])
+                gr_output += "\n"
+            if len(g_print) % 3:
+                for i in range(len(g_print) % 3):
+                    gr_output += "{:20.10f}".format(
+                        g_print[3 * (len(g_print) // 3) + i]
+                    )
+                fc_output += "\n"
+            # Introduce grad_name
+            with open("fc_a.grad", "w+") as file:
+                file.write(gr_output)

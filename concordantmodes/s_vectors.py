@@ -15,7 +15,7 @@ class SVectors(object):
     for each atom in the molecular system of interest.
     """
 
-    def __init__(self, zmat, options, variable_dict):
+    def __init__(self, zmat, options):
         self.s_2center_dict = {}
         self.s_3center_dict = {}
         self.s_4center_dict = {}
@@ -28,7 +28,7 @@ class SVectors(object):
         self.linx_indices = zmat.linx_indices
         self.liny_indices = zmat.liny_indices
         self.options = options
-        self.variable_dict = variable_dict
+        # self.variable_dict = variable_dict
         self.zmat = zmat
 
     def run(self, carts, B_proj, proj=None, second_order=False):
@@ -563,6 +563,7 @@ class SVectors(object):
 
         # Run numerical second order B-tensor here.
         if second_order:
+            B = self.B.copy()
             Proj = self.proj.copy()
             self.B2 = self.second_order_B()
             self.B2[np.abs(self.B2) < 1e-14] = 0
@@ -578,6 +579,11 @@ class SVectors(object):
                         self.B2[i, k, j + 1] = self.B2[i, j + 1, k]
             self.B2 = self.B2.astype(float)
             self.proj = Proj
+            # np.set_printoptions(precision=6, linewidth=240)
+            # print(self.B)
+            self.B = B
+            # print(self.B)
+            # raise RuntimeError
 
     def compute_STRE(self, x1, x2):
         s = (x1 - x2) / self.compute_r(x1, x2)
@@ -778,15 +784,15 @@ class SVectors(object):
 
         B_disp.run()
         self.run(B_disp.p_disp[0], False, proj=self.proj, second_order=False)
-        B_list_p = np.array([self.B], dtype=object)
+        B_list_p = np.array([self.B.copy()], dtype=object)
         self.run(B_disp.m_disp[0], False, proj=self.proj, second_order=False)
-        B_list_m = np.array([self.B], dtype=object)
+        B_list_m = np.array([self.B.copy()], dtype=object)
 
         for i in range(len(B_disp.p_disp) - 1):
             self.run(B_disp.p_disp[i + 1], False, second_order=False)
-            B_list_p = np.append(B_list_p, [self.B], axis=0)
+            B_list_p = np.append(B_list_p, [self.B.copy()], axis=0)
             self.run(B_disp.m_disp[i + 1], False, second_order=False)
-            B_list_m = np.append(B_list_m, [self.B], axis=0)
+            B_list_m = np.append(B_list_m, [self.B.copy()], axis=0)
 
         # And differentiate
         B2 = self.num_differentiate(B_list_p, B_list_m)

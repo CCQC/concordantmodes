@@ -4,6 +4,8 @@ import os
 import shutil
 import re
 
+from concordantmodes.s_vectors import SVectors
+
 
 class Reap(object):
     def __init__(
@@ -15,6 +17,9 @@ class Reap(object):
         cma_level,
         deriv_level=0,
         disp_sym=None,
+        disp=None,
+        ted=None,
+        zmat=None,
     ):
         self.options = options
         self.num_deg_free = num_deg_free
@@ -22,6 +27,9 @@ class Reap(object):
         self.symm_obj = symm_obj
         self.deriv_level = deriv_level
         self.cma_level = cma_level
+        self.disp = disp
+        self.ted = ted
+        self.zmat = zmat
         if cma_level == "B":
             if self.deriv_level:
                 self.gradient_regex = self.options.gradient_regex_b
@@ -56,8 +64,11 @@ class Reap(object):
             grad_regex2 = re.compile(self.gradient_regex[1])
         size = self.num_deg_free
 
-        if self.options.second_order:
-            size = self.indices[-1][0] + 1
+        # if self.options.second_order:
+        # print(self.indices)
+        # print(self.indices[-1])
+        # raise RuntimeError
+        # size = self.indices[-1][0] + 1
 
         self.fail_list = []
         if not self.deriv_level:
@@ -98,6 +109,9 @@ class Reap(object):
 
             Sum = 1
             h = 0
+            # print(p_en_array.shape)
+            # print(p_en_array)
+            # print(indices)
             for index in indices:
                 i, j = index[0], index[1]
                 p_en_array[i, j] = energy = self.reap_energies(
@@ -178,6 +192,26 @@ class Reap(object):
                 m_grad_array = np.append(m_grad_array, grad, axis=0)
             self.p_grad_array = p_grad_array.reshape((-1, len(grad)))
             self.m_grad_array = m_grad_array.reshape((-1, len(grad)))
+
+            zmat_bool = self.zmat is not None
+            ted_bool = self.ted is not None
+            disp_bool = self.disp is not None
+
+            if self.options.conv_grad and zmat_bool and ted_bool and disp_bool:
+                grad_s_vec = SVectors(
+                    self.zmat,
+                    self.options,
+                )
+
+                for i in range(len(indices)):
+                    grad_s_vec.run(disp.p_disp[i], False)
+                    A_proj = np.dot(LA.pinv(grad_s_vec.B), self.ted.proj)
+                    self.p_array_b[i] = np.dot(cart_p_array_b[i].T, A_proj)
+
+                    grad_s_vec.run(disp.m_disp[i], False)
+                    A_proj = np.dot(LA.pinv(grad_s_vec.B), self.ted.proj)
+                    self.m_array_b[i] = np.dot(cart_m_array_b[i].T, A_proj)
+
             os.chdir("..")
         if len(self.fail_list):
             print("Some jobs have failed:")

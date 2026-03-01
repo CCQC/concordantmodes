@@ -33,26 +33,10 @@ def test_reap():
 
     suite.options.energy_regex_a = r"Giraffe The Energy is\s+(\-\d+\.\d+)"
     suite.options.success_regex_a = r"beer"
-    # print(os.getcwd())
     os.chdir(suite.path + "/Disps")
-    # reap_obj = Reap(
-    #    prog_name,
-    #    suite.ZMAT,
-    #    suite.disps.disp_cart,
-    #    suite.options,
-    #    suite.disps.n_coord,
-    #    suite.GF.L,
-    #    suite.algo.indices,
-    #    suite.options.energy_regex,
-    #    suite.options.gradient_regex,
-    #    suite.options.molly_regex_init,
-    #    suite.options.success_regex,
-    # )
-    # suite.options.init_bool = False
     suite.algo.indices = [[0, 0], [1, 1], [2, 2]]
     reap_obj = Reap(
         suite.options,
-        # suite.GF.L,
         len(suite.GF.L),
         suite.algo.indices,
         suite.symm_obj,

@@ -240,7 +240,7 @@ B_ref_INTDER[5:] *= 0.529177210903
 
 def test_compute_B():
     errors = []
-    s_vec = SVectors(suite.ZMAT, suite.options, suite.ZMAT.variable_dictionary_b)
+    s_vec = SVectors(suite.ZMAT, suite.options)
     s_vec.run(suite.ZMAT.cartesians_b, True)
     os.chdir(suite.root)
 
