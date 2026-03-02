@@ -17,7 +17,7 @@ The following procedure may be used to enact the CMA-0A procedure using manual s
 ## Installation
 
 User must have at least:
-Python version 3.7
+Python version 3.10
 Numpy version 1.13.3
 qcelemental
 
@@ -27,7 +27,7 @@ Pytest-xdist 3.0.2 (-c condaforge)
 
 A simple way to ensure this program may be run is by creating a conda environment with the following command:
 
-`conda create --name CMA python=3.9 sympy numpy scipy qcelemental`
+`conda create --name CMA python=3.10 sympy numpy scipy qcelemental`
 
 If you need to install anaconda, consult the [official website](https://www.anaconda.com/products/individual)
 
