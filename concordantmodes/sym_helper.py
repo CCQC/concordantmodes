@@ -4,7 +4,7 @@ from concordantmodes.symmetry import Symmetry
 from concordantmodes.zmat import Zmat
 
 
-class SymHelper(object):
+class SymHelper:
     """
     This class handles sym_sort generation and
     helper functions for natural internal coordinates

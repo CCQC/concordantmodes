@@ -10,7 +10,7 @@ from concordantmodes.vulcan_template import VulcanTemplate
 from concordantmodes.sapelo_template import SapeloTemplate
 
 
-class Submit(object):
+class Submit:
     def __init__(self, options, cma_level, rootdir, prog_name, prog):
         self.cma_level = cma_level
         self.options = options
@@ -23,6 +23,8 @@ class Submit(object):
 
         for i in os.listdir(self.rootdir + "/Disps" + self.cma_level):
             disp_list.append(i)
+
+        os.chdir(self.rootdir + "/Disps" + self.cma_level)
 
         # TODO move Vulcan and Sapelo templates to more general sge and slurm templates.
         if self.options.cluster.lower() == "sge":
@@ -126,7 +128,7 @@ class Submit(object):
                 )
                 os.chdir("..")
                 time.sleep(3)
-            os.chdir("..")
+            # os.chdir("..")
 
             print(
                 "Jobs have been submitted. You will need to come back when they finish and run CMA again with relevent gen_disps and calc keywords set to false."
@@ -138,3 +140,4 @@ class Submit(object):
                 "Only Vulcan, Sapelo, or Custom cluster options are available, select one of those!"
             )
             raise RuntimeError
+        os.chdir("../")

@@ -3,7 +3,7 @@ from numpy.linalg import inv
 from numpy import linalg as LA
 
 
-class SapeloTemplate(object):
+class SapeloTemplate:
     """
     This file just stores the sapelo optstep script
     """
@@ -27,6 +27,7 @@ class SapeloTemplate(object):
             "prog": prog,
             "tc": str(job_num),
             "cline": self.progdict[prog_name],
+            "silly": "{}",
         }
         # This can be inserted back in if the sync keyword is sorted
         # $ -sync y
@@ -49,7 +50,7 @@ cd $SLURM_SUBMIT_DIR
 export NSLOTS=4
 export THREADS=1
 
-module load intel/2023a
+module load intel/2022a
 
 # to change scratch dir to use local machine scratch
 export SCRATCH_DIR=/scratch/$USER/tmp/$SLURM_JOB_ID
@@ -58,7 +59,7 @@ export APPTAINER_BIND="$SLURM_SUBMIT_DIR,$SCRATCH_DIR"
 
 export TMPDIR=$SCRATCH_DIR
 
-mpirun -n $NSLOTS apptainer exec /work/jttlab/containers/molpro_mpipr.sif molpro.exe input.dat --output $SLURM_SUBMIT_DIR/output.dat --nouse-logfile --directory $SCRATCH_DIR
+mpirun -n $NSLOTS apptainer exec /work/jttlab/containers/molpro-2021-gapr.sif molpro.exe input.dat --output $SLURM_SUBMIT_DIR/output.dat --nouse-logfile --directory $SCRATCH_DIR
 
 rm $SCRATCH_DIR -r
 
@@ -100,17 +101,58 @@ psi4 -n $NSLOTS -o output.dat
         # rm $PSI_SCRATCH -r
         elif self.prog_name == "orca":
             self.sapelo_template = """#!/bin/bash
-#SBATCH --job-name=Concordant           # Job name (testBowtie2)
-#SBATCH --partition=batch               # Partition name (batch, highmem_p, or gpu_p)
-#SBATCH --ntasks=10                     # 1 task (process) for below commands
-#SBATCH --cpus-per-task=1               # CPU core count per task, by default 1 CPU core per task
-#SBATCH --mem-per-cpu=10G
+#SBATCH --job-name=default            # Job name
+#SBATCH --partition=batch             # Partition (queue) name
+#SBATCH --constraint="EPYC|Intel"
+#SBATCH --nodes=1                     # Number of nodes
+#SBATCH --ntasks=4                    # Number of MPI ranks
+#SBATCH --ntasks-per-node=4           # How many tasks on each node
+#SBATCH --cpus-per-task=1             # Number of cores per MPI rank 
+#SBATCH --mem=10G                     # total Memory no more per processor
 #SBATCH --time={time_limit}
-#SBATCH --output=%x_%j.out              # Standard output log, e.g., testBowtie2_12345.out
+#SBATCH --output="%x.%j".out     # Standard output log
+#SBATCH --error="%x.%j".err      # Standard error log
+#SBATCH --mail-user="%u"@uga.edu
+#SBTACH --mail-type=END,FAIL
 
-ml OpenMPI/4.1.4-GCC-11.3.0
-ml ORCA/6.1.0-OpenMPI-4.1.8-GCC-13.3.0-avx2
-/apps/eb/ORCA/6.1.0-OpenMPI-4.1.8-GCC-13.3.0-avx2/bin/orca input.dat > output.dat
+cd $SLURM_SUBMIT_DIR
+export NSLOTS=4
+export THREADS=1  # can try adjusting but I don't think orca uses much omp threading if any
+
+scratch_dir=/scratch/$USER/tmp/$SLURM_JOB_ID
+mkdir -p $scratch_dir
+
+module=ORCA/6.1.0-OpenMPI-4.1.8-GCC-13.3.0-avx2
+module load $module
+export OMP_NUM_THREADS=$THREADS
+
+# Set other variables
+base=`basename input.dat .dat`
+
+# Copy Job/Executable Data
+cp $SLURM_SUBMIT_DIR/input.dat $scratch_dir/input.dat
+if [ -e $base.xyz ]; then cp $base.xyz $scratch_dir/guess.xyz ; fi
+if [ -e $base.gbw ]; then cp $base.gbw $scratch_dir/guess.gbw ; fi
+if [ -e $base.hess ]; then cp $base.hess $scratch_dir/guess.hess ; fi
+if [ -e product.xyz ]; then cp product.xyz $scratch_dir/product.xyz ; fi
+if [ -e ts_guess.xyz ]; then cp ts_guess.xyz $scratch_dir/ts_guess.xyz ; fi
+
+echo " Running orca on `hostname`"
+echo " Running calculation..."
+
+cd $scratch_dir
+/apps/eb/$module/bin/orca input.dat >& $SLURM_SUBMIT_DIR/output.dat || exit 1
+
+echo " Saving data and cleaning up..."
+# delete any temporary files that my be hanging around.
+rm -f *.tmp*
+find . -type f -size +50M -exec rm -f {silly} \;
+tar --exclude='*tmp*' --transform "s,^,Job_Data_$SLURM_JOB_ID/," -vzcf $SLURM_SUBMIT_DIR/Job_Data_$SLURM_JOB_ID.tar.gz *
+
+echo " Job complete on `hostname`."
+
+rm $scratch_dir -r
+
 """
 
     def run(self):

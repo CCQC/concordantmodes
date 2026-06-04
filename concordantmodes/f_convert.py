@@ -3,7 +3,7 @@ from numpy.linalg import inv
 from numpy import linalg as LA
 
 
-class FcConv(object):
+class FcConv:
     """
     This class may be used to convert a cartesian F-matrix to an internal
     F-Matrix, and vice versa.
@@ -16,12 +16,12 @@ class FcConv(object):
     BOHR_ANG: Standard uncertainty of 0.00000000080
     """
 
-    def __init__(self, fc_mat, s_vec, zmat, coord, print_f, ted, options):
+    def __init__(self, fc_mat, s_vec, zmat, coord, print_f, proj, options):
         self.coord = coord
         self.F = fc_mat
         self.print_f = print_f
         self.s_vec = s_vec
-        self.ted = ted
+        self.proj = proj
         self.zmat = zmat
         self.options = options
 
@@ -32,10 +32,10 @@ class FcConv(object):
         # First construct the transpose of the A matrix.
         if self.coord.lower() == "internal":
             # The cartesian force constants must be in units of Hartree/bohr^2.
-            if self.ted.proj is None:
+            if not len(self.proj):
                 B = self.s_vec.B
             else:
-                B = np.dot(self.ted.proj.T, self.s_vec.B)
+                B = np.dot(self.proj.T, self.s_vec.B)
             G = np.dot(B, B.T)
             self.A_T = np.dot(LA.inv(G), B)
             if self.options.units == "MdyneAng":
@@ -50,11 +50,12 @@ class FcConv(object):
                 # The basis will eventually need to be projected anyways.
                 np.set_printoptions(precision=6, linewidth=240)
                 self.v_q = np.dot(self.A_T, grad)
-                if self.ted.proj is None:
+                if not len(self.proj):
                     B2 = self.s_vec.B2
                 else:
-                    B2 = np.einsum("rp,pij->rij", self.ted.proj.T, self.s_vec.B2)
-                C2 = np.einsum("rij,pi,qj->rpq", B2, self.A_T, self.A_T)
+                    B2 = np.einsum("rp,pij->rij", self.proj.T, self.s_vec.B2)
+                C2 = np.einsum("rij,pi->rpj", B2, self.A_T)
+                C2 = np.einsum("rpj,qj->rpq", C2, self.A_T)
                 V2 = np.einsum("q,qpr->pr", self.v_q, C2)
 
                 grad = np.dot(grad, self.A_T.T)
@@ -65,33 +66,26 @@ class FcConv(object):
                 self.print_const(fc_name="fc_int.dat", grad=grad)
         elif self.coord.lower() == "cartesian":
 
-            if self.ted.proj is None:
+            if not len(self.proj):
                 B = self.s_vec.B
             else:
-                B = np.dot(self.ted.proj.T, self.s_vec.B)
+                B = np.dot(self.proj.T, self.s_vec.B)
 
             self.F = np.einsum("pi,rj,pr->ij", B, B, self.F)
 
             V2 = self.F.copy() * 0
 
             if len(grad) and self.options.second_order:
-                if self.ted.proj is None:
+                if not len(self.proj):
                     B2 = self.s_vec.B2
                 else:
-                    B2 = np.einsum("rp,pij->rij", self.ted.proj.T, self.s_vec.B2)
+                    B2 = np.einsum("rp,pij->rij", self.proj.T, self.s_vec.B2)
                 V2 = np.einsum("rij,r->ij", B2, grad)
 
                 grad = np.dot(grad, B)
                 self.grad = grad
 
             self.F += V2
-
-            # print("The Bs:")
-            # print(self.s_vec.B.shape)
-            # print(self.s_vec.B)
-            # print(B.shape)
-            # print(B)
-            # raise RuntimeError
 
             if self.print_f:
                 self.print_const(grad=grad)
@@ -119,7 +113,6 @@ class FcConv(object):
 
         if len(grad):
             g_print = grad
-            # g_print = g_print.flatten()
             gr_output = ""
             for i in range(len(g_print) // 3):
                 gr_output += "{:20.10f}".format(g_print[3 * i])

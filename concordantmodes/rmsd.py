@@ -4,7 +4,7 @@ import scipy.linalg as la
 import time
 
 
-class RMSD(object):
+class RMSD:
     def __init__(self):
         print("Nothing to init")
 

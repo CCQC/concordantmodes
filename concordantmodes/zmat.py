@@ -9,7 +9,7 @@ from concordantmodes.int2cart import Int2Cart
 from concordantmodes.transf_disp import TransfDisp
 
 
-class Zmat(object):
+class Zmat:
     def __init__(self, options):
         self.amu_elMass = 5.48579909065 * (10 ** (-4))
         self.disp_tol = 1.0e-14
@@ -206,11 +206,6 @@ class Zmat(object):
                 # Second atom of the ZMAT, will have one bond term
                 if re.search(self.second_atom_regex, zmat_output[i]):
                     List = re.findall(self.second_atom_regex, zmat_output[i])[0]
-                    print("Zebra2")
-                    print(List)
-                    # self.bond_indices = np.append(
-                    # self.bond_indices, np.array([str(i - first_index + 1), List[1]])
-                    # )
                     self.bond_indices = np.append(self.bond_indices, 0)
                     self.bond_indices[-1] = np.array(
                         [str(i - first_index + 1), List[1]], dtype=object
@@ -224,9 +219,6 @@ class Zmat(object):
                         [str(i - first_index + 1), List[1]], dtype=object
                     )
                     self.bond_variables.append("R" + str(i - first_index))
-                    # self.angle_indices.append(
-                    # [str(i - first_index + 1), List[1], List[2]]
-                    # )
                     self.angle_indices = np.append(self.angle_indices, 0)
                     self.angle_indices[-1] = np.array(
                         [str(i - first_index + 1), List[1], List[2]], dtype=object
@@ -424,6 +416,7 @@ class Zmat(object):
 
                     count += 1
                     new_walks = new_walks.reshape((-1, count))
+                    print(new_walks)
                     new_walks = np.unique(new_walks, axis=0)
 
                     del_list = np.array([])

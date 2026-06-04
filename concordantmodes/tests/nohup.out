@@ -23,4 +23,4 @@ concordantmodes/tests/test_transf_disp.py::test_transf_disp
     self.freq = self.freq.astype(float)
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-======================== 40 passed, 3 warnings in 8.15s ========================
+======================== 40 passed, 3 warnings in 8.26s ========================

@@ -7,7 +7,7 @@ import re
 import shutil
 
 
-class MoldenWriter(object):
+class MoldenWriter:
     def __init__(
         self,
         zmat,

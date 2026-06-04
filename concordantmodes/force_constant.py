@@ -3,7 +3,7 @@ from numpy.linalg import inv
 from numpy import linalg as LA
 
 
-class ForceConstant(object):
+class ForceConstant:
     # This script will calculate the force constants of the CMA normal
     # modes using numerical differentiation.
 
@@ -28,8 +28,9 @@ class ForceConstant(object):
         options,
         indices,
         deriv_level=0,
-        coord_type_b="internal",
+        coord_type="internal",
         cma_level="B",
+        gradient=[],
     ):
         self.options = options
         self.disp = disp
@@ -38,13 +39,14 @@ class ForceConstant(object):
         self.ref_en = ref_en
         self.indices = indices
         self.deriv_level = deriv_level
-        self.coord_type_b = coord_type_b
+        self.coord_type = coord_type
         self.cma_level = cma_level
+        self.gradient = gradient
 
     def run(self):
         indices = self.indices
         disp = self.disp
-        if self.coord_type_b == "cartesian":
+        if self.coord_type == "cartesian":
             size = self.indices[-1][0] + 1
             cart_disp = np.zeros(size)
             for i in range(len(cart_disp)):
@@ -53,13 +55,12 @@ class ForceConstant(object):
         else:
             denom_disp = self.disp.disp
         dim = self.p_array.shape[0]
-        self.gradient = np.zeros((dim))
         self.FC = np.zeros((dim, dim))
         if not self.deriv_level:
+            self.gradient = np.zeros((dim))
             p_en_array = self.p_array
             m_en_array = self.m_array
             e_r = self.ref_en
-            print("Force Constant disp sizes:")
             for index in indices:
                 i, j = index[0], index[1]
                 e_pi, e_pj = p_en_array[i, i], p_en_array[j, j]
@@ -85,7 +86,11 @@ class ForceConstant(object):
             il = (cf[1], cf[0])
             self.FC[il] = self.FC[cf]
         elif self.deriv_level == 1:
-            self.FC = (self.p_array - self.m_array) / (2 * denom_disp[0])
+            self.FC = self.first_deriv(self.p_array, self.m_array, denom_disp[0])
+            for i in range(len(self.FC) - 1):
+                for j in range(i + 1):
+                    self.FC[i + 1, j] = (self.FC[i + 1, j] + self.FC[j, i + 1]) / 2
+                    self.FC[j, i + 1] = self.FC[i + 1, j]
         else:
             print("Higher order deriv_level computations aren't yet supported")
             raise RuntimeError

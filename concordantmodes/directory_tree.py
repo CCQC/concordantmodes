@@ -1,12 +1,17 @@
-import fileinput
-import os
-import re
+from pathlib import Path
 import shutil
 import copy
-import numpy as np
 
 
-class DirectoryTree(object):
+class DirectoryTree:
+    PROG_LIST = {"molpro", "psi4", "cfour", "orca"}
+
+    INSERTION_MAP = {
+        "A": "cart_insert_a",
+        "B": "cart_insert_b",
+        "C": "cart_insert_c",
+    }
+
     def __init__(
         self,
         prog_name,
@@ -31,206 +36,115 @@ class DirectoryTree(object):
         self.options = options
         self.indices = indices
         self.symm_obj = symm_obj
-        self.template = template
-        self.dir_name = dir_name
+        self.template = Path(template)
+        self.dir_name = Path(dir_name)
         self.deriv_level = deriv_level
-        if cma_level == "A":
-            self.insertion_index = self.options.cart_insert_a
-        elif cma_level == "B":
-            self.insertion_index = self.options.cart_insert_b
-        elif cma_level == "C":
-            self.insertion_index = self.options.cart_insert_c
-        else:
-            print("Please specify A, B, or C for your cma_level")
-            raise RuntimeError
+
+        try:
+            self.insertion_index = getattr(self.options, self.INSERTION_MAP[cma_level])
+        except KeyError:
+            raise RuntimeError("cma_level must be A, B, or C")
 
     def run(self):
+        root = Path.cwd()
 
-        root = os.getcwd()
+        if self.prog_name not in self.PROG_LIST:
+            raise RuntimeError(f"Unsupported program: {self.prog_name}")
 
-        prog_name = self.prog_name
-
+        data = self.template.read_text().splitlines(keepends=True)
         n_atoms = len(self.zmat.atom_list)
 
-        prog_list = ["molpro", "psi4", "cfour", "orca"]
+        # Detect optional files
+        self.init = (root / "initden.dat").exists()
+        self.genbas = (root / "GENBAS").exists()
+        self.ecp = (root / "ECPDATA").exists()
+        self.sub = (root / "sub_script.sh").exists()
 
-        if prog_name in prog_list:
-            with open(self.template, "r") as file:
-                data = file.readlines()
-        else:
-            print("Specified program not supported: " + prog_name)
-            raise RuntimeError
+        # Backup existing directory
+        old_dir = root / f"old{self.dir_name}"
+        if old_dir.exists():
+            shutil.rmtree(old_dir)
 
-        self.init = False
-        self.genbas = False
-        self.ecp = False
-        self.sub = False
-        print("Giraffe")
-        print(root)
-        if os.path.exists(root + "/initden.dat"):
-            self.init = True
-        if os.path.exists(root + "/GENBAS"):
-            self.genbas = True
-        if os.path.exists(root + "/ECPDATA"):
-            self.ecp = True
-        if os.path.exists(root + "/sub_script.sh"):
-            print("We made it here.")
-            self.sub = True
-        # raise RuntimeError
+        if self.dir_name.exists():
+            shutil.copytree(self.dir_name, old_dir)
+            shutil.rmtree(self.dir_name)
 
-        data_buff = data.copy()
-        if os.path.exists(os.getcwd() + "/old" + self.dir_name):
-            shutil.rmtree("old" + self.dir_name, ignore_errors=True)
-        if os.path.exists(os.getcwd() + "/" + self.dir_name):
-            shutil.copytree(
-                os.getcwd() + "/" + self.dir_name, os.getcwd() + "/old" + self.dir_name
-            )
-            shutil.rmtree(os.getcwd() + "/" + self.dir_name)
-        inp = ""
-        if self.prog_name == "cfour":
-            inp = "ZMAT"
-        else:
-            inp = "input.dat"
-        if os.path.exists(os.getcwd() + "/" + self.dir_name):
-            shutil.move(self.dir_name, "old" + self.dir_name)
-        os.mkdir(self.dir_name)
-        os.chdir("./" + self.dir_name)
-        if not self.deriv_level:
-            self.make_input(
-                copy.deepcopy(data),
-                self.ref_geom,
-                n_atoms,
-                self.zmat.atom_list,
-                self.insertion_index,
-                inp,
-                "1",
-            )
+        self.dir_name.mkdir()
+        Path.chdir = lambda p: None  # avoid lint complaints
 
-            # Not including the reference input, this function generates the directories for the displacement
-            # jobs and copies in the input file data. Following this, these jobs are ready to be submitted to the queue.
+        inp = "ZMAT" if self.prog_name == "cfour" else "input.dat"
 
-            p_disp = self.p_disp
-            m_disp = self.m_disp
-            indices = self.indices
-            direc = 2
-
-            if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
-                if self.options.only_TSIR:
-                    indices = self.symm_obj.indices_by_irrep[0]
-                else:
-                    indices = (
-                        deepcopy.copy(self.symm_obj.indices_by_irrep)
-                        .flatten()
-                        .reshape((-1, 2))
-                    )
-
-            Sum = 1
-            h = 0
-            for index in indices:
-                i, j = index[0], index[1]
-                self.make_input(
-                    copy.deepcopy(data),
-                    p_disp[i, j],
-                    n_atoms,
-                    self.zmat.atom_list,
-                    self.insertion_index,
-                    inp,
-                    direc,
-                )
-                if h != 0:
-                    direc += 1
-                else:
-                    self.make_input(
-                        copy.deepcopy(data),
-                        m_disp[i, j],
-                        n_atoms,
-                        self.zmat.atom_list,
-                        self.insertion_index,
-                        inp,
-                        direc + 1,
-                    )
-
-                    direc += 2
-                if (
-                    self.symm_obj.symtext is not None
-                    and self.options.exploit_pm_symm
-                    and not self.options.only_TSIR
-                    and Sum > len(self.symm_obj.indices_by_irrep[0])
-                ):
-                    h += 1
-                Sum += 1
-
+        # Generate inputs
+        if self.deriv_level == 0:
+            self._run_energy(data, n_atoms, inp)
         elif self.deriv_level == 1:
-            direc = 1
-            for index in self.indices:
-                self.make_input(
-                    copy.deepcopy(data),
-                    self.p_disp[index[0]],
-                    n_atoms,
-                    self.zmat.atom_list,
-                    self.insertion_index,
-                    inp,
-                    direc,
-                )
-
-                self.make_input(
-                    copy.deepcopy(data),
-                    self.m_disp[index[0]],
-                    n_atoms,
-                    self.zmat.atom_list,
-                    self.insertion_index,
-                    inp,
-                    direc + 1,
-                )
-
-                direc += 2
+            self._run_gradient(data, n_atoms, inp)
         else:
-            print(
-                "Only energy and gradient derivatives are supported. Check your deriv_level keyword."
-            )
-            raise RuntimeError
+            raise RuntimeError("Only energy and gradient derivatives supported")
 
-    def make_input(self, data, dispp, n_at, at, index, inp, direc, copy_files=False):
-        os.mkdir(str(direc))
-        os.chdir("./" + str(direc))
-        data_buff = copy.deepcopy(data)
-        space = " "
-        if self.prog_name == "cfour":
-            space = ""
-        if index == -1:
-            print(
-                "The user needs to specify a value for the \
-                   cart_insert_a, cart_insert_b, or cart_insert_c keyword."
-            )
-            raise RuntimeError
-        else:
-            for i in range(n_at):
-                data.insert(
-                    index + i,
-                    space
-                    + at[i]
-                    + "{:16.10f}".format(dispp[i][0])
-                    + "{:16.10f}".format(dispp[i][1])
-                    + "{:16.10f}".format(dispp[i][2])
-                    + "\n",
-                )
+    def _run_energy(self, data, n_atoms, inp):
+        self.make_input(data, self.ref_geom, n_atoms, inp, "1")
 
-            with open(inp, "w") as file:
-                file.writelines(data)
-            data_final = copy.deepcopy(data)
-            data = copy.deepcopy(data_buff)
-            if self.options.cluster.lower() == "custom":
-                copy_files = True
-            if copy_files:
-                if self.init:
-                    shutil.copy("../../initden.dat", ".")
-                if self.genbas:
-                    shutil.copy("../../GENBAS", ".")
-                if self.ecp:
-                    shutil.copy("../../ECPDATA", ".")
-                if self.sub:
-                    shutil.copy("../../sub_script.sh", ".")
-                    print("we also made it here")
-            os.chdir("..")
+        indices = self._resolve_indices()
 
-        return data_final
+        direc = 2
+        for i, j in indices:
+            self.make_input(data, self.p_disp[i, j], n_atoms, inp, str(direc))
+            self.make_input(data, self.m_disp[i, j], n_atoms, inp, str(direc + 1))
+            direc += 2
+
+    def _run_gradient(self, data, n_atoms, inp):
+
+        self.make_input(data, self.ref_geom, n_atoms, inp, "1")
+
+        direc = 2
+
+        for idx in self.indices:
+            self.make_input(data, self.p_disp[idx[0]], n_atoms, inp, str(direc))
+            self.make_input(data, self.m_disp[idx[0]], n_atoms, inp, str(direc + 1))
+            direc += 2
+
+    def _resolve_indices(self):
+        if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
+            if self.options.only_TSIR:
+                return self.symm_obj.indices_by_irrep[0]
+            return self.symm_obj.indices_by_irrep.reshape((-1, 2))
+
+        return self.indices
+
+    def make_input(self, data, geom, n_atoms, inp, direc):
+        path = self.dir_name / str(direc)
+        path.mkdir(parents=True, exist_ok=True)
+
+        space = "" if self.prog_name == "cfour" else " "
+
+        new_data = data.copy()
+
+        if self.insertion_index == -1:
+            raise RuntimeError("Invalid insertion index")
+
+        for i in range(n_atoms):
+            atom = self.zmat.atom_list[i]
+            x, y, z = geom[i]
+            line = f"{space}{atom}{x:16.10f}{y:16.10f}{z:16.10f}\n"
+            new_data.insert(self.insertion_index + i, line)
+
+        (path / inp).write_text("".join(new_data))
+        
+        self.new_data = new_data
+        
+        self._copy_support_files(path)
+
+    def _copy_support_files(self, path):
+        root = Path.cwd().parent
+
+        files = {
+            "initden.dat": self.init,
+            "GENBAS": self.genbas,
+            "ECPDATA": self.ecp,
+            "sub_script.sh": self.sub,
+        }
+
+        for fname, exists in files.items():
+            if exists:
+                shutil.copy(root / fname, path)

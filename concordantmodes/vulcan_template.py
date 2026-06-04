@@ -3,7 +3,7 @@ from numpy.linalg import inv
 from numpy import linalg as LA
 
 
-class VulcanTemplate(object):
+class VulcanTemplate:
     """
     This file just stores the vulcan qsub script
     """

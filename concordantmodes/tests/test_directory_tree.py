@@ -39,8 +39,14 @@ def test_make_input():
         None,
         symm_obj,
         "template.dat",
-        None,
+        ".",
+        # None,
     )
+
+    DT.init = False
+    DT.genbas = False
+    DT.ecp = False
+    DT.sub = False
 
     with open("template.dat", "r") as file:
         data = file.readlines()
@@ -50,7 +56,8 @@ def test_make_input():
     if os.path.exists(os.getcwd() + "/1"):
         shutil.rmtree(os.getcwd() + "/1")
 
-    data = DT.make_input(data, dispp, len(at), at, index, "input.dat", "1")
+    DT.make_input(data, dispp, len(at), "input.dat", "1")
+    # data = DT.make_input(data, dispp, len(at), at, index, "input.dat", "1")
     os.chdir("../..")
 
-    assert data == reference
+    assert DT.new_data == reference

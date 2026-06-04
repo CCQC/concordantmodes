@@ -7,7 +7,7 @@ from scipy.linalg import block_diag
 import copy
 
 
-class GFMethod(object):
+class GFMethod:
     """
     This class is a versatile method to compute GF frequencies.
 

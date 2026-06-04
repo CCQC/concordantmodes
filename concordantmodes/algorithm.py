@@ -4,7 +4,7 @@ import scipy
 from scipy import stats
 
 
-class Algorithm(object):
+class Algorithm:
     """
     The purpose of this class is to return a list of indices by which the force constants of the CMA method
     will be computed. These indices will be determined by user input where nonabelian symmetry can be

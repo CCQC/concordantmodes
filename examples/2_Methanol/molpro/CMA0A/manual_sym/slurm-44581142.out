@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "/home/mel64643/github/concordantmodes/examples/2_Methanol/molpro/CMA0A/manual_sym/main.py", line 69, in <module>
+    CMA_obj.run(sym_sort=sym_sort)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/home/mel64643/github/concordantmodes/concordantmodes/cma.py", line 89, in run
+    self.F_b, self.grad_b = self.compute_hessian(cma_level, self.options.deriv_level_b, coord_type, self.zmat_obj, self.options, rootdir, self.zmat_obj.cartesians_b, proj=self.proj, off_diag=0, prog=self.options.program_b, gen_disps=self.options.gen_disps_b, calc=self.options.calc_b)
+                            ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mel64643/github/concordantmodes/concordantmodes/cma.py", line 399, in compute_hessian
+    self.disp.run(fc=fc)
+    ^^^^^^^^^^^^^
+AttributeError: 'TransfDisp' object has no attribute 'run'

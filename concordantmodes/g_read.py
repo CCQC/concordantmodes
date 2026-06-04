@@ -4,7 +4,7 @@ from numpy.linalg import inv
 from numpy import linalg as LA
 
 
-class GrRead(object):
+class GrRead:
     """
     This class may be used to read in force constant information from the
     standard 3-column formatted file. Idk what that format is called, but

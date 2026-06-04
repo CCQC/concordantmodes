@@ -1,13 +1,10 @@
-import os
-import shutil
 import numpy as np
 from concordantmodes.ted import TED
 from concordantmodes.int2cart import Int2Cart
-from numpy.linalg import inv
 from numpy import linalg as LA
 
 
-class SVectors(object):
+class SVectors:
     """
     s-vectors: s_a^k = (B_ax^k,B_ay^k,B_az^k)
     Where a refers to the atom #, and k refers to the internal coordinate.
@@ -28,10 +25,9 @@ class SVectors(object):
         self.linx_indices = zmat.linx_indices
         self.liny_indices = zmat.liny_indices
         self.options = options
-        # self.variable_dict = variable_dict
         self.zmat = zmat
 
-    def run(self, carts, B_proj, proj=None, second_order=False):
+    def run(self, carts, B_proj, proj=np.array([]), second_order=False):
         self.proj = proj
         # Initialize the cartesian coordinates
         self.carts = carts
@@ -48,494 +44,158 @@ class SVectors(object):
         # LinY Bends
 
         # First, bonds.
-        if len(self.bond_indices) > 0:
-            for i in range(len(self.bond_indices)):
-                indies = self.bond_indices[i]
-                Len = len(np.array(indies[0]).shape)
-                if Len:
-                    x1 = [0.0, 0.0, 0.0]
-                    for j in indies[0]:
-                        x1 += self.carts[int(j) - 1]
-                    x1 /= len(indies[0])
-                    x2 = [0.0, 0.0, 0.0]
-                    for j in indies[1]:
-                        x2 += self.carts[int(j) - 1]
-                    x2 /= len(indies[1])
-                else:
-                    x1 = self.carts[int(indies[0]) - 1]
-                    x2 = self.carts[int(indies[1]) - 1]
+        for i, groups in enumerate(self.bond_indices):
+            x1, x2 = self._get_points(groups)
 
-                self.s_2center_dict["B" + str(i + 1)] = self.carts.copy()
-                self.s_2center_dict["B" + str(i + 1)] = (
-                    0 * self.s_2center_dict["B" + str(i + 1)]
-                )
-                b_1 = self.compute_e(x1, x2)
-                b_2 = -b_1
-                if Len:
-                    for j in indies[0]:
-                        self.s_2center_dict["B" + str(i + 1)][int(j) - 1] += b_1 / len(
-                            indies[0]
-                        )
-                    for j in indies[1]:
-                        self.s_2center_dict["B" + str(i + 1)][int(j) - 1] += b_2 / len(
-                            indies[1]
-                        )
-                else:
-                    self.s_2center_dict["B" + str(i + 1)][int(indies[0]) - 1] = b_1
-                    self.s_2center_dict["B" + str(i + 1)][int(indies[1]) - 1] = b_2
+            e = self.compute_e(x1, x2)
+            values = [e, -e]
+
+            key = f"B{i+1}"
+            self._build_s_vector(key, groups, values, self.s_2center_dict)
 
         # Next, angles.
-        if len(self.angle_indices) > 0:
-            for i in range(len(self.angle_indices)):
-                indies = self.angle_indices[i]
-                Len = len(np.array(indies[0]).shape)
-                if Len:
-                    x1 = [0.0, 0.0, 0.0]
-                    L = len(indies[0])
-                    for j in indies[0]:
-                        x1 += self.carts[int(j) - 1]
-                    x1 /= L
-                    x2 = [0.0, 0.0, 0.0]
-                    L = len(indies[1])
-                    for j in indies[1]:
-                        x2 += self.carts[int(j) - 1]
-                    x2 /= L
-                    x3 = [0.0, 0.0, 0.0]
-                    L = len(indies[2])
-                    for j in indies[2]:
-                        x3 += self.carts[int(j) - 1]
-                    x3 /= L
-                else:
-                    x1 = self.carts[int(indies[0]) - 1]
-                    x2 = self.carts[int(indies[1]) - 1]
-                    x3 = self.carts[int(indies[2]) - 1]
+        for i, groups in enumerate(self.angle_indices):
+            x1, x2, x3 = self._get_points(groups)
 
-                self.s_3center_dict["A" + str(i + 1)] = self.carts.copy()
-                self.s_3center_dict["A" + str(i + 1)] = (
-                    0 * self.s_3center_dict["A" + str(i + 1)]
-                )
-                r_1 = self.compute_r(x1, x2)
-                r_2 = self.compute_r(x2, x3)
-                e_1 = self.compute_e(x1, x2)
-                e_2 = self.compute_e(x3, x2)
-                phi = self.compute_phi(e_1, e_2)
-                a_1 = self.compute_BEND(e_1, e_2, phi, r_1)
-                a_3 = self.compute_BEND(e_2, e_1, phi, r_2)
-                a_2 = -a_1 - a_3
+            r1 = self.compute_r(x1, x2)
+            r2 = self.compute_r(x2, x3)
+            e1 = self.compute_e(x1, x2)
+            e2 = self.compute_e(x3, x2)
 
-                if Len:
-                    for j in indies[0]:
-                        self.s_3center_dict["A" + str(i + 1)][int(j) - 1] += a_1 / len(
-                            indies[0]
-                        )
-                    for j in indies[1]:
-                        self.s_3center_dict["A" + str(i + 1)][int(j) - 1] += a_2 / len(
-                            indies[1]
-                        )
-                    for j in indies[2]:
-                        self.s_3center_dict["A" + str(i + 1)][int(j) - 1] += a_3 / len(
-                            indies[2]
-                        )
-                else:
-                    self.s_3center_dict["A" + str(i + 1)][int(indies[0]) - 1] = a_1
-                    self.s_3center_dict["A" + str(i + 1)][int(indies[1]) - 1] = a_2
-                    self.s_3center_dict["A" + str(i + 1)][int(indies[2]) - 1] = a_3
+            phi = self.compute_phi(e1, e2)
+
+            a1 = self.compute_BEND(e1, e2, phi, r1)
+            a3 = self.compute_BEND(e2, e1, phi, r2)
+            a2 = -a1 - a3
+
+            values = [a1, a2, a3]
+
+            key = f"A{i+1}"
+            self._build_s_vector(key, groups, values, self.s_3center_dict)
 
         # Next, torsions.
-        if len(self.torsion_indices) > 0:
-            for i in range(len(self.torsion_indices)):
-                indies = self.torsion_indices[i]
-                Len = len(np.array(indies[0]).shape)
-                if Len:
-                    x1 = [0.0, 0.0, 0.0]
-                    for j in indies[0]:
-                        x1 += self.carts[int(j) - 1]
-                    x1 /= len(indies[0])
-                    x2 = [0.0, 0.0, 0.0]
-                    for j in indies[1]:
-                        x2 += self.carts[int(j) - 1]
-                    x2 /= len(indies[1])
-                    x3 = [0.0, 0.0, 0.0]
-                    for j in indies[2]:
-                        x3 += self.carts[int(j) - 1]
-                    x3 /= len(indies[2])
-                    x4 = [0.0, 0.0, 0.0]
-                    for j in indies[3]:
-                        x4 += self.carts[int(j) - 1]
-                    x4 /= len(indies[3])
-                else:
-                    x1 = self.carts[int(indies[0]) - 1]
-                    x2 = self.carts[int(indies[1]) - 1]
-                    x3 = self.carts[int(indies[2]) - 1]
-                    x4 = self.carts[int(indies[3]) - 1]
+        for i, groups in enumerate(self.torsion_indices):
+            x1, x2, x3, x4 = self._get_points(groups)
 
-                self.s_4center_dict["D" + str(i + 1)] = self.carts.copy()
-                self.s_4center_dict["D" + str(i + 1)] = (
-                    0 * self.s_4center_dict["D" + str(i + 1)]
-                )
+            r_1 = self.compute_r(x1, x2)
+            r_2 = self.compute_r(x2, x3)
+            r_3 = self.compute_r(x3, x4)
+            e_1 = self.compute_e(x1, x2)
+            e_2 = self.compute_e(x2, x3)
+            e_3 = self.compute_e(x3, x4)
+            phi_1 = self.compute_phi(e_1, -e_2)
+            phi_2 = self.compute_phi(e_2, -e_3)
 
-                r_1 = self.compute_r(x1, x2)
-                r_2 = self.compute_r(x2, x3)
-                r_3 = self.compute_r(x3, x4)
-                e_1 = self.compute_e(x1, x2)
-                e_2 = self.compute_e(x2, x3)
-                e_3 = self.compute_e(x3, x4)
-                phi_1 = self.compute_phi(e_1, -e_2)
-                phi_2 = self.compute_phi(e_2, -e_3)
+            t1 = self.compute_TORS1(e_1, -e_2, phi_1, r_1)
+            t4 = self.compute_TORS1(-e_3, e_2, phi_2, r_3)
+            t2 = self.compute_TORS2(e_1, -e_2, -e_3, phi_1, phi_2, r_1, r_2)
+            t3 = -t1 - t2 - t4
 
-                t_1 = self.compute_TORS1(e_1, -e_2, phi_1, r_1)
-                t_4 = self.compute_TORS1(-e_3, e_2, phi_2, r_3)
-                t_2 = self.compute_TORS2(e_1, -e_2, -e_3, phi_1, phi_2, r_1, r_2)
-                t_3 = -t_1 - t_2 - t_4
+            values = [t1, t2, t3, t4]
 
-                if Len:
-                    for j in indies[0]:
-                        self.s_4center_dict["D" + str(i + 1)][int(j) - 1] += t_1 / len(
-                            indies[0]
-                        )
-                    for j in indies[1]:
-                        self.s_4center_dict["D" + str(i + 1)][int(j) - 1] += t_2 / len(
-                            indies[1]
-                        )
-                    for j in indies[2]:
-                        self.s_4center_dict["D" + str(i + 1)][int(j) - 1] += t_3 / len(
-                            indies[2]
-                        )
-                    for j in indies[3]:
-                        self.s_4center_dict["D" + str(i + 1)][int(j) - 1] += t_4 / len(
-                            indies[3]
-                        )
-                else:
-                    self.s_4center_dict["D" + str(i + 1)][int(indies[0]) - 1] = t_1
-                    self.s_4center_dict["D" + str(i + 1)][int(indies[1]) - 1] = t_2
-                    self.s_4center_dict["D" + str(i + 1)][int(indies[2]) - 1] = t_3
-                    self.s_4center_dict["D" + str(i + 1)][int(indies[3]) - 1] = t_4
+            key = f"D{i+1}"
+            self._build_s_vector(key, groups, values, self.s_4center_dict)
 
         # Now, out of plane bending.
-        if len(self.oop_indices) > 0:
-            for i in range(len(self.oop_indices)):
-                indies = self.oop_indices[i]
-                Len = len(np.array(indies[0]).shape)
-                if Len:
-                    x1 = [0.0, 0.0, 0.0]
-                    for j in indies[0]:
-                        x1 += self.carts[int(j) - 1]
-                    x1 /= len(indies[0])
-                    x2 = [0.0, 0.0, 0.0]
-                    for j in indies[1]:
-                        x2 += self.carts[int(j) - 1]
-                    x2 /= len(indies[1])
-                    x3 = [0.0, 0.0, 0.0]
-                    for j in indies[2]:
-                        x3 += self.carts[int(j) - 1]
-                    x3 /= len(indies[2])
-                    x4 = [0.0, 0.0, 0.0]
-                    for j in indies[3]:
-                        x4 += self.carts[int(j) - 1]
-                    x4 /= len(indies[3])
-                else:
-                    x1 = self.carts[int(indies[0]) - 1]
-                    x2 = self.carts[int(indies[1]) - 1]
-                    x3 = self.carts[int(indies[2]) - 1]
-                    x4 = self.carts[int(indies[3]) - 1]
+        for i, groups in enumerate(self.oop_indices):
+            x1, x2, x3, x4 = self._get_points(groups)
 
-                self.s_4center_dict["O" + str(i + 1)] = self.carts.copy()
-                self.s_4center_dict["O" + str(i + 1)] = (
-                    0 * self.s_4center_dict["O" + str(i + 1)]
-                )
+            r_1 = self.compute_r(x1, x2)
+            r_2 = self.compute_r(x3, x2)
+            r_3 = self.compute_r(x4, x2)
+            e_1 = self.compute_e(x1, x2)
+            e_2 = self.compute_e(x3, x2)
+            e_3 = self.compute_e(x4, x2)
+            phi = self.compute_phi(e_2, e_3)
+            theta = self.calc_OOP(x1, x2, x3, x4)
 
-                r_1 = self.compute_r(x1, x2)
-                r_2 = self.compute_r(x3, x2)
-                r_3 = self.compute_r(x4, x2)
-                e_1 = self.compute_e(x1, x2)
-                e_2 = self.compute_e(x3, x2)
-                e_3 = self.compute_e(x4, x2)
-                phi = self.compute_phi(e_2, e_3)
-                theta = self.calc_OOP(x1, x2, x3, x4)
+            o1 = self.compute_OOP1(e_1, e_2, e_3, r_1, theta, phi)
+            o3 = self.compute_OOP2(e_1, e_2, e_3, r_2, theta, phi)
+            o4 = self.compute_OOP2(-e_1, e_3, e_2, r_3, theta, phi)
+            o2 = -o1 - o3 - o4
 
-                o_1 = self.compute_OOP1(e_1, e_2, e_3, r_1, theta, phi)
-                o_3 = self.compute_OOP2(e_1, e_2, e_3, r_2, theta, phi)
-                o_4 = self.compute_OOP2(-e_1, e_3, e_2, r_3, theta, phi)
-                o_2 = -o_1 - o_3 - o_4
+            values = [o1, o2, o3, o4]
 
-                if Len:
-                    for j in indies[0]:
-                        self.s_4center_dict["O" + str(i + 1)][int(j) - 1] += o_1 / len(
-                            indies[0]
-                        )
-                    for j in indies[1]:
-                        self.s_4center_dict["O" + str(i + 1)][int(j) - 1] += o_2 / len(
-                            indies[1]
-                        )
-                    for j in indies[2]:
-                        self.s_4center_dict["O" + str(i + 1)][int(j) - 1] += o_3 / len(
-                            indies[2]
-                        )
-                    for j in indies[3]:
-                        self.s_4center_dict["O" + str(i + 1)][int(j) - 1] += o_4 / len(
-                            indies[3]
-                        )
-                else:
-                    self.s_4center_dict["O" + str(i + 1)][int(indies[0]) - 1] = o_1
-                    self.s_4center_dict["O" + str(i + 1)][int(indies[1]) - 1] = o_2
-                    self.s_4center_dict["O" + str(i + 1)][int(indies[2]) - 1] = o_3
-                    self.s_4center_dict["O" + str(i + 1)][int(indies[3]) - 1] = o_4
+            key = f"O{i+1}"
+            self._build_s_vector(key, groups, values, self.s_4center_dict)
 
         # Linear bending.
-        if len(self.lin_indices) > 0:
-            for i in range(len(self.lin_indices)):
-                indies = self.lin_indices[i]
-                Len = len(np.array(indies[0]).shape)
-                if Len:
-                    x1 = [0.0, 0.0, 0.0]
-                    for j in indies[0]:
-                        x1 += self.carts[int(j) - 1]
-                    x1 /= len(indies[0])
-                    x2 = [0.0, 0.0, 0.0]
-                    for j in indies[1]:
-                        x2 += self.carts[int(j) - 1]
-                    x2 /= len(indies[1])
-                    x3 = [0.0, 0.0, 0.0]
-                    for j in indies[2]:
-                        x3 += self.carts[int(j) - 1]
-                    x3 /= len(indies[2])
-                    x4 = [0.0, 0.0, 0.0]
-                    for j in indies[3]:
-                        x4 += self.carts[int(j) - 1]
-                    x4 /= len(indies[3])
-                else:
-                    x1 = self.carts[int(indies[0]) - 1]
-                    x2 = self.carts[int(indies[1]) - 1]
-                    x3 = self.carts[int(indies[2]) - 1]
-                    x4 = self.carts[int(indies[3]) - 1]
+        for i, groups in enumerate(self.lin_indices):
+            x1, x2, x3, x4 = self._get_points(groups)
 
-                self.s_4center_dict["L" + str(i + 1)] = self.carts.copy()
-                self.s_4center_dict["L" + str(i + 1)] = (
-                    0 * self.s_4center_dict["L" + str(i + 1)]
-                )
-                r_1 = self.compute_r(x1, x2)
-                r_2 = self.compute_r(x3, x2)
-                r_3 = self.compute_r(x4, x2)
-                e_1 = self.compute_e(x1, x2)
-                e_2 = self.compute_e(x3, x2)
-                e_3 = self.compute_e(x4, x2)
-                theta = self.calc_Lin(x1, x2, x3, x4)
+            r_1 = self.compute_r(x1, x2)
+            r_2 = self.compute_r(x3, x2)
+            r_3 = self.compute_r(x4, x2)
+            e_1 = self.compute_e(x1, x2)
+            e_2 = self.compute_e(x3, x2)
+            e_3 = self.compute_e(x4, x2)
+            theta = self.calc_Lin(x1, x2, x3, x4)
 
-                l_1 = self.compute_LIN(e_1, e_2, e_3, r_1, theta)
-                l_3 = self.compute_LIN(e_2, e_3, e_1, r_2, theta)
-                l_2 = -l_1 - l_3
+            l1 = self.compute_LIN(e_1, e_2, e_3, r_1, theta)
+            l3 = self.compute_LIN(e_2, e_3, e_1, r_2, theta)
+            l2 = -l1 - l3
 
-                if Len:
-                    for j in indies[0]:
-                        self.s_4center_dict["L" + str(i + 1)][int(j) - 1] += l_1 / len(
-                            indies[0]
-                        )
-                    for j in indies[1]:
-                        self.s_4center_dict["L" + str(i + 1)][int(j) - 1] += l_2 / len(
-                            indies[1]
-                        )
-                    for j in indies[2]:
-                        self.s_4center_dict["L" + str(i + 1)][int(j) - 1] += l_3 / len(
-                            indies[2]
-                        )
-                else:
-                    self.s_4center_dict["L" + str(i + 1)][int(indies[0]) - 1] = l_1
-                    self.s_4center_dict["L" + str(i + 1)][int(indies[1]) - 1] = l_2
-                    self.s_4center_dict["L" + str(i + 1)][int(indies[2]) - 1] = l_3
+            values = [l1, l2, l3]
+
+            key = f"L{i+1}"
+            self._build_s_vector(key, groups, values, self.s_4center_dict)
 
         # LinX bending.
-        if len(self.linx_indices) > 0:
-            for i in range(len(self.linx_indices)):
-                indies = self.linx_indices[i]
-                Len = len(np.array(indies[0]).shape)
-                if Len:
-                    x1 = [0.0, 0.0, 0.0]
-                    for j in indies[0]:
-                        x1 += self.carts[int(j) - 1]
-                    x1 /= len(indies[0])
-                    x2 = [0.0, 0.0, 0.0]
-                    for j in indies[1]:
-                        x2 += self.carts[int(j) - 1]
-                    x2 /= len(indies[1])
-                    x3 = [0.0, 0.0, 0.0]
-                    for j in indies[2]:
-                        x3 += self.carts[int(j) - 1]
-                    x3 /= len(indies[2])
-                    x4 = [0.0, 0.0, 0.0]
-                    for j in indies[3]:
-                        x4 += self.carts[int(j) - 1]
-                    x4 /= len(indies[3])
-                else:
-                    x1 = self.carts[int(indies[0]) - 1]
-                    x2 = self.carts[int(indies[1]) - 1]
-                    x3 = self.carts[int(indies[2]) - 1]
-                    x4 = self.carts[int(indies[3]) - 1]
+        for i, groups in enumerate(self.linx_indices):
+            x1, x2, x3, x4 = self._get_points(groups)
 
-                self.s_4center_dict["Lx" + str(i + 1)] = self.carts.copy()
-                self.s_4center_dict["Lx" + str(i + 1)] = (
-                    0 * self.s_4center_dict["Lx" + str(i + 1)]
-                )
-                r_1 = self.compute_r(x2, x1)
-                r_2 = self.compute_r(x3, x2)
-                r_3 = self.compute_r(x4, x3)
-                e_1 = self.compute_e(x1, x2)
-                e_2 = self.compute_e(x2, x3)
-                e_3 = self.compute_e(x3, x4)
-                ax = self.calc_alpha_x(e_1, e_2, e_3)
-                phi_1 = self.compute_phi(-e_1, e_2)
-                phi_2 = self.compute_phi(-e_2, e_3)
+            r_1 = self.compute_r(x2, x1)
+            r_2 = self.compute_r(x3, x2)
+            r_3 = self.compute_r(x4, x3)
+            e_1 = self.compute_e(x1, x2)
+            e_2 = self.compute_e(x2, x3)
+            e_3 = self.compute_e(x3, x4)
+            ax = self.calc_alpha_x(e_1, e_2, e_3)
+            phi_1 = self.compute_phi(-e_1, e_2)
+            phi_2 = self.compute_phi(-e_2, e_3)
 
-                lx_1 = self.compute_LINX1(e_1, e_2, e_3, r_1, phi_1, phi_2, ax)
-                lx_2 = self.compute_LINX2(e_1, e_2, e_3, r_1, r_2, phi_1, phi_2, ax)
-                lx_4 = self.compute_LINX4(e_1, e_2, e_3, r_3, phi_1, ax)
-                lx_3 = -lx_1 - lx_2 - lx_4
+            lx1 = self.compute_LINX1(e_1, e_2, e_3, r_1, phi_1, phi_2, ax)
+            lx2 = self.compute_LINX2(e_1, e_2, e_3, r_1, r_2, phi_1, phi_2, ax)
+            lx4 = self.compute_LINX4(e_1, e_2, e_3, r_3, phi_1, ax)
+            lx3 = -lx1 - lx2 - lx4
 
-                if Len:
-                    for j in indies[0]:
-                        self.s_4center_dict["Lx" + str(i + 1)][
-                            int(j) - 1
-                        ] += lx_1 / len(indies[0])
-                    for j in indies[1]:
-                        self.s_4center_dict["Lx" + str(i + 1)][
-                            int(j) - 1
-                        ] += lx_2 / len(indies[1])
-                    for j in indies[2]:
-                        self.s_4center_dict["Lx" + str(i + 1)][
-                            int(j) - 1
-                        ] += lx_3 / len(indies[2])
-                    for j in indies[3]:
-                        self.s_4center_dict["Lx" + str(i + 1)][
-                            int(j) - 1
-                        ] += lx_4 / len(indies[3])
-                else:
-                    self.s_4center_dict["Lx" + str(i + 1)][int(indies[0]) - 1] = lx_1
-                    self.s_4center_dict["Lx" + str(i + 1)][int(indies[1]) - 1] = lx_2
-                    self.s_4center_dict["Lx" + str(i + 1)][int(indies[2]) - 1] = lx_3
-                    self.s_4center_dict["Lx" + str(i + 1)][int(indies[3]) - 1] = lx_4
+            values = [lx1, lx2, lx3, lx4]
+
+            key = f"Lx{i+1}"
+            self._build_s_vector(key, groups, values, self.s_4center_dict)
 
         # LinY bending.
-        if len(self.liny_indices) > 0:
-            for i in range(len(self.liny_indices)):
-                indies = self.liny_indices[i]
-                Len = len(np.array(indies[0]).shape)
-                if Len:
-                    x1 = [0.0, 0.0, 0.0]
-                    for j in indies[0]:
-                        x1 += self.carts[int(j) - 1]
-                    x1 /= len(indies[0])
-                    x2 = [0.0, 0.0, 0.0]
-                    for j in indies[1]:
-                        x2 += self.carts[int(j) - 1]
-                    x2 /= len(indies[1])
-                    x3 = [0.0, 0.0, 0.0]
-                    for j in indies[2]:
-                        x3 += self.carts[int(j) - 1]
-                    x3 /= len(indies[2])
-                    x4 = [0.0, 0.0, 0.0]
-                    for j in indies[3]:
-                        x4 += self.carts[int(j) - 1]
-                    x4 /= len(indies[3])
-                else:
-                    x1 = self.carts[int(indies[0]) - 1]
-                    x2 = self.carts[int(indies[1]) - 1]
-                    x3 = self.carts[int(indies[2]) - 1]
-                    x4 = self.carts[int(indies[3]) - 1]
+        for i, groups in enumerate(self.liny_indices):
+            x1, x2, x3, x4 = self._get_points(groups)
 
-                self.s_4center_dict["Ly" + str(i + 1)] = self.carts.copy()
-                self.s_4center_dict["Ly" + str(i + 1)] = (
-                    0 * self.s_4center_dict["Ly" + str(i + 1)]
-                )
-                r_1 = self.compute_r(x2, x1)
-                r_2 = self.compute_r(x3, x2)
-                r_3 = self.compute_r(x4, x3)
-                e_1 = self.compute_e(x1, x2)
-                e_2 = self.compute_e(x2, x3)
-                e_3 = self.compute_e(x3, x4)
-                ay = self.calc_alpha_y(e_1, e_2, e_3)
-                phi_1 = self.compute_phi(-e_1, e_2)
-                phi_2 = self.compute_phi(-e_2, e_3)
+            r_1 = self.compute_r(x2, x1)
+            r_2 = self.compute_r(x3, x2)
+            r_3 = self.compute_r(x4, x3)
+            e_1 = self.compute_e(x1, x2)
+            e_2 = self.compute_e(x2, x3)
+            e_3 = self.compute_e(x3, x4)
+            ay = self.calc_alpha_y(e_1, e_2, e_3)
+            phi_1 = self.compute_phi(-e_1, e_2)
+            phi_2 = self.compute_phi(-e_2, e_3)
 
-                ly_1 = self.compute_LINY1(e_1, e_2, e_3, r_1, phi_1, ay)
-                ly_2 = self.compute_LINY2(e_1, e_2, e_3, r_1, r_2, phi_1, ay)
-                ly_4 = self.compute_LINY4(e_1, e_2, e_3, r_2, r_3, phi_1, ay)
-                ly_3 = -ly_1 - ly_2 - ly_4
+            ly1 = self.compute_LINY1(e_1, e_2, e_3, r_1, phi_1, ay)
+            ly2 = self.compute_LINY2(e_1, e_2, e_3, r_1, r_2, phi_1, ay)
+            ly4 = self.compute_LINY4(e_1, e_2, e_3, r_2, r_3, phi_1, ay)
+            ly3 = -ly1 - ly2 - ly4
 
-                if Len:
-                    for j in indies[0]:
-                        self.s_4center_dict["Ly" + str(i + 1)][
-                            int(j) - 1
-                        ] += ly_1 / len(indies[0])
-                    for j in indies[1]:
-                        self.s_4center_dict["Ly" + str(i + 1)][
-                            int(j) - 1
-                        ] += ly_2 / len(indies[1])
-                    for j in indies[2]:
-                        self.s_4center_dict["Ly" + str(i + 1)][
-                            int(j) - 1
-                        ] += ly_3 / len(indies[2])
-                    for j in indies[3]:
-                        self.s_4center_dict["Ly" + str(i + 1)][
-                            int(j) - 1
-                        ] += ly_4 / len(indies[3])
-                else:
-                    self.s_4center_dict["Ly" + str(i + 1)][int(indies[0]) - 1] = ly_1
-                    self.s_4center_dict["Ly" + str(i + 1)][int(indies[1]) - 1] = ly_2
-                    self.s_4center_dict["Ly" + str(i + 1)][int(indies[2]) - 1] = ly_3
-                    self.s_4center_dict["Ly" + str(i + 1)][int(indies[3]) - 1] = ly_4
+            values = [ly1, ly2, ly3, ly4]
 
-        # The last step will be to concatenate all of the s-vectors into a single B-tensor, in the order shown below.
-        self.B = np.array([self.s_2center_dict["B1"].flatten()])
+            key = f"Ly{i+1}"
+            self._build_s_vector(key, groups, values, self.s_4center_dict)
 
-        # Append stretches
-        for i in range(len(self.bond_indices) - 1):
-            self.B = np.append(
-                self.B,
-                np.array([self.s_2center_dict["B" + str(i + 2)].flatten()]),
-                axis=0,
-            )
+        # The last step will be to concatenate all of the s-vectors into a single B-tensor.
+        rows = []
 
-        # Append bends
-        for i in range(len(self.angle_indices)):
-            self.B = np.append(
-                self.B,
-                np.array([self.s_3center_dict["A" + str(i + 1)].flatten()]),
-                axis=0,
-            )
-        # Append torsions
-        for i in range(len(self.torsion_indices)):
-            self.B = np.append(
-                self.B,
-                np.array([self.s_4center_dict["D" + str(i + 1)].flatten()]),
-                axis=0,
-            )
-        # Append oop bends
-        for i in range(len(self.oop_indices)):
-            self.B = np.append(
-                self.B,
-                np.array([self.s_4center_dict["O" + str(i + 1)].flatten()]),
-                axis=0,
-            )
-        # Append lin bends
-        for i in range(len(self.lin_indices)):
-            self.B = np.append(
-                self.B,
-                np.array([self.s_4center_dict["L" + str(i + 1)].flatten()]),
-                axis=0,
-            )
-        # Append linx bends
-        for i in range(len(self.linx_indices)):
-            self.B = np.append(
-                self.B,
-                np.array([self.s_4center_dict["Lx" + str(i + 1)].flatten()]),
-                axis=0,
-            )
-        # Append liny bends
-        for i in range(len(self.liny_indices)):
-            self.B = np.append(
-                self.B,
-                np.array([self.s_4center_dict["Ly" + str(i + 1)].flatten()]),
-                axis=0,
-            )
+        rows += [v.flatten() for v in self.s_2center_dict.values()]
+        rows += [v.flatten() for v in self.s_3center_dict.values()]
+        rows += [v.flatten() for v in self.s_4center_dict.values()]
+
+        self.B = np.array(rows)
 
         tol = 1e-4
         # Now we acquire a linearly independant set of internal coordinates from the diagonalized
@@ -579,11 +239,7 @@ class SVectors(object):
                         self.B2[i, k, j + 1] = self.B2[i, j + 1, k]
             self.B2 = self.B2.astype(float)
             self.proj = Proj
-            # np.set_printoptions(precision=6, linewidth=240)
-            # print(self.B)
             self.B = B
-            # print(self.B)
-            # raise RuntimeError
 
     def compute_STRE(self, x1, x2):
         s = (x1 - x2) / self.compute_r(x1, x2)
@@ -802,3 +458,28 @@ class SVectors(object):
         B2 = (B2 + np.swapaxes(B2, 1, 2)) / 2
 
         return B2
+
+    def _get_points(self, groups):
+        """Return averaged coordinates for grouped or single indices."""
+        pts = []
+        for g in groups:
+            if np.ndim(g):  # calculates centroid. May need logic for COM.
+                coords = np.mean([self.carts[int(i) - 1] for i in g], axis=0)
+            else:
+                coords = self.carts[int(g) - 1]
+            pts.append(coords)
+        return pts
+
+    def _distribute(self, arr, groups, values):
+        """Distribute vector contributions across atoms."""
+        for group, val in zip(groups, values):
+            if np.ndim(group):
+                for i in group:
+                    arr[int(i) - 1] += val / len(group)
+            else:
+                arr[int(group) - 1] = val
+
+    def _build_s_vector(self, key, groups, values, store):
+        arr = np.zeros_like(self.carts)
+        self._distribute(arr, groups, values)
+        store[key] = arr
