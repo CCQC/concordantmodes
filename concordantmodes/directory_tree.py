@@ -123,6 +123,7 @@ class DirectoryTree:
     - ``ECPDATA``
     - ``sub_script.sh``
     """
+
     PROG_LIST = {"molpro", "psi4", "cfour", "orca"}
 
     INSERTION_MAP = {
@@ -270,9 +271,9 @@ class DirectoryTree:
             new_data.insert(self.insertion_index + i, line)
 
         (path / inp).write_text("".join(new_data))
-        
+
         self.new_data = new_data
-        
+
         self._copy_support_files(path)
 
     def _copy_support_files(self, path):

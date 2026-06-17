@@ -148,6 +148,7 @@ class GFMethod:
     analysis is performed to determine the contribution of each
     internal coordinate to every normal mode.
     """
+
     def __init__(self, G, F, zmat, ted, options, symtext=None, cma=None, sym_sort=[]):
         self.G = G
         self.F = F

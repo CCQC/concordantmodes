@@ -86,6 +86,7 @@ class TED:
     The resulting table reports the percentage contribution of each
     internal coordinate to every vibrational mode.
     """
+
     def __init__(self, proj, zmat, options):
         self.proj = proj
         self.zmat = zmat

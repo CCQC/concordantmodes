@@ -132,6 +132,7 @@ class Submit:
         )
         submitter.run()
     """
+
     def __init__(self, options, cma_level, rootdir, prog_name, prog):
         self.cma_level = cma_level
         self.options = options

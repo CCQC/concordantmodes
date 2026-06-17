@@ -63,6 +63,7 @@ class GrRead:
     >>> grad.shape
     (3 * len(cartesians),)
     """
+
     def __init__(self, file_name):
         self.file_name = file_name
         self.grad_regex = re.compile(r"(-?\d+\.\d+)")

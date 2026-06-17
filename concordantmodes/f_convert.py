@@ -117,6 +117,7 @@ class FcConv:
     The transformed force constants may optionally be written in a format
     compatible with CFOUR-style force-constant files.
     """
+
     # The constants are from:
     # https://physics.nist.gov/cgi-bin/cuu/Value?hr
     # If this link dies, find the new link on NIST

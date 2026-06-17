@@ -104,6 +104,7 @@ class Symmetry:
     MolSym:
         https://github.com/NASymmetry/MolSym
     """
+
     def __init__(self, zmat, options, proj):
         self.zmat = zmat
         self.options = options

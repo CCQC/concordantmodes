@@ -148,6 +148,7 @@ class Zmat:
     generate and analyze molecular graph walks and ring cycles of
     increasing length.
     """
+
     def __init__(self, options):
         self.amu_elMass = 5.48579909065 * (10 ** (-4))
         self.disp_tol = 1.0e-14

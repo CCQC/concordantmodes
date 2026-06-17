@@ -128,6 +128,7 @@ class Reap:
     :math:`P` is the projection matrix defining the vibrational
     coordinate space.
     """
+
     REGEX_MAP = {
         "A": ("gradient_regex_a", "energy_regex_a", "success_regex_a"),
         "B": ("gradient_regex_b", "energy_regex_b", "success_regex_b"),

@@ -124,7 +124,9 @@ class TransfDisp:
     coordinate transformations and force-constant manipulations depend on
     that convention.
     """
+
     np.set_printoptions(precision=8, linewidth=240)
+
     def __init__(
         self,
         s_vectors,

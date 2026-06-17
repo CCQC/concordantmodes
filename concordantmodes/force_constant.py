@@ -121,7 +121,7 @@ class ForceConstant:
 
     for all coordinate pairs.
     """
-    
+
     def __init__(
         self,
         disp,
