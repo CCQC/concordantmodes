@@ -34,16 +34,83 @@ from concordantmodes.zmat import Zmat
 
 class ConcordantModes:
     """
-    This constant is from:
-    https://physics.nist.gov/cgi-bin/cuu/Value?hr
-    If this link dies, find the new link on NIST
-    for the Hartree to Joule conversion and pop it in there.
-    There is a standard uncertainty of 0.0000000000085 to the MDYNE_HART constant.
-    BOHR_ANG: Standard uncertainty of 0.00000000080
+    Driver class for the Concordant Modes Algorithm (CMA).
+
+    This class orchestrates the complete vibrational analysis workflow,
+    including:
+
+    - Reading and processing molecular geometries and internal coordinates.
+    - Generating symmetry-adapted displacement coordinates via molsym.
+    - Constructing internal-coordinate Hessians from finite-difference
+      energies or gradients.
+    - Performing low-level (Level B) and high-level (Level A) force-constant
+      calculations within the CMA framework.
+    - Computing G and F matrices and solving the vibrational GF equations.
+    - Generating Total Energy Distribution (TED) analyses.
+    - Transforming force constants between internal and Cartesian coordinates.
+    - Producing harmonic vibrational frequencies, zero-point vibrational
+      energies (ZPVE), normal modes, and Molden output files.
+
+    The implementation supports conventional harmonic analyses, projected
+    coordinate spaces, symmetry-adapted displacements, reduced-displacement
+    CMA calculations, and optional second-order coordinate transformations.
+
+    Parameters
+    ----------
+    options : object
+        User-defined options controlling coordinate generation, electronic
+        structure calculations, finite-difference procedures, symmetry
+        handling, and output settings.
+    proj : numpy.ndarray, optional
+        Projection matrix defining the vibrational coordinate space. An empty
+        array indicates that the projection will be generated automatically.
+    extra_indices : list, optional
+        Additional displacement index pairs used for selective off-diagonal
+        force-constant evaluation in higher-order CMA procedures.
+
+    Attributes
+    ----------
+    MDYNE_HART : float
+        Conversion factor from Hartrees to mdyne·Å.
+    BOHR_ANG : float
+        Conversion factor from Bohr to Angstrom.
+    proj : numpy.ndarray
+        Active projection matrix defining a set of linearly independent internal coordinates.
+    zmat_obj : Zmat
+        Molecular internal-coordinate representation.
+    symm_obj : Symmetry
+        Symmetry analysis and displacement-reduction handler.
+    s_vec : SVectors
+        Internal-coordinate B-matrix and projection-space generator.
+    TED_obj : TED
+        Total Energy Distribution analysis object.
+    disp : TransfDisp
+        Coordinate displacement and transformation manager.
+    G : numpy.ndarray
+        Final transformed G matrix.
+    F_a : numpy.ndarray
+        High-level (Level A) force-constant matrix.
+    F_b : numpy.ndarray
+        Low-level (Level B) force-constant matrix.
+
+    Notes
+    -----
+    The CMA procedure computes a lower-cost reference Hessian (Level B),
+    obtains vibrational normal coordinates from a GF analysis, and then
+    evaluates selected force constants at a higher level of theory (Level A)
+    in the Level B normal coordinate basis. This approach significantly reduces
+    the computational cost of high-accuracy vibrational frequency calculations
+    while retaining much of the accuracy of a full Level A Hessian.
     """
 
     def __init__(self, options, proj=np.array([]), extra_indices=[]):
         self.options = options
+        # These constants are from:
+        # https://physics.nist.gov/cgi-bin/cuu/Value?hr
+        # If this link dies, find the new link on NIST
+        # for the Hartree to Joule conversion and pop it in there.
+        # There is a standard uncertainty of 0.0000000000085 to the MDYNE_HART constant.
+        # BOHR_ANG: Standard uncertainty of 0.00000000080
         self.MDYNE_HART = 4.3597447222071
         self.BOHR_ANG = 0.529177210903
         self.proj = proj

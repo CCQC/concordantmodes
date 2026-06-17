@@ -10,27 +10,121 @@ np.set_printoptions(precision=8, linewidth=240)
 
 
 class TransfDisp:
+    """
+    Generate Cartesian displacement geometries from internal-coordinate or
+    Cartesian-coordinate perturbations for finite-difference derivative
+    calculations.
+
+    This class performs iterative transformations between normal-coordinate
+    displacements and Cartesian coordinates using Wilson's B-matrix formalism.
+    It constructs the generalized inverse transformation matrix (A-matrix),
+    generates displaced molecular geometries, and optionally includes
+    second-order corrections through numerical second derivatives of the
+    B-matrix.
+
+    The transformation is based on:
+
+        A = B⁺ P
+
+    where B⁺ is the pseudoinverse of the B-matrix and P is the projection
+    matrix defining the nonredundant internal coordinate space. The resulting
+    A-matrix is subsequently transformed into the normal-coordinate basis to
+    produce Cartesian displacements corresponding to specified vibrational
+    normal mode displacements.
+
+    The class supports:
+
+    * Internal-coordinate displacements in normal-coordinate space.
+    * Cartesian-coordinate finite-difference displacements.
+    * First-derivative (gradient) displacement generation.
+    * Second-derivative (Hessian) displacement generation.
+    * Reduced or scaled displacement schemes.
+    * Optional second-order coordinate transformations using A₂ tensors.
+    * Tight iterative coordinate transformations with B-matrix updates.
+    * Symmetry-adapted displacement generation.
+
+    Parameters
+    ----------
+    s_vectors : SVectors or None
+        SVectors object containing the B-matrix and optional second-order
+        B-tensors. May be None for pure Cartesian displacements.
+    zmat : Zmat
+        Molecular coordinate object containing Cartesian coordinates,
+        internal-coordinate definitions, masses, and connectivity data.
+    eigs : ndarray
+        Matrix of normal-mode eigenvectors.
+    conv : bool
+        If True, enforce angular continuity corrections when converting
+        Cartesian coordinates to internal coordinates.
+    proj : ndarray
+        Projection matrix defining the nonredundant internal coordinate space.
+    options : Options
+        Runtime options controlling displacement sizes, convergence criteria,
+        scaling methods, coordinate systems, and numerical differentiation.
+    indices : iterable
+        List of coordinate index pairs used when generating second-derivative
+        displacements.
+    symm_obj : object, optional
+        Symmetry object used for symmetry-adapted coordinate generation.
+    coord_type : {"internal", "cartesian"}, optional
+        Coordinate system used for displacement generation.
+        Default is "internal".
+    deriv_level : int, optional
+        Derivative level to generate:
+
+        * 0 : second derivatives (Hessian displacements)
+        * 1 : first derivatives (gradient displacements)
+
+    cma_level : str, optional
+        Coordinate mode analysis level used when scaling displacements.
+        Default is "B".
+
+    Attributes
+    ----------
+    B : ndarray
+        Wilson B-matrix relating internal and Cartesian coordinates.
+    A : ndarray
+        First-order transformation matrix from normal coordinates to
+        Cartesian displacements.
+    eig_inv : ndarray
+        Normalized inverse eigenvector matrix.
+    n_coord : ndarray
+        Reference normal-coordinate values.
+    p_disp : ndarray
+        Positive displacement geometries.
+    m_disp : ndarray
+        Negative displacement geometries.
+    ref_carts : ndarray
+        Reference Cartesian geometry.
+    disp : float or ndarray
+        Displacement magnitudes used during finite differences.
+    proj : ndarray
+        Internal-coordinate projection matrix.
+    coord_type : str
+        Coordinate system used for displacement generation.
+    deriv_level : int
+        Derivative order being generated.
+
+    Notes
+    -----
+    For internal-coordinate displacements, Cartesian geometries are generated
+    iteratively until the transformed geometry reproduces the target normal
+    coordinate displacement within the specified convergence tolerance.
+
+    When ``options.second_order`` is enabled, second-order coordinate
+    transformations are included through:
+
+        Δx = A ΔQ + 1/2 A₂ : ΔQΔQ
+
+    where A₂ is constructed from numerical second derivatives of the
+    Wilson B-matrix.
+
+    The ordering of internal coordinates must remain consistent with the
+    ordering defined throughout the Concordant Modes package, since all
+    coordinate transformations and force-constant manipulations depend on
+    that convention.
+    """
     np.set_printoptions(precision=8, linewidth=240)
-    """
-    The purpose of this script is to perform an iterative transformation
-    between internal coordinate displacements and cartesian displacements,
-    using a first order, linear B-tensor transformation.
-
-    It is necessary to construct an inverse B-tensor called 'A', where,
-
-    A = uB^T(BuB^T)^-1.
-
-    u can simply be the I_3N identity matrix, so long as frequency intensities
-    are not desired.
-
-    If this is the case, then A simply becomes the following:
-
-    A = B^T(BB^T)^-1.
-
-    Where in fact, BB^T = G (non-mass-weighted)
-
-    """
-
     def __init__(
         self,
         s_vectors,

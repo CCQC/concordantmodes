@@ -6,10 +6,96 @@ from numpy import linalg as LA
 
 class SVectors:
     """
-    s-vectors: s_a^k = (B_ax^k,B_ay^k,B_az^k)
-    Where a refers to the atom #, and k refers to the internal coordinate.
-    So, all B-tensors can be contained within the s-vector
-    for each atom in the molecular system of interest.
+    Construct first- and second-order Wilson B-tensors (s-vectors) for a
+    molecular internal coordinate system.
+
+    This class evaluates the derivatives of internal coordinates with respect
+    to Cartesian coordinates and assembles them into the Wilson B-matrix used
+    throughout the GF method, coordinate transformations, force-constant
+    conversions, and vibrational analyses. Supported internal coordinate types
+    include bond stretches, angle bends, torsions, out-of-plane bends, linear
+    bends, and specialized linear bending coordinates (LinX and LinY).
+
+    For an internal coordinate q_k and atom a, the corresponding s-vector is
+
+        s_a^k = (∂q_k/∂x_a, ∂q_k/∂y_a, ∂q_k/∂z_a)
+
+    and each row of the Wilson B-matrix is formed by concatenating the
+    s-vectors for all atoms associated with a given internal coordinate.
+
+    The class can optionally:
+
+    * Generate a projection matrix defining a linearly independent internal
+      coordinate basis using singular value decomposition (SVD).
+    * Compute numerical second-order B-tensors (B2) through finite
+      differentiation of first-order B-matrices.
+    * Support projected internal coordinate spaces for delocalized or
+      non-redundant coordinate analyses.
+
+    Parameters
+    ----------
+    zmat : Zmat
+        Molecular coordinate definition containing atom labels, masses,
+        Cartesian coordinates, and internal coordinate index lists
+        (bonds, angles, torsions, out-of-plane bends, etc.).
+    options : Options
+        Program options controlling coordinate generation, projection,
+        displacement magnitudes, numerical tolerances, and second-order
+        derivative calculations.
+
+    Attributes
+    ----------
+    bond_indices : list
+        Bond stretch coordinate definitions.
+    angle_indices : list
+        Angle bend coordinate definitions.
+    torsion_indices : list
+        Dihedral angle coordinate definitions.
+    oop_indices : list
+        Out-of-plane bending coordinate definitions.
+    lin_indices : list
+        Linear bend coordinate definitions.
+    linx_indices : list
+        Linear bend X-component coordinate definitions.
+    liny_indices : list
+        Linear bend Y-component coordinate definitions.
+    B : ndarray
+        First-order Wilson B-matrix with dimensions
+        (N_internal, 3N_atoms).
+    B2 : ndarray, optional
+        Numerical second-order Wilson B-tensor with dimensions
+        (N_internal, 3N_atoms, 3N_atoms).
+    proj : ndarray
+        Projection matrix mapping redundant internal coordinates to a
+        linearly independent coordinate space.
+    s_2center_dict : dict
+        First-order s-vectors for two-center coordinates (bonds).
+    s_3center_dict : dict
+        First-order s-vectors for three-center coordinates (angles).
+    s_4center_dict : dict
+        First-order s-vectors for four-center coordinates (torsions,
+        out-of-plane bends, and linear bends).
+    s_ncenter_dict : dict
+        Reserved storage for generalized multi-center coordinates.
+
+    Notes
+    -----
+    The analytical expressions for bond, angle, torsional, out-of-plane,
+    and linear-coordinate derivatives are based on the Wilson GF formalism.
+    Out-of-plane derivative expressions follow the conventions described in
+    Wilson, Decius, and Cross, *Molecular Vibrations*, with the atom ordering
+    adapted to the coordinate conventions used by Concordant Modes.
+
+    When `second_order=True`, numerical differentiation of displaced
+    B-matrices is used to generate the second-order tensor B2, which is
+    required for non-stationary force constant transformations and
+    higher-order coordinate transformations.
+
+    References
+    ----------
+    Wilson, E. B.; Decius, J. C.; Cross, P. C.
+    *Molecular Vibrations: The Theory of Infrared and Raman Vibrational
+    Spectra*; Dover Publications, 1980.
     """
 
     def __init__(self, zmat, options):

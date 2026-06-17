@@ -11,6 +11,127 @@ from concordantmodes.sapelo_template import SapeloTemplate
 
 
 class Submit:
+    """
+    Submit and monitor batches of Concordant Modes displacement calculations on
+    supported computing clusters.
+
+    This class automates the execution of electronic structure calculations
+    associated with generated displacement geometries by creating appropriate
+    scheduler submission scripts, launching jobs, and optionally monitoring
+    their completion. Supported execution environments include Sun Grid Engine
+    (SGE), Slurm, and user-defined custom submission workflows.
+
+    Depending on the selected cluster type, the class will:
+
+    * Generate scheduler-specific submission scripts using predefined
+      templates.
+    * Submit displacement calculations as either job arrays (SGE) or
+      individual jobs (Slurm).
+    * Monitor submitted jobs until completion when supported.
+    * Support externally managed submission workflows through a user-supplied
+      command string.
+    * Return control to the CMA workflow once all displacement calculations
+      have completed successfully.
+
+    Parameters
+    ----------
+    options : Options
+        Program options object containing cluster configuration, scheduler
+        settings, submission commands, and resource specifications.
+    cma_level : str
+        Concordant Modes displacement level being processed ("A", "B", or
+        "C"). Used to locate the corresponding displacement directory.
+    rootdir : str
+        Root working directory containing the displacement calculation
+        directories.
+    prog_name : str
+        Name of the electronic structure package being executed (e.g.
+        Molpro, Psi4, CFOUR, ORCA).
+    prog : str
+        Program execution command or executable path used by the submission
+        templates.
+
+    Attributes
+    ----------
+    cma_level : str
+        Current CMA displacement level.
+    options : Options
+        Runtime options controlling submission behavior.
+    prog : str
+        Electronic structure program executable or launch command.
+    prog_name : str
+        Electronic structure package name.
+    rootdir : str
+        Root directory containing displacement calculations.
+
+    Notes
+    -----
+    The class assumes that displacement directories have already been created
+    and numbered sequentially beginning with directory ``1``.
+
+    Scheduler-specific behavior:
+
+    **SGE**
+        Generates a job-array submission script using ``VulcanTemplate``,
+        submits it with ``qsub``, and monitors completion through
+        ``qacct`` records.
+
+    **Slurm**
+        Generates a submission script using ``SapeloTemplate``, copies the
+        script into each displacement directory, submits jobs using
+        ``sbatch``, and polls job status through ``sacct``.
+
+    **Custom**
+        Executes a user-defined submission command specified by
+        ``options.custom_submit_str``. Because job completion cannot be
+        monitored generically, execution terminates after submission and
+        requires the user to rerun CMA after the jobs finish.
+
+    Raises
+    ------
+    RuntimeError
+        If an unsupported cluster type is specified.
+    RuntimeError
+        If the custom submission option is selected without a valid
+        submission command.
+    RuntimeError
+        After custom job submission to intentionally terminate execution
+        until external calculations have completed.
+
+    See Also
+    --------
+    VulcanTemplate
+        Generates SGE submission scripts.
+    SapeloTemplate
+        Generates Slurm submission scripts.
+
+    Examples
+    --------
+    Submit displacement calculations on a Slurm cluster::
+
+        submitter = Submit(
+            options,
+            cma_level="B",
+            rootdir=workdir,
+            prog_name="molpro",
+            prog="molpro"
+        )
+        submitter.run()
+
+    Submit calculations using a custom scheduler wrapper::
+
+        options.cluster = "custom"
+        options.custom_submit_str = "my_submit_command"
+
+        submitter = Submit(
+            options,
+            cma_level="A",
+            rootdir=workdir,
+            prog_name="psi4",
+            prog="psi4"
+        )
+        submitter.run()
+    """
     def __init__(self, options, cma_level, rootdir, prog_name, prog):
         self.cma_level = cma_level
         self.options = options

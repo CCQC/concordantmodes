@@ -4,21 +4,124 @@ from numpy import linalg as LA
 
 
 class ForceConstant:
-    # This script will calculate the force constants of the CMA normal
-    # modes using numerical differentiation.
+    """
+    Compute force constants by finite differentiation of energies or gradients.
 
-    # Symmetric First Derivative
-    # [f(x+h) - f(x-h)] / 2*h =
-    # [g_(i_plus) - g_(i_minus)] / 2*disp_size
+    This class constructs harmonic force-constant matrices in the coordinate
+    basis defined by the displacement generator. Force constants are obtained
+    using central finite-difference formulas applied to electronic energies
+    or gradients evaluated at displaced geometries.
 
-    # Diagonal Second Derivative
-    # [f(x+h) - 2f(x) + f(x-h)] / h^2 =
-    # [E_(i_plus) - 2*E_(ref) + E_(i_minus)] / disp_size^2
+    Two differentiation schemes are supported:
 
-    # Off-diagonal Second Derivative
-    # [f(x+h,y+k) - f(x+h,y) - f(x,y+k) + 2f(x,y) - f(x-h,y) - f(x,y-k) + f(x-h,y-k) / 2*h^2
-    # [E_(ij_plus) - E_(i_plus,j) - E_(i,j_plus) + E_(ref) - E_(i_minus,j) - E_(i,j_minus) + E_(i_minus,j_minus) / 2*disp_size^2
+    * Energy finite differences (``deriv_level=0``)
+      - Computes first derivatives (gradients) and second derivatives
+        (force constants) from displaced energies.
+      - Includes diagonal and off-diagonal Hessian elements.
 
+    * Gradient finite differences (``deriv_level=1``)
+      - Computes force constants directly from displaced gradients.
+      - Produces a symmetric Hessian matrix.
+
+    The resulting force-constant matrix is expressed in the displacement
+    coordinate basis used by the Concordant Modes Algorithm (CMA), which may
+    correspond to projected internal coordinates, normal coordinates, or
+    Cartesian coordinates depending on the calculation setup.
+
+    Parameters
+    ----------
+    disp : TransfDisp
+        Displacement object containing displacement magnitudes and
+        coordinate transformation information.
+
+    p_array : ndarray
+        Energies or gradients evaluated at positive displacements.
+
+    m_array : ndarray
+        Energies or gradients evaluated at negative displacements.
+
+    ref_en : float or None
+        Reference energy at the equilibrium geometry. Required for
+        energy-based finite differences and ignored for gradient-based
+        calculations.
+
+    options : object
+        User-defined options controlling the CMA calculation.
+
+    indices : list[list[int]]
+        Coordinate index pairs defining which force constants are to be
+        evaluated.
+
+    deriv_level : int, optional
+        Differentiation level used to construct the Hessian.
+
+        - ``0`` : Hessian from energies.
+        - ``1`` : Hessian from gradients.
+
+    coord_type : {"internal", "cartesian"}, optional
+        Coordinate system in which the displacements were generated.
+
+    cma_level : {"A", "B", "C"}, optional
+        CMA stage associated with the force-constant calculation.
+
+    gradient : ndarray, optional
+        Reference gradient vector. Primarily used for higher-order
+        coordinate transformations and non-stationary reference points.
+
+    Attributes
+    ----------
+    FC : ndarray
+        Computed force-constant matrix.
+
+    gradient : ndarray
+        Gradient vector computed from central finite differences when
+        ``deriv_level=0``.
+
+    Notes
+    -----
+    The following central finite-difference formulas are employed.
+
+    First derivative:
+
+    .. math::
+
+        \\frac{df}{dq_i}
+        =
+        \\frac{f(q_i+h)-f(q_i-h)}
+             {2h}
+
+    Diagonal force constant:
+
+    .. math::
+
+        \\frac{\\partial^2 E}{\\partial q_i^2}
+        =
+        \\frac{E(q_i+h)-2E_0+E(q_i-h)}
+             {h^2}
+
+    Off-diagonal force constant:
+
+    .. math::
+
+        \\frac{\\partial^2 E}
+             {\\partial q_i \\partial q_j}
+        =
+        \\frac{
+        E(+i,+j)-E(+i)-E(+j)
+        +2E_0
+        -E(-i)-E(-j)
+        +E(-i,-j)}
+        {2h_i h_j}
+
+    Symmetry of the Hessian is enforced after construction:
+
+    .. math::
+
+        F_{ij} = F_{ji}
+
+    for all coordinate pairs.
+    """
+    
     def __init__(
         self,
         disp,
@@ -44,6 +147,26 @@ class ForceConstant:
         self.gradient = gradient
 
     def run(self):
+        """
+        Construct the force-constant matrix.
+
+        Depending on the selected derivative level, computes force constants
+        from either displaced energies or displaced gradients. For energy-based
+        calculations, both gradients and Hessian elements are evaluated using
+        central finite differences. For gradient-based calculations, the Hessian
+        is obtained directly from gradient differences and subsequently
+        symmetrized.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        The computed force-constant matrix is stored in ``self.FC``. For
+        energy-based calculations, the corresponding finite-difference
+        gradient is stored in ``self.gradient``.
+        """
         indices = self.indices
         disp = self.disp
         if self.coord_type == "cartesian":
@@ -97,14 +220,82 @@ class ForceConstant:
 
     # I might want to shift the above computation in the deriv_level == 1 down here, though it is only one line
     def first_deriv(self, e_p, e_m, disp):
+        """
+        Compute a first derivative using a central finite difference.
+
+        Parameters
+        ----------
+        e_p : float or ndarray
+            Quantity evaluated at the positive displacement.
+
+        e_m : float or ndarray
+            Quantity evaluated at the negative displacement.
+
+        disp : float
+            Displacement magnitude.
+
+        Returns
+        -------
+        float or ndarray
+            First derivative estimate.
+        """
         return (e_p - e_m) / (2 * disp)
 
     # Functions for computing the diagonal and off-diagonal force constants
     def diag_fc(self, e_p, e_m, e_r, disp):
+        """
+        Compute a diagonal Hessian element by finite differences.
+
+        Parameters
+        ----------
+        e_p, e_m : float
+            Energies at positive and negative displacements.
+
+        e_r : float
+            Reference energy.
+
+        disp : float
+            Displacement magnitude.
+
+        Returns
+        -------
+        float
+            Diagonal force constant.
+        """
         fc = (e_p - 2 * e_r + e_m) / (disp**2)
         return fc
 
     def off_diag_fc(self, e_pi_pj, e_pi, e_pj, e_mi, e_mj, e_mi_mj, e_r, disp1, disp2):
+        """
+        Compute an off-diagonal Hessian element by finite differences.
+
+        Parameters
+        ----------
+        e_pi_pj : float
+            Energy at the simultaneous positive displacement of coordinates
+            ``i`` and ``j``.
+
+        e_pi, e_pj : float
+            Energies at individual positive displacements.
+
+        e_mi, e_mj : float
+            Energies at individual negative displacements.
+
+        e_mi_mj : float
+            Energy at the simultaneous negative displacement of coordinates
+            ``i`` and ``j``.
+
+        e_r : float
+            Reference energy.
+
+        disp1, disp2 : float
+            Displacement magnitudes for coordinates ``i`` and ``j``.
+
+        Returns
+        -------
+        float
+            Off-diagonal force constant.
+        """
         fc = (e_pi_pj - e_pi - e_pj + 2 * e_r - e_mi - e_mj + e_mi_mj) / (
             2 * disp1 * disp2
         )

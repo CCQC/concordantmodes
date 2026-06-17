@@ -3,6 +3,89 @@ from numpy import linalg as LA
 
 
 class TED:
+    """
+    Compute and print the Total Energy Distribution (TED) for vibrational modes.
+
+    The TED quantifies the contribution of each internal coordinate to each
+    normal mode and is expressed as a percentage. Contributions are computed
+    from the normal-mode eigenvector matrix and its pseudoinverse according
+    to the standard TED formalism:
+
+        TED_ij = L_ij * (L^-1)_ji * 100
+
+    where ``L`` is the normal-mode transformation matrix. The resulting TED
+    matrix provides a chemically intuitive decomposition of vibrational
+    motions into stretches, bends, torsions, out-of-plane bends, and linear
+    bending coordinates.
+
+    Parameters
+    ----------
+    proj : ndarray
+        Projection matrix used to transform eigenvectors from a reduced or
+        symmetry-adapted coordinate basis back into the full internal
+        coordinate representation.
+    zmat : Zmat
+        Molecular coordinate object containing internal-coordinate
+        definitions and indexing information used for TED labeling.
+    options : Options
+        Runtime options controlling output formatting and coordinate
+        handling.
+
+    Attributes
+    ----------
+    proj : ndarray
+        Projection matrix relating projected coordinates to the full
+        internal-coordinate basis.
+    zmat : Zmat
+        Molecular coordinate representation.
+    options : Options
+        User-defined runtime options.
+    symtext : molsym.Symtext or None
+        Molecular symmetry information used to annotate TED tables with
+        irreducible representation labels.
+    TED : ndarray
+        Total Energy Distribution matrix expressed as percentages.
+
+    Notes
+    -----
+    The TED matrix is computed from the projected normal-mode eigenvectors
+    and their Moore-Penrose pseudoinverse. Each column corresponds to a
+    vibrational normal mode and each row corresponds to an internal
+    coordinate.
+
+    When ``rect_print=True``, the eigenvectors are first transformed back
+    into the full internal-coordinate basis using the projection matrix
+    before TED analysis. This is typically used when redundant or
+    symmetry-adapted coordinates have been employed during the vibrational
+    calculation.
+
+    Coordinate labels are automatically generated from the Z-matrix
+    coordinate definitions using the following conventions:
+
+    - B  : Bond stretches
+    - A  : Bond angles
+    - D  : Dihedral/torsional angles
+    - O  : Out-of-plane bends
+    - L  : Linear bends
+    - Lx : Linear bend x-components
+    - Ly : Linear bend y-components
+
+    If molecular symmetry information is available, TED tables include
+    point-group and irreducible-representation assignments for each
+    vibrational mode.
+
+    Examples
+    --------
+    >>> ted = TED(proj, zmat, options)
+    >>> ted.run(L_matrix, frequencies)
+
+    Print TED using symmetry-adapted normal modes:
+
+    >>> ted.run(L_matrix, frequencies, symtext=symtext)
+
+    The resulting table reports the percentage contribution of each
+    internal coordinate to every vibrational mode.
+    """
     def __init__(self, proj, zmat, options):
         self.proj = proj
         self.zmat = zmat
