@@ -8,6 +8,7 @@ from subprocess import Popen
 
 from concordantmodes.vulcan_template import VulcanTemplate
 from concordantmodes.sapelo_template import SapeloTemplate
+from concordantmodes.sisyphus_template import SisyphusTemplate
 
 
 class Submit:
@@ -185,6 +186,9 @@ class Submit:
             s_template = SapeloTemplate(
                 self.options, len(disp_list), self.prog_name, self.prog
             )
+            #s_template = SisyphusTemplate(
+            #    self.options, len(disp_list), self.prog_name, self.prog
+            #)
             out = s_template.run()
 
             with open("sub_script.sh", "w") as file:

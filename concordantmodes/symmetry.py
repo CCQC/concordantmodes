@@ -217,7 +217,7 @@ class Symmetry:
                 self.salcs.salc_sets.append(ir_salcs)
             else:
                 ir_salcs = [self.salcs[i].coeffs for i in self.salcs.salcs_by_irrep[ir]]
-                ir_salcs = np.row_stack(ir_salcs)
+                ir_salcs = np.vstack(ir_salcs)
                 self.salcs.salc_sets.append(ir_salcs)
                 fxn_list.append(
                     [1 for i in range(0, (len(ir_salcs) // self.symtext.irreps[ir].d))]
@@ -284,7 +284,7 @@ class Symmetry:
             newsblock.append(s)
         self.sblock = copy.deepcopy(sblock)
 
-        self.salc_proj = np.row_stack(newsblock).T
+        self.salc_proj = np.vstack(newsblock).T
 
     def create_flat_sym_sort(self, sym_sort):
         print("sym_sort: ")

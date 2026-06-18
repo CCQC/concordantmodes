@@ -424,6 +424,11 @@ class ConcordantModes:
             proj=proj,
             second_order=options.second_order,
         )
+         
+        if self.options.molsym_symmetry:
+            self.symm_obj.make_proj(self.s_vec)
+            self.s_vec.proj = copy.deepcopy(self.symm_obj.salc_proj)       
+
         self.proj = self.s_vec.proj
 
         self.TED_obj = TED(self.proj, zmat, options)
