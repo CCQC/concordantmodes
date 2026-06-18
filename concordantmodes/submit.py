@@ -186,9 +186,9 @@ class Submit:
             s_template = SapeloTemplate(
                 self.options, len(disp_list), self.prog_name, self.prog
             )
-            #s_template = SisyphusTemplate(
+            # s_template = SisyphusTemplate(
             #    self.options, len(disp_list), self.prog_name, self.prog
-            #)
+            # )
             out = s_template.run()
 
             with open("sub_script.sh", "w") as file:

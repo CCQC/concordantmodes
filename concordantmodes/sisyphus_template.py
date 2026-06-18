@@ -15,8 +15,8 @@ class SisyphusTemplate:
                 output.dat input.dat",
             "psi4": "psi4 -n $NSLOTS",
             "cfour": prog + "+vectorization",
-            "xtb" : "input.coord",
-            "gxtb" : "input.coord",
+            "xtb": "input.coord",
+            "gxtb": "input.coord",
         }
         self.odict = {
             "q": options.queue,
