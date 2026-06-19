@@ -263,7 +263,7 @@ class Submit:
 
         else:
             print(
-                "Only Vulcan, Sapelo, or Custom cluster options are available, select one of those!"
+                "Only SGE, Slurm, or Custom cluster options are available, select one of those!"
             )
             raise RuntimeError
         os.chdir("../")
