@@ -12,6 +12,7 @@ from concordantmodes.s_vectors import SVectors
 from concordantmodes.zmat import Zmat
 
 suite = execute_suite("./ref_data/s_vec_test/", "Custom", s_vec_bool=True)
+print(os.getcwd())
 suite.run()
 
 # B-tensor ran on INTDER

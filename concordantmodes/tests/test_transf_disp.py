@@ -31,7 +31,7 @@ def test_transf_disp():
         suite.ZMAT,
         suite.GF.L,
         True,
-        suite.TED_obj,
+        suite.TED_obj.proj,
         suite.options,
         suite.algo.indices,
         symm_obj=suite.symm_obj,

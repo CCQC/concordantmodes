@@ -3,7 +3,7 @@ from numpy import linalg as LA
 from . import masses
 
 
-class Int2Cart(object):
+class Int2Cart:
     def __init__(self, zmat, var_dict=None):
         self.zmat = zmat
         self.var_dict = var_dict

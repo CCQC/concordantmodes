@@ -4,11 +4,85 @@ import scipy
 from scipy import stats
 
 
-class Algorithm(object):
+class Algorithm:
     """
-    The purpose of this class is to return a list of indices by which the force constants of the CMA method
-    will be computed. These indices will be determined by user input where nonabelian symmetry can be
-    exploited.
+    Generate force-constant displacement indices for the Concordant Modes
+    Algorithm (CMA).
+
+    This class determines which coordinate pairs `(i, j)` will be evaluated
+    during finite-difference force-constant calculations. The generated index
+    list depends on:
+
+    - The CMA level being performed (Level A or Level B).
+    - Whether force constants are computed from energies or gradients.
+    - Whether molecular symmetry is enabled.
+    - The irreducible-representation (irrep) structure of the projected
+      vibrational coordinate space.
+
+    For Level B calculations without gradient-based Hessian construction,
+    off-diagonal force constants may be included. For Level A calculations
+    (or when gradient derivatives are used), only diagonal force constants
+    are generated. When symmetry is enabled, indices are restricted to
+    coordinate pairs belonging to the same irreducible representation,
+    reducing the number of required electronic structure calculations.
+
+    Parameters
+    ----------
+    num_deg_free : int
+        Number of vibrational degrees of freedom in the projected coordinate
+        space.
+    cma_level : {"A", "B"}
+        CMA stage for which displacement indices are generated.
+
+        - ``"B"``: Lower-level reference Hessian calculation.
+        - ``"A"``: Higher-level CMA correction calculation.
+
+    options : object
+        User options containing symmetry settings and derivative-level
+        controls. The following attributes are used:
+
+        - ``molsym_symmetry`` : bool
+        - ``deriv_level_b`` : bool
+
+    proj_irreps : list, optional
+        Symmetry decomposition of the projected coordinate space. Each
+        element specifies the number of coordinates belonging to an
+        irreducible representation. Degenerate irreducible
+        representations may be represented as nested lists.
+
+    Attributes
+    ----------
+    indices : list[list[int]]
+        Flat list of coordinate index pairs to be displaced and evaluated.
+
+    indices_by_irrep : list or None
+        Index pairs grouped by irreducible representation when symmetry
+        is enabled. Otherwise ``None``.
+
+    degens : list or None
+        Placeholder for degeneracy information. Currently set to ``None``
+        when symmetry grouping is not used.
+
+    Notes
+    -----
+    Four index-generation strategies are available:
+
+    ``loop()``
+        Generate all upper-triangular coordinate pairs without symmetry.
+
+    ``loop_diagonal()``
+        Generate only diagonal coordinate pairs without symmetry.
+
+    ``loop_symmetry()``
+        Generate upper-triangular coordinate pairs within each irreducible
+        representation.
+
+    ``loop_symmetry_diagonal()``
+        Generate only diagonal coordinate pairs within each irreducible
+        representation.
+
+    The :meth:`run` method automatically selects the appropriate strategy
+    based on the CMA level, derivative level, and symmetry settings.
     """
 
     def __init__(self, num_deg_free, cma_level, options, proj_irreps=None):
@@ -18,6 +92,36 @@ class Algorithm(object):
         self.proj_irreps = proj_irreps
 
     def run(self):
+        """
+        Generate displacement indices for the current CMA calculation.
+
+        Selects and executes the appropriate index-generation algorithm based
+        on the symmetry settings, CMA level, and derivative level specified
+        in the options object.
+
+        Selection logic
+        ---------------
+        Symmetry enabled
+            * Level B, energy finite differences:
+              :meth:`loop_symmetry`
+            * Level A or gradient finite differences:
+              :meth:`loop_symmetry_diagonal`
+
+        Symmetry disabled
+            * Level B, energy finite differences:
+              :meth:`loop`
+            * Level A or gradient finite differences:
+              :meth:`loop_diagonal`
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        Results are stored in the instance attributes ``indices`` and
+        ``indices_by_irrep``.
+        """
         if self.options.molsym_symmetry:
             if self.cma_level == "A" or self.options.deriv_level_b:
                 self.loop_symmetry_diagonal()

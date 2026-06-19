@@ -9,27 +9,123 @@ from concordantmodes.s_vectors import SVectors as s_vec
 np.set_printoptions(precision=8, linewidth=240)
 
 
-class TransfDisp(object):
+class TransfDisp:
+    """
+    Generate Cartesian displacement geometries from internal-coordinate or
+    Cartesian-coordinate perturbations for finite-difference derivative
+    calculations.
+
+    This class performs iterative transformations between normal-coordinate
+    displacements and Cartesian coordinates using Wilson's B-matrix formalism.
+    It constructs the generalized inverse transformation matrix (A-matrix),
+    generates displaced molecular geometries, and optionally includes
+    second-order corrections through numerical second derivatives of the
+    B-matrix.
+
+    The transformation is based on:
+
+        A = B⁺ P
+
+    where B⁺ is the pseudoinverse of the B-matrix and P is the projection
+    matrix defining the nonredundant internal coordinate space. The resulting
+    A-matrix is subsequently transformed into the normal-coordinate basis to
+    produce Cartesian displacements corresponding to specified vibrational
+    normal mode displacements.
+
+    The class supports:
+
+    * Internal-coordinate displacements in normal-coordinate space.
+    * Cartesian-coordinate finite-difference displacements.
+    * First-derivative (gradient) displacement generation.
+    * Second-derivative (Hessian) displacement generation.
+    * Reduced or scaled displacement schemes.
+    * Optional second-order coordinate transformations using A₂ tensors.
+    * Tight iterative coordinate transformations with B-matrix updates.
+    * Symmetry-adapted displacement generation.
+
+    Parameters
+    ----------
+    s_vectors : SVectors or None
+        SVectors object containing the B-matrix and optional second-order
+        B-tensors. May be None for pure Cartesian displacements.
+    zmat : Zmat
+        Molecular coordinate object containing Cartesian coordinates,
+        internal-coordinate definitions, masses, and connectivity data.
+    eigs : ndarray
+        Matrix of normal-mode eigenvectors.
+    conv : bool
+        If True, enforce angular continuity corrections when converting
+        Cartesian coordinates to internal coordinates.
+    proj : ndarray
+        Projection matrix defining the nonredundant internal coordinate space.
+    options : Options
+        Runtime options controlling displacement sizes, convergence criteria,
+        scaling methods, coordinate systems, and numerical differentiation.
+    indices : iterable
+        List of coordinate index pairs used when generating second-derivative
+        displacements.
+    symm_obj : object, optional
+        Symmetry object used for symmetry-adapted coordinate generation.
+    coord_type : {"internal", "cartesian"}, optional
+        Coordinate system used for displacement generation.
+        Default is "internal".
+    deriv_level : int, optional
+        Derivative level to generate:
+
+        * 0 : second derivatives (Hessian displacements)
+        * 1 : first derivatives (gradient displacements)
+
+    cma_level : str, optional
+        Coordinate mode analysis level used when scaling displacements.
+        Default is "B".
+
+    Attributes
+    ----------
+    B : ndarray
+        Wilson B-matrix relating internal and Cartesian coordinates.
+    A : ndarray
+        First-order transformation matrix from normal coordinates to
+        Cartesian displacements.
+    eig_inv : ndarray
+        Normalized inverse eigenvector matrix.
+    n_coord : ndarray
+        Reference normal-coordinate values.
+    p_disp : ndarray
+        Positive displacement geometries.
+    m_disp : ndarray
+        Negative displacement geometries.
+    ref_carts : ndarray
+        Reference Cartesian geometry.
+    disp : float or ndarray
+        Displacement magnitudes used during finite differences.
+    proj : ndarray
+        Internal-coordinate projection matrix.
+    coord_type : str
+        Coordinate system used for displacement generation.
+    deriv_level : int
+        Derivative order being generated.
+
+    Notes
+    -----
+    For internal-coordinate displacements, Cartesian geometries are generated
+    iteratively until the transformed geometry reproduces the target normal
+    coordinate displacement within the specified convergence tolerance.
+
+    When ``options.second_order`` is enabled, second-order coordinate
+    transformations are included through:
+
+        Δx = A ΔQ + 1/2 A₂ : ΔQΔQ
+
+    where A₂ is constructed from numerical second derivatives of the
+    Wilson B-matrix.
+
+    The ordering of internal coordinates must remain consistent with the
+    ordering defined throughout the Concordant Modes package, since all
+    coordinate transformations and force-constant manipulations depend on
+    that convention.
+    """
+
     np.set_printoptions(precision=8, linewidth=240)
-    """
-    The purpose of this script is to perform an iterative transformation
-    between internal coordinate displacements and cartesian displacements,
-    using a first order, linear B-tensor transformation.
-
-    It is necessary to construct an inverse B-tensor called 'A', where,
-
-    A = uB^T(BuB^T)^-1.
-
-    u can simply be the I_3N identity matrix, so long as frequency intensities
-    are not desired.
-
-    If this is the case, then A simply becomes the following:
-
-    A = B^T(BB^T)^-1.
-
-    Where in fact, BB^T = G (non-mass-weighted)
-
-    """
 
     def __init__(
         self,
@@ -37,7 +133,7 @@ class TransfDisp(object):
         zmat,
         eigs,
         conv,
-        ted,
+        proj,
         options,
         indices,
         symm_obj=None,
@@ -57,7 +153,7 @@ class TransfDisp(object):
         self.ref_carts = np.array(self.ref_carts).astype(float)
         self.u = np.identity(3 * len(zmat.atom_list))
         self.disp = self.options.disp
-        self.ted = ted
+        self.proj = proj
         self.eigs = eigs
         self.disp_cart = {}
         self.disp_cart["ref"] = self.ref_carts.copy()
@@ -67,694 +163,396 @@ class TransfDisp(object):
         self.coord_type = coord_type
         self.cma_level = cma_level
 
-    def run(self, fc=np.array([])):
+    def run(self, fc=None):
         np.set_printoptions(precision=8, linewidth=240)
 
-        # Invert the L-matrix and then normalize the rows.
-        proj_tol = 1.0e-3
-        self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Proj internals (S) )
-        for i in range(len(self.eig_inv)):
-            self.eig_inv[i] = self.eig_inv[i] / LA.norm(self.eig_inv[i])
-            self.eig_inv[i][
-                np.abs(self.eig_inv[i]) < np.max(np.abs(self.eig_inv[i])) * proj_tol
-            ] = 0
+        fc = np.asarray(fc) if fc is not None else np.array([])
 
-        # Compute the A-matrix to convert from normal coordinates to cartesians
-
-        u = np.array(self.zmat.masses)
-        for i in range(len(u)):
-            if self.zmat.atom_list[i] == "X":
-                u[i] = 0
-            else:
-                u[i] = 1.0 / u[i]
-        u = np.repeat(u, 3)
-        u = np.diag(u)
-        # print(self.coord_type)
-        # raise RuntimeError
-        if self.coord_type != "cartesian":
-            # print(self.coord_type)
-            self.A = self.compute_A(
-                self.B.copy(), self.ted.proj, self.eig_inv, u, cma_level=self.cma_level
-            )
-
-            # Generate the normal coordinate values for the reference structure
-            self.n_coord = self.int_c(self.ref_carts, self.eig_inv, self.ted.proj)
-
-            print("Normal Coordinate Values:")
-            for i in range(len(self.n_coord)):
-                print(
-                    "Normal Coordinate #{:<4n}: {: 3.5f}".format(i + 1, self.n_coord[i])
-                )
-
-        # Next, we will have to specify our Normal mode internal coordinate
-        # displacement sizes
+        self._build_eig_inv()
 
         if self.coord_type == "internal":
-            self.Disp = self.disp
-            self.disp = []
-            for i in range(len(self.n_coord)):
-                self.disp.append(self.Disp)
-
-            # Reduced displacements generator
-            if self.options.reduced_disp and len(fc):
-                disp_size = self.options.reduced_disp_size
-                for i in range(len(self.disp)):
-                    self.disp[i] = disp_size / np.abs(fc[i, i]) ** 0.25
-                print("Reduced displacements")
-                print(self.disp)
-                buff_disp = np.zeros(len(self.disp))
-                # Use this loop to print out the reduced disps in internal coords.
-                # Might want to make this an optional printout.
-                for i in range(len(self.disp)):
-                    buff_disp[i] = self.disp[i]
-                    simple_disp = np.dot(buff_disp, self.eig_inv)
-                    simple_disp = np.dot(simple_disp, self.ted.proj.T)
-                    print("Reduced displacement in simple internal coordinates:")
-                    print(self.disp.copy()[i])
-                    print(simple_disp)
-                    buff_disp *= 0
-
-            # This code loops through a list of indices that the force constants will be computed at and
-            # generates the displacements for the diagonal and (if specified) the off-diagonals. Where
-            # the displacement matrix D[i,j] = D[j,i].
-
-            disp = np.zeros(len(self.eigs.T))
-            buff = disp.copy()
-            if not self.deriv_level:
-                p_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
-                m_disp = np.zeros((len(self.eigs), len(self.eigs)), dtype=object)
-                disp = np.zeros((len(self.disp)))
-                if self.symm_obj.symtext is not None and self.options.exploit_pm_symm:
-                    print(
-                        "Molsym is being used. +/- displacements of non TSIR are equivalent."
-                    )
-                    if self.options.only_TSIR:
-                        indices = self.symm_obj.indices_by_irrep[0]
-                    else:
-                        print(
-                            "Generating displacements for all irreps. Only + displacements for non TSIR"
-                        )
-                        indices = (
-                            copy.deepcopy(self.symm_obj.indices_by_irrep)
-                            .flatten()
-                            .reshape((-1, 2))
-                        )
-                else:
-                    indices = self.indices
-
-                Sum = 1
-                h = 0
-                for index in indices:
-                    i, j = index[0], index[1]
-                    disp[i] = self.disp[i]
-                    disp[j] = self.disp[j]
-                    p_disp[i, j] = self.coord_convert(
-                        disp,
-                        self.n_coord.copy(),
-                        self.ref_carts.copy(),
-                        self.A.copy(),
-                        False,
-                        self.zmat,
-                        self.options,
-                    )
-                    if h != 0:
-                        pass
-                    else:
-                        m_disp[i, j] = self.coord_convert(
-                            -disp,
-                            self.n_coord.copy(),
-                            self.ref_carts.copy(),
-                            self.A.copy(),
-                            False,
-                            self.zmat,
-                            self.options,
-                        )
-                    disp = buff.copy()
-                    if (
-                        self.symm_obj.symtext is not None
-                        and self.options.exploit_pm_symm
-                        and not self.options.only_TSIR
-                        and Sum > len(self.symm_obj.indices_by_irrep[0])
-                    ):
-                        h += 1
-                    Sum += 1
-            elif self.deriv_level == 1:
-                p_disp = np.zeros(len(self.eigs), dtype=object)
-                m_disp = np.zeros(len(self.eigs), dtype=object)
-                for i in range(len(self.eigs)):
-                    disp[i] = self.disp[i]
-                    p_disp[i] = self.coord_convert(
-                        disp,
-                        self.n_coord.copy(),
-                        self.ref_carts.copy(),
-                        self.A.copy(),
-                        False,
-                        self.zmat,
-                        self.options,
-                    )
-                    m_disp[i] = self.coord_convert(
-                        -disp,
-                        self.n_coord.copy(),
-                        self.ref_carts.copy(),
-                        self.A.copy(),
-                        False,
-                        self.zmat,
-                        self.options,
-                    )
-                    disp = buff.copy()
-            else:
-                print(
-                    "Only energy and gradient derivatives are supported. Check your deriv_level_b keyword."
-                )
-                raise RuntimeError
-            self.p_disp = p_disp
-            self.m_disp = m_disp
+            self._run_internal(fc)
 
         elif self.coord_type == "cartesian":
-            self.disp_mag = self.options.disp
-            if self.deriv_level == 1:
-                p_disp = np.zeros(len(self.ref_carts.flatten()), dtype=object)
-                m_disp = np.zeros(len(self.ref_carts.flatten()), dtype=object)
-                for i in range(len(self.ref_carts.flatten())):
-                    p_disp[i] = self.ref_carts.flatten().copy()
-                    m_disp[i] = self.ref_carts.flatten().copy()
-                    p_disp[i][i] = p_disp[i][i] + self.disp
-                    m_disp[i][i] = m_disp[i][i] - self.disp
-                    p_disp[i] = np.reshape(p_disp[i], (-1, 3))
-                    m_disp[i] = np.reshape(m_disp[i], (-1, 3))
-
-                self.p_disp = p_disp
-                self.m_disp = m_disp
-            elif not self.deriv_level:
-                if self.options.molsym_symmetry:
-                    print("The ref geom")
-                    print(self.ref_carts)
-                    print(self.symm_obj.symtext.mol.coords)
-                    p_disp = np.zeros(
-                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
-                        dtype=object,
-                    )
-                    m_disp = np.zeros(
-                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
-                        dtype=object,
-                    )
-                    print(f"p disp {p_disp}")
-                    n_irrep = len(self.symm_obj.symtext.irreps)
-                    salc_indices_pi = self.symm_obj.CDsalcs.salcs_by_irrep
-                    print("salc indices pi")
-                    print(salc_indices_pi)
-                    new_indices = []
-                    for i in range(len(self.symm_obj.CDsalcs)):
-                        for j in range(len(self.symm_obj.CDsalcs)):
-                            print(f"i j pair {i,j}")
-                            pair = [i, j]
-                            disp_geom = self.displace_geom(pair)
-                            print("the disp geom")
-                            print(disp_geom)
-                            if i == j:
-                                p_disp[i, i] += disp_geom
-                                m_disp[i, i] -= disp_geom
-                            else:
-                                p_disp[i, j] += disp_geom
-                                m_disp[i, j] -= disp_geom
-                    # print(stop)
-
-                    # for i in range(len(self.symm_obj.CDsalcs)):
-                    #    for j in range(len(self.symm_obj.CDsalcs)):
-                    #        if i <= j:
-                    #            salc_i = self.symm_obj.CDsalcs[i]
-                    #            salc_j = self.symm_obj.CDsalcs[j]
-                    #            print(f"the salc {i, j}")
-                    #            print(f"The disp {self.disp}")
-                    #            new_indices.append([i,j])
-                    #            #self.append_geoms(salc_i, salc_j)
-                    #            disp_geom = np.copy(self.symm_obj.symtext.mol.coords)
-                    #            for atom_idx in range(self.symm_obj.symtext.mol.natoms):
-                    #                for xyz_idx in range(3):
-                    #                    disp_geom[atom_idx, xyz_idx] += self.disp * salc_i.coeffs[atom_idx * 3 + xyz_idx] #/ np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
-                    #                    disp_geom[atom_idx, xyz_idx] += self.disp * salc_j.coeffs[atom_idx * 3 + xyz_idx] #/ np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
-                    #            print(f"The disp_geom {disp_geom}")
-                    #            if i == j:
-                    #                #p_disp[i,i][i] += self.disp
-                    #                #m_disp[i,i][i] -= self.disp
-                    #                p_disp[i,i] += disp_geom
-                    #                m_disp[i,i] -= disp_geom
-                    #            else:
-                    #                #p_disp[i,j][i] += self.disp
-                    #                #p_disp[i,j][j] += self.disp
-                    #                #m_disp[i,j][i] -= self.disp
-                    #                #m_disp[i,j][j] -= self.disp
-                    #                p_disp[i,j] += disp_geom
-                    #                m_disp[i,j] -= disp_geom
-                    self.p_disp = p_disp
-                    self.m_disp = m_disp
-                else:
-                    p_disp = np.zeros(
-                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
-                        dtype=object,
-                    )
-                    m_disp = np.zeros(
-                        (len(self.ref_carts.flatten()), len(self.ref_carts.flatten())),
-                        dtype=object,
-                    )
-                    # print(self.indices)
-                    # raise RuntimeError
-                    for index in self.indices:
-                        i, j = index[0], index[1]
-                        if i == j:
-                            p_disp[i, i] = self.ref_carts.flatten().copy()
-                            m_disp[i, i] = self.ref_carts.flatten().copy()
-                            p_disp[i, i][i] += self.disp
-                            m_disp[i, i][i] -= self.disp
-                            p_disp[i, i] = np.reshape(p_disp[i, i], (-1, 3))
-                            m_disp[i, i] = np.reshape(m_disp[i, i], (-1, 3))
-                        else:
-                            p_disp[i, j] = self.ref_carts.flatten().copy()
-                            m_disp[i, j] = self.ref_carts.flatten().copy()
-                            p_disp[i, j][i] += self.disp
-                            p_disp[i, j][j] += self.disp
-                            m_disp[i, j][i] -= self.disp
-                            m_disp[i, j][j] -= self.disp
-                            p_disp[i, j] = np.reshape(p_disp[i, j], (-1, 3))
-                            m_disp[i, j] = np.reshape(m_disp[i, j], (-1, 3))
-
-                    self.p_disp = p_disp
-                    self.m_disp = m_disp
+            self._run_cartesian()
 
         else:
-            print(
-                "Please input a displacement coordinate type of either cartesian or internal."
+            raise RuntimeError("coord_type must be either 'cartesian' or 'internal'.")
+
+    def _build_eig_inv(self, proj_tol=1.0e-3):
+        """
+        Invert and normalize the eigenvector matrix.
+        """
+
+        self.eig_inv = LA.inv(self.eigs)
+
+        for i, row in enumerate(self.eig_inv):
+
+            row /= LA.norm(row)
+
+            thresh = np.max(np.abs(row)) * proj_tol
+            row[np.abs(row) < thresh] = 0.0
+
+            self.eig_inv[i] = row
+
+    def _build_mass_matrix(self):
+        """
+        Construct inverse mass-weight matrix.
+        """
+
+        masses = np.asarray(self.zmat.masses, dtype=float)
+
+        inv_masses = np.where(
+            np.asarray(self.zmat.atom_list) == "X",
+            0.0,
+            1.0 / masses,
+        )
+
+        return np.diag(np.repeat(inv_masses, 3))
+
+    # Internal displacement functions here:
+    def _run_internal(self, fc):
+
+        u = self._build_mass_matrix()
+
+        self.A = self.compute_A(
+            self.B.copy(),
+            self.proj,
+            self.eig_inv,
+            u,
+            cma_level=self.cma_level,
+        )
+
+        self.n_coord = self.int_c(
+            self.ref_carts,
+            self.eig_inv,
+            self.proj,
+        )
+
+        self._print_normal_coordinates()
+
+        self._build_displacements(fc)
+
+        A2 = self._build_second_order_A2()
+
+        if self.deriv_level == 1:
+            self._generate_internal_first_deriv(A2)
+
+        elif self.deriv_level == 0:
+            self._generate_internal_second_deriv(A2)
+
+        else:
+            raise RuntimeError("Only energy and gradient derivatives are supported.")
+
+    def _print_normal_coordinates(self):
+
+        print("Normal Coordinate Values:")
+
+        for i, value in enumerate(self.n_coord, start=1):
+            print(f"Normal Coordinate #{i:<4}: {value: 3.5f}")
+
+    def _build_displacements(self, fc):
+
+        self.Disp = self.disp
+        self.disp = np.full(len(self.n_coord), self.Disp)
+
+        #
+        # Reduced displacements
+        #
+        if self.options.reduced_disp and len(fc):
+
+            scale = self.options.reduced_disp_size
+
+            self.disp = np.array(
+                [scale / abs(fc[i, i]) ** 0.25 for i in range(len(self.disp))]
             )
-            raise RuntimeError
 
-    # function useful for CMA geometry optimizer
-    def eigs_inv(self):
-        proj_tol = 1.0e-3
-        self.eig_inv = LA.inv(self.eigs)  # (Normal modes (Q) x Sym internals (S) )
-        for i in range(len(self.eig_inv)):
-            self.eig_inv[i] = self.eig_inv[i] / LA.norm(self.eig_inv[i])
-            self.eig_inv[i][
-                np.abs(self.eig_inv[i]) < np.max(np.abs(self.eig_inv[i])) * proj_tol
-            ] = 0
+            print("Reduced displacements")
+            print(self.disp)
 
-    def displace_geom(self, pair):
-        print("inside displace geom")
-        print(f"The pair {pair}")
-        disp_geom = np.copy(self.symm_obj.symtext.mol.coords)
-        for s_index in pair:
-            print(f"The s index {s_index}")
-            for atom_idx in range(self.symm_obj.symtext.mol.natoms):
-                for xyz_idx in range(3):
-                    disp_geom[atom_idx, xyz_idx] += (
-                        self.disp
-                        * self.symm_obj.CDsalcs.salcs[s_index].coeffs[
-                            atom_idx * 3 + xyz_idx
-                        ]
-                    )  # / np.sqrt(self.symm_obj.symtext.mol.masses[atom_idx])
-        return disp_geom
+        #
+        # CMA scaling
+        #
+        elif self.options.scaled_disp and self.cma_level == "B":
+
+            for i in range(len(self.disp)):
+
+                self.disp[i] /= np.max(self.proj.T[i])
+                self.disp[i] /= np.max(self.eig_inv[i])
+                self.disp[i] *= LA.norm(self.eig_inv[i])
+
+    def _build_second_order_A2(self):
+
+        if not self.options.second_order:
+            return None
+
+        L = inv(self.eig_inv)
+
+        B2 = np.einsum(
+            "ir,ipq->rpq",
+            self.proj,
+            self.s_vectors.B2,
+        )
+
+        B2 = np.einsum(
+            "ri,ipq->rpq",
+            L,
+            B2,
+        )
+
+        return self.compute_A2(B2, self.A)
+
+    def _generate_internal_first_deriv(self, A2):
+
+        n = len(self.eigs)
+
+        p_disp = np.empty(n, dtype=object)
+        m_disp = np.empty(n, dtype=object)
+
+        for i in range(n):
+
+            disp = np.zeros(n)
+            disp[i] = self.disp[i]
+
+            p_disp[i] = self.coord_convert(
+                disp,
+                self.n_coord.copy(),
+                self.ref_carts.copy(),
+                self.A.copy(),
+                False,
+                self.zmat,
+                self.options,
+                A2=A2,
+            )
+
+            m_disp[i] = self.coord_convert(
+                -disp,
+                self.n_coord.copy(),
+                self.ref_carts.copy(),
+                self.A.copy(),
+                False,
+                self.zmat,
+                self.options,
+                A2=A2,
+            )
+
+        self.p_disp = p_disp
+        self.m_disp = m_disp
+
+    def _generate_internal_second_deriv(self, A2):
+
+        n = len(self.eigs)
+
+        p_disp = np.empty((n, n), dtype=object)
+        m_disp = np.empty((n, n), dtype=object)
+
+        for i, j in self.indices:
+
+            disp = np.zeros(n)
+
+            disp[i] = self.disp[i]
+            disp[j] = self.disp[j]
+
+            p_disp[i, j] = self.coord_convert(
+                disp,
+                self.n_coord.copy(),
+                self.ref_carts.copy(),
+                self.A.copy(),
+                self.options.tight_disp,
+                self.zmat,
+                self.options,
+                A2=A2,
+            )
+
+            m_disp[i, j] = self.coord_convert(
+                -disp,
+                self.n_coord.copy(),
+                self.ref_carts.copy(),
+                self.A.copy(),
+                self.options.tight_disp,
+                self.zmat,
+                self.options,
+                A2=A2,
+            )
+
+        self.p_disp = p_disp
+        self.m_disp = m_disp
+
+    # Now we have the cartesian functions.
+    def _run_cartesian(self):
+
+        self.disp_mag = self.options.disp
+        if self.deriv_level == 1:
+            self._generate_cartesian_first_deriv()
+
+        elif self.deriv_level == 0:
+
+            if not self.options.molsym_symmetry:
+                self._generate_cartesian_second_deriv()
+
+    def _generate_cartesian_first_deriv(self):
+
+        ref = self.ref_carts.flatten()
+        n = len(ref)
+
+        p_disp = np.empty(n, dtype=object)
+        m_disp = np.empty(n, dtype=object)
+
+        for i in range(n):
+
+            plus = ref.copy()
+            minus = ref.copy()
+
+            plus[i] += self.disp
+            minus[i] -= self.disp
+
+            p_disp[i] = plus.reshape(-1, 3)
+            m_disp[i] = minus.reshape(-1, 3)
+
+        self.p_disp = p_disp
+        self.m_disp = m_disp
+
+    def _generate_cartesian_second_deriv(self):
+
+        ref = self.ref_carts.flatten()
+        n = len(ref)
+
+        p_disp = np.empty((n, n), dtype=object)
+        m_disp = np.empty((n, n), dtype=object)
+
+        for i, j in self.indices:
+
+            plus = ref.copy()
+            minus = ref.copy()
+
+            plus[i] += self.disp
+            plus[j] += self.disp
+
+            minus[i] -= self.disp
+            minus[j] -= self.disp
+
+            p_disp[i, j] = plus.reshape(-1, 3)
+            m_disp[i, j] = minus.reshape(-1, 3)
+
+        self.p_disp = p_disp
+        self.m_disp = m_disp
 
     def int_c(self, carts, eig_inv, proj):
-        # This is a function that computes all currently implemented and
-        # specified internal coordinates from the desired cartesian
-        # coordinates. The internal coordinate values will be appended
-        # together in the order of the for-loops below. All other methods
-        # in this package which use the int_c generated variables MUST
-        # abide by this ordering.
-        int_coord = np.array([])
-        for i in range(len(self.zmat.bond_indices)):
-            for j in self.zmat.bond_indices[i]:
-                Len = len(np.array(j).shape)
-                if Len:
-                    indies = self.zmat.bond_indices[i]
-                    bond_carts = []
-                    for k in indies[0]:
-                        bond_carts = np.append(
-                            bond_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    bond_carts = np.reshape(bond_carts, (-1, 3))
-                    x1 = self.calc_Centroid(bond_carts)
+        """
+        Compute all internal coordinates from Cartesian coordinates.
 
-                    bond_carts = []
-                    for k in indies[1]:
-                        bond_carts = np.append(
-                            bond_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    bond_carts = np.reshape(bond_carts, (-1, 3))
-                    x2 = self.calc_Centroid(bond_carts)
-                else:
-                    x1 = np.array(carts[int(self.zmat.bond_indices[i][0]) - 1]).astype(
-                        float
-                    )
-                    x2 = np.array(carts[int(self.zmat.bond_indices[i][1]) - 1]).astype(
-                        float
-                    )
+        The ordering of generated internal coordinates is significant and must
+        remain consistent with the rest of the package.
+        """
+        carts = np.asarray(carts, dtype=float)
+        int_coord = []
 
-            int_coord = np.append(int_coord, self.calc_bond(x1, x2))
+        def get_point(indices):
+            """
+            Return either:
+            - a Cartesian coordinate for a single atom index
+            - a centroid for a group of atom indices
+            """
+            if np.ndim(indices) == 0:
+                return carts[int(indices) - 1]
 
-        for i in range(len(self.zmat.rcom_indices)):
-            mol1 = self.zmat.rcom_indices[i][0]
-            mol2 = self.zmat.rcom_indices[i][1]
-            rc = self.calc_Rcom(mol1, mol2, carts)
-            int_coord = np.append(int_coord, rc)
+            coords = np.asarray(
+                [carts[int(i) - 1] for i in indices],
+                dtype=float,
+            )
+            return self.calc_Centroid(coords)
 
-        for i in range(len(self.zmat.angle_indices)):
-            for j in self.zmat.angle_indices[i]:
-                Len = len(np.array(j).shape)
-                indies = self.zmat.angle_indices[i]
-                if Len:
-                    angle_carts = []
-                    for k in indies[0]:
-                        angle_carts = np.append(
-                            angle_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    angle_carts = np.reshape(angle_carts, (-1, 3))
-                    x1 = self.calc_Centroid(angle_carts)
+        def get_points(index_set):
+            return [get_point(indices) for indices in index_set]
 
-                    angle_carts = []
-                    for k in indies[1]:
-                        angle_carts = np.append(
-                            angle_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    angle_carts = np.reshape(angle_carts, (-1, 3))
-                    x2 = self.calc_Centroid(angle_carts)
+        #
+        # Bonds
+        #
+        for inds in self.zmat.bond_indices:
+            x1, x2 = get_points(inds)
+            int_coord.append(self.calc_bond(x1, x2))
 
-                    angle_carts = []
-                    for k in indies[2]:
-                        angle_carts = np.append(
-                            angle_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    angle_carts = np.reshape(angle_carts, (-1, 3))
-                    x3 = self.calc_Centroid(angle_carts)
-                else:
-                    x1 = np.array(carts[int(indies[0]) - 1]).astype(float)
-                    x2 = np.array(carts[int(indies[1]) - 1]).astype(float)
-                    x3 = np.array(carts[int(indies[2]) - 1]).astype(float)
+        #
+        # Center-of-mass distances
+        #
+        for mol1, mol2 in self.zmat.rcom_indices:
+            int_coord.append(self.calc_Rcom(mol1, mol2, carts))
 
-            a = self.calc_angle(x1, x2, x3)
+        #
+        # Angles
+        #
+        for i, inds in enumerate(self.zmat.angle_indices):
+            x1, x2, x3 = get_points(inds)
+
+            angle = self.calc_angle(x1, x2, x3)
+
             if self.conv:
-                condition_1 = (
-                    float(self.zmat.variable_dictionary_a[self.zmat.angle_variables[i]])
-                    > 180.0
+                ref = float(
+                    self.zmat.variable_dictionary_a[self.zmat.angle_variables[i]]
                 )
-                condition_2 = (
-                    float(self.zmat.variable_dictionary_a[self.zmat.angle_variables[i]])
-                    < 0.0
-                )
-                if condition_1 or condition_2:
-                    a = 2 * np.pi - a
-            int_coord = np.append(int_coord, a)
 
-        for i in range(len(self.zmat.torsion_indices)):
-            for j in self.zmat.torsion_indices[i]:
-                Len = len(np.array(j).shape)
-                if Len:
-                    indies = self.zmat.torsion_indices[i]
-                    torsion_carts = []
-                    for k in indies[0]:
-                        torsion_carts = np.append(
-                            torsion_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    torsion_carts = np.reshape(torsion_carts, (-1, 3))
-                    x1 = self.calc_Centroid(torsion_carts)
+                if ref > 180.0 or ref < 0.0:
+                    angle = 2 * np.pi - angle
 
-                    torsion_carts = []
-                    for k in indies[1]:
-                        torsion_carts = np.append(
-                            torsion_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    torsion_carts = np.reshape(torsion_carts, (-1, 3))
-                    x2 = self.calc_Centroid(torsion_carts)
+            int_coord.append(angle)
 
-                    torsion_carts = []
-                    for k in indies[2]:
-                        torsion_carts = np.append(
-                            torsion_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    torsion_carts = np.reshape(torsion_carts, (-1, 3))
-                    x3 = self.calc_Centroid(torsion_carts)
+        #
+        # Torsions
+        #
+        for i, inds in enumerate(self.zmat.torsion_indices):
+            x1, x2, x3, x4 = get_points(inds)
 
-                    torsion_carts = []
-                    for k in indies[3]:
-                        torsion_carts = np.append(
-                            torsion_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    torsion_carts = np.reshape(torsion_carts, (-1, 3))
-                    x4 = self.calc_Centroid(torsion_carts)
-                else:
-                    x1 = np.array(
-                        carts[int(self.zmat.torsion_indices[i][0]) - 1]
-                    ).astype(float)
-                    x2 = np.array(
-                        carts[int(self.zmat.torsion_indices[i][1]) - 1]
-                    ).astype(float)
-                    x3 = np.array(
-                        carts[int(self.zmat.torsion_indices[i][2]) - 1]
-                    ).astype(float)
-                    x4 = np.array(
-                        carts[int(self.zmat.torsion_indices[i][3]) - 1]
-                    ).astype(float)
+            tors = self.calc_tors(x1, x2, x3, x4)
 
-            t = self.calc_tors(x1, x2, x3, x4)
             if self.conv:
-                condition_1 = float(
+                ref = float(
                     self.zmat.variable_dictionary_a[self.zmat.torsion_variables[i]]
-                ) > 135.0 and (t * 180.0 / np.pi < -135.0)
-                condition_2 = float(
-                    self.zmat.variable_dictionary_a[self.zmat.torsion_variables[i]]
-                ) < -135.0 and (t * 180.0 / np.pi > 135.0)
-                if condition_1:
-                    t += 2 * np.pi
-                if condition_2:
-                    t -= 2 * np.pi
-            int_coord = np.append(int_coord, t)
+                )
 
-        for i in range(len(self.zmat.oop_indices)):
-            for j in self.zmat.oop_indices[i]:
-                Len = len(np.array(j).shape)
-                if Len:
-                    indies = self.zmat.oop_indices[i]
-                    oop_carts = []
-                    for k in indies[0]:
-                        oop_carts = np.append(
-                            oop_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    oop_carts = np.reshape(oop_carts, (-1, 3))
-                    x1 = self.calc_Centroid(oop_carts)
+                tors_deg = tors * 180.0 / np.pi
 
-                    oop_carts = []
-                    for k in indies[1]:
-                        oop_carts = np.append(
-                            oop_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    oop_carts = np.reshape(oop_carts, (-1, 3))
-                    x2 = self.calc_Centroid(oop_carts)
+                if ref > 135.0 and tors_deg < -135.0:
+                    tors += 2 * np.pi
+                elif ref < -135.0 and tors_deg > 135.0:
+                    tors -= 2 * np.pi
 
-                    oop_carts = []
-                    for k in indies[2]:
-                        oop_carts = np.append(
-                            oop_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    oop_carts = np.reshape(oop_carts, (-1, 3))
-                    x3 = self.calc_Centroid(oop_carts)
+            int_coord.append(tors)
 
-                    oop_carts = []
-                    for k in indies[3]:
-                        oop_carts = np.append(
-                            oop_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    oop_carts = np.reshape(oop_carts, (-1, 3))
-                    x4 = self.calc_Centroid(oop_carts)
-                else:
-                    x1 = np.array(carts[int(self.zmat.oop_indices[i][0]) - 1]).astype(
-                        float
-                    )
-                    x2 = np.array(carts[int(self.zmat.oop_indices[i][1]) - 1]).astype(
-                        float
-                    )
-                    x3 = np.array(carts[int(self.zmat.oop_indices[i][2]) - 1]).astype(
-                        float
-                    )
-                    x4 = np.array(carts[int(self.zmat.oop_indices[i][3]) - 1]).astype(
-                        float
-                    )
+        #
+        # Out-of-plane bends
+        #
+        for i, inds in enumerate(self.zmat.oop_indices):
+            x1, x2, x3, x4 = get_points(inds)
 
-            o = self.calc_OOP(x1, x2, x3, x4)
+            oop = self.calc_OOP(x1, x2, x3, x4)
+
             if self.conv:
-                condition_1 = (
-                    float(self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]])
-                    > 180.0
-                )
-                condition_2 = (
-                    float(self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]])
-                    < -180.0
-                )
-                if condition_1:
-                    o = o - 2 * np.pi
-                if condition_2:
-                    o = o + 2 * np.pi
-            int_coord = np.append(int_coord, o)
+                ref = float(self.zmat.variable_dictionary_a[self.zmat.oop_variables[i]])
 
-        # These angles will have to be tempered at some point in the same manner as above.
-        for i in range(len(self.zmat.lin_indices)):
-            for j in self.zmat.lin_indices[i]:
-                Len = len(np.array(j).shape)
-                if Len:
-                    indies = self.zmat.lin_indices[i]
-                    lin_carts = []
-                    for k in indies[0]:
-                        lin_carts = np.append(
-                            lin_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    lin_carts = np.reshape(lin_carts, (-1, 3))
-                    x1 = self.calc_Centroid(lin_carts)
+                if ref > 180.0:
+                    oop -= 2 * np.pi
+                elif ref < -180.0:
+                    oop += 2 * np.pi
 
-                    lin_carts = []
-                    for k in indies[1]:
-                        lin_carts = np.append(
-                            lin_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    lin_carts = np.reshape(lin_carts, (-1, 3))
-                    x2 = self.calc_Centroid(lin_carts)
+            int_coord.append(oop)
 
-                    lin_carts = []
-                    for k in indies[2]:
-                        lin_carts = np.append(
-                            lin_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    lin_carts = np.reshape(lin_carts, (-1, 3))
-                    x3 = self.calc_Centroid(lin_carts)
+        #
+        # Linear bends
+        #
+        linear_coordinate_sets = [
+            (self.zmat.lin_indices, self.calc_Lin),
+            (self.zmat.linx_indices, self.calc_Linx),
+            (self.zmat.liny_indices, self.calc_Liny),
+        ]
 
-                    lin_carts = []
-                    for k in indies[3]:
-                        lin_carts = np.append(
-                            lin_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    lin_carts = np.reshape(lin_carts, (-1, 3))
-                    x4 = self.calc_Centroid(lin_carts)
-                else:
-                    x1 = np.array(carts[int(self.zmat.lin_indices[i][0]) - 1]).astype(
-                        float
-                    )
-                    x2 = np.array(carts[int(self.zmat.lin_indices[i][1]) - 1]).astype(
-                        float
-                    )
-                    x3 = np.array(carts[int(self.zmat.lin_indices[i][2]) - 1]).astype(
-                        float
-                    )
-                    x4 = np.array(carts[int(self.zmat.lin_indices[i][3]) - 1]).astype(
-                        float
-                    )
-            l = self.calc_Lin(x1, x2, x3, x4)
-            int_coord = np.append(int_coord, l)
+        for index_sets, func in linear_coordinate_sets:
+            for inds in index_sets:
+                x1, x2, x3, x4 = get_points(inds)
+                int_coord.append(func(x1, x2, x3, x4))
 
-        for i in range(len(self.zmat.linx_indices)):
-            for j in self.zmat.linx_indices[i]:
-                Len = len(np.array(j).shape)
-                if Len:
-                    indies = self.zmat.linx_indices[i]
-                    linx_carts = []
-                    for k in indies[0]:
-                        linx_carts = np.append(
-                            linx_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    linx_carts = np.reshape(linx_carts, (-1, 3))
-                    x1 = self.calc_Centroid(linx_carts)
+        int_coord = np.asarray(int_coord)
 
-                    linx_carts = []
-                    for k in indies[1]:
-                        linx_carts = np.append(
-                            linx_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    linx_carts = np.reshape(linx_carts, (-1, 3))
-                    x2 = self.calc_Centroid(linx_carts)
-
-                    linx_carts = []
-                    for k in indies[2]:
-                        linx_carts = np.append(
-                            linx_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    linx_carts = np.reshape(linx_carts, (-1, 3))
-                    x3 = self.calc_Centroid(linx_carts)
-
-                    linx_carts = []
-                    for k in indies[3]:
-                        linx_carts = np.append(
-                            linx_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    linx_carts = np.reshape(linx_carts, (-1, 3))
-                    x4 = self.calc_Centroid(linx_carts)
-                else:
-                    x1 = np.array(carts[int(self.zmat.linx_indices[i][0]) - 1]).astype(
-                        float
-                    )
-                    x2 = np.array(carts[int(self.zmat.linx_indices[i][1]) - 1]).astype(
-                        float
-                    )
-                    x3 = np.array(carts[int(self.zmat.linx_indices[i][2]) - 1]).astype(
-                        float
-                    )
-                    x4 = np.array(carts[int(self.zmat.linx_indices[i][3]) - 1]).astype(
-                        float
-                    )
-            lx = self.calc_Linx(x1, x2, x3, x4)
-            int_coord = np.append(int_coord, lx)
-
-        for i in range(len(self.zmat.liny_indices)):
-            for j in self.zmat.liny_indices[i]:
-                Len = len(np.array(j).shape)
-                if Len:
-                    indies = self.zmat.liny_indices[i]
-                    liny_carts = []
-                    for k in indies[0]:
-                        liny_carts = np.append(
-                            liny_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    liny_carts = np.reshape(liny_carts, (-1, 3))
-                    x1 = self.calc_Centroid(liny_carts)
-
-                    liny_carts = []
-                    for k in indies[1]:
-                        liny_carts = np.append(
-                            liny_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    liny_carts = np.reshape(liny_carts, (-1, 3))
-                    x2 = self.calc_Centroid(liny_carts)
-
-                    liny_carts = []
-                    for k in indies[2]:
-                        liny_carts = np.append(
-                            liny_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    liny_carts = np.reshape(liny_carts, (-1, 3))
-                    x3 = self.calc_Centroid(liny_carts)
-
-                    liny_carts = []
-                    for k in indies[3]:
-                        liny_carts = np.append(
-                            liny_carts, np.array(carts[int(k) - 1]).astype(float)
-                        )
-                    liny_carts = np.reshape(liny_carts, (-1, 3))
-                    x4 = self.calc_Centroid(liny_carts)
-                else:
-                    x1 = np.array(carts[int(self.zmat.liny_indices[i][0]) - 1]).astype(
-                        float
-                    )
-                    x2 = np.array(carts[int(self.zmat.liny_indices[i][1]) - 1]).astype(
-                        float
-                    )
-                    x3 = np.array(carts[int(self.zmat.liny_indices[i][2]) - 1]).astype(
-                        float
-                    )
-                    x4 = np.array(carts[int(self.zmat.liny_indices[i][3]) - 1]).astype(
-                        float
-                    )
-            ly = self.calc_Liny(x1, x2, x3, x4)
-            int_coord = np.append(int_coord, ly)
-
-        int_coord = np.dot(proj.T, int_coord)
-        int_coord = np.dot(eig_inv, int_coord)
-
-        return int_coord
+        return eig_inv @ (proj.T @ int_coord)
 
     def calc_bond(self, x1, x2):
         r = LA.norm(x1 - x2)
@@ -868,12 +666,11 @@ class TransfDisp(object):
         n_disp,
         n_coord,
         ref_carts,
-        # max_iter,
-        # tolerance,
         A,
         tight_disp,
         zmat,
         options,
+        A2=np.array([]),
     ):
         disp = n_disp.copy()
         new_n = n_coord + n_disp
@@ -882,22 +679,18 @@ class TransfDisp(object):
         for i in range(options.transf_max_it):
             cart_disp = np.dot(n_disp, A)
             np.set_printoptions(precision=6, linewidth=240)
-            # if self.options.second_order:
-            # A2 = self.compute_A2(self.s_vectors.B2, A)
-            # A2 = np.einsum("ipq,pr,qs->irs", A2, self.ted.proj, self.ted.proj)
-            # L = inv(self.eig_inv)
-            # A2 = np.einsum("irs,rp,sq->ipq",A2, L, L)
-            # cart_disp += 0.5*np.einsum("ipq,p,q->i", A2, n_disp,n_disp)
+            if self.options.second_order:
+                cart_disp += 0.5 * np.einsum("ipq,p,q->i", A2, n_disp, n_disp)
             cart_disp_shaped = np.reshape(cart_disp, (-1, 3))
             new_carts += cart_disp_shaped
-            coord_check = self.int_c(new_carts, self.eig_inv, self.ted.proj)
+            coord_check = self.int_c(new_carts, self.eig_inv, self.proj)
             n_disp = new_n - coord_check
 
             if tight_disp:
-                sVec = s_vec(zmat, options, zmat.variable_dictionary_a)
+                sVec = s_vec(zmat, options)
                 sVec.run(new_carts, False)
                 A = self.compute_A(
-                    sVec.B, self.ted.proj, self.eig_inv, self.zmat.mass_weight
+                    sVec.B, self.proj, self.eig_inv, self.zmat.mass_weight
                 )
             if LA.norm(n_disp) < tolerance:
                 break
@@ -940,9 +733,8 @@ class TransfDisp(object):
         return A
 
     def compute_A2(self, B2, A):
+        C2 = np.einsum("rij,pi,qj->rpq", B2, A, A)
 
-        C2 = np.einsum("rij,ip,jq->rpq", B2, A, A)
-
-        A2 = np.einsum("rpq,ir->ipq", C2, A)
+        A2 = np.einsum("rpq,ri->ipq", C2, A)
 
         return A2

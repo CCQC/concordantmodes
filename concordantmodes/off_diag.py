@@ -4,7 +4,7 @@ from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
 
 
-class OffDiagonal(object):
+class OffDiagonal:
     """
     This class handles all off-diagonal CMA methods.
     """

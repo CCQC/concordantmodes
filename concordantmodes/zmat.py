@@ -9,7 +9,146 @@ from concordantmodes.int2cart import Int2Cart
 from concordantmodes.transf_disp import TransfDisp
 
 
-class Zmat(object):
+class Zmat:
+    """
+    Parse, construct, and analyze molecular internal coordinate systems.
+
+    The ``Zmat`` class reads molecular geometry information from a ZMAT-style
+    input file, constructs internal coordinate definitions, evaluates their
+    numerical values from Cartesian coordinates, and provides mappings between
+    coordinate labels, atom indices, and coordinate values.
+
+    The class supports three coordinate generation modes:
+
+    * ``ZMAT`` – Traditional Z-matrix coordinates generated directly from
+      the atom connectivity specified in the Z-matrix section.
+    * ``DELOCALIZED`` – Redundant internal coordinates generated
+      automatically from molecular connectivity determined either from
+      user-supplied bonds or covalent radii analysis.
+    * ``CUSTOM`` – User-defined internal coordinates, including support
+      for centroid-based coordinates and center-of-mass distances.
+
+    Supported internal coordinate types include:
+
+    * Bond stretches
+    * Bond angles
+    * Dihedral/torsional angles
+    * Out-of-plane bends
+    * Linear bending coordinates
+    * Linear bend x/y components
+    * Center-of-mass separation coordinates
+    * Centroid-based coordinates
+
+    The class reads one or two Cartesian geometries from the input file.
+    When two geometries are supplied, the first is treated as the initial
+    geometry and the second as the final geometry. Internal coordinate
+    values are evaluated for both geometries and stored for comparison.
+
+    Attributes
+    ----------
+    options : object
+        User options controlling coordinate generation, units,
+        topology analysis, and parsing behavior.
+
+    atom_list : list[str]
+        Atomic labels read from the Cartesian geometry section.
+
+    cartesians_b : ndarray, shape (N, 3)
+        Initial Cartesian coordinates in atomic units.
+
+    cartesians_a : ndarray, shape (N, 3)
+        Final Cartesian coordinates in atomic units.
+
+    masses : list[float]
+        Atomic masses converted to electron-mass units.
+
+    mass_weight : ndarray, shape (3N, 3N)
+        Diagonal mass-weighting matrix.
+
+    bond_indices : ndarray
+        Bond coordinate atom index definitions.
+
+    angle_indices : ndarray
+        Angle coordinate atom index definitions.
+
+    torsion_indices : ndarray
+        Torsional coordinate atom index definitions.
+
+    oop_indices : ndarray
+        Out-of-plane bend coordinate definitions.
+
+    lin_indices : ndarray
+        Linear bend coordinate definitions.
+
+    linx_indices : ndarray
+        Linear bend x-component definitions.
+
+    liny_indices : ndarray
+        Linear bend y-component definitions.
+
+    rcom_indices : ndarray
+        Center-of-mass distance coordinate definitions.
+
+    variables : ndarray
+        Ordered list of internal coordinate labels.
+
+    variable_dictionary_b : dict
+        Internal coordinate values for the initial geometry.
+
+    variable_dictionary_a : dict
+        Internal coordinate values for the final geometry.
+
+    index_dictionary : dict
+        Mapping between coordinate labels and their corresponding
+        atom index definitions.
+
+    Methods
+    -------
+    run(zmat_name='zmat')
+        Execute the complete ZMAT processing workflow.
+
+    zmat_read(zmat_name)
+        Read Cartesian coordinates and Z-matrix information from
+        an input file.
+
+    zmat_process(zmat_output)
+        Construct internal coordinate definitions from parsed input.
+
+    zmat_calc()
+        Compute internal coordinate values from Cartesian geometries.
+
+    zmat_compile()
+        Build lookup dictionaries for coordinate labels and indices.
+
+    zmat_print()
+        Print initial, final, and displacement values for all
+        internal coordinates.
+
+    red_mass(indices)
+        Compute the reciprocal reduced mass contribution for a
+        coordinate definition.
+
+    np_contains(array1, array2, tor=False)
+        Determine whether a coordinate definition already exists
+        within a coordinate list.
+
+    Notes
+    -----
+    Cartesian coordinates may be supplied in either Angstroms or
+    Bohr depending on the value of ``options.cart_coords``. All
+    internal calculations are performed in atomic units.
+
+    For ``DELOCALIZED`` coordinates, molecular connectivity can be
+    determined automatically using covalent radii from
+    ``qcelemental.covalent_radii.CovalentRadii``. From this
+    connectivity graph, redundant bonds, angles, torsions, and
+    out-of-plane bends are generated automatically.
+
+    When topology analysis is enabled, the class can additionally
+    generate and analyze molecular graph walks and ring cycles of
+    increasing length.
+    """
+
     def __init__(self, options):
         self.amu_elMass = 5.48579909065 * (10 ** (-4))
         self.disp_tol = 1.0e-14
@@ -206,11 +345,6 @@ class Zmat(object):
                 # Second atom of the ZMAT, will have one bond term
                 if re.search(self.second_atom_regex, zmat_output[i]):
                     List = re.findall(self.second_atom_regex, zmat_output[i])[0]
-                    print("Zebra2")
-                    print(List)
-                    # self.bond_indices = np.append(
-                    # self.bond_indices, np.array([str(i - first_index + 1), List[1]])
-                    # )
                     self.bond_indices = np.append(self.bond_indices, 0)
                     self.bond_indices[-1] = np.array(
                         [str(i - first_index + 1), List[1]], dtype=object
@@ -224,9 +358,6 @@ class Zmat(object):
                         [str(i - first_index + 1), List[1]], dtype=object
                     )
                     self.bond_variables.append("R" + str(i - first_index))
-                    # self.angle_indices.append(
-                    # [str(i - first_index + 1), List[1], List[2]]
-                    # )
                     self.angle_indices = np.append(self.angle_indices, 0)
                     self.angle_indices[-1] = np.array(
                         [str(i - first_index + 1), List[1], List[2]], dtype=object
@@ -424,6 +555,7 @@ class Zmat(object):
 
                     count += 1
                     new_walks = new_walks.reshape((-1, count))
+                    print(new_walks)
                     new_walks = np.unique(new_walks, axis=0)
 
                     del_list = np.array([])

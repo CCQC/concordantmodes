@@ -28,7 +28,7 @@ def test_f_convert2int():
         suite.ZMAT,
         "internal",
         False,
-        suite.TED_obj,
+        suite.TED_obj.proj,
         suite.options,
     )
     FCint.run()
@@ -49,7 +49,7 @@ def test_f_convert2cart():
         suite.ZMAT,
         "internal",
         False,
-        suite.TED_obj,
+        suite.TED_obj.proj,
         suite.options,
     )
     FCint.run()
@@ -59,7 +59,7 @@ def test_f_convert2cart():
         suite.ZMAT,
         "cartesian",
         False,
-        suite.TED_obj,
+        suite.TED_obj.proj,
         suite.options,
     )
     FCcart.run()

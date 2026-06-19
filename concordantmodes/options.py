@@ -1,4 +1,4 @@
-class Options(object):
+class Options:
     def __init__(self, **kwargs):
         self.autosalcs = kwargs.pop("autosalcs", True)
         self.benchmark_full = kwargs.pop("benchmark_full", False)
@@ -50,9 +50,9 @@ class Options(object):
         # self.output_name_a = kwargs.pop("output_name_a", "output")
         self.partner_functions = kwargs.pop("partner_functions", True)
         self.printout_rel_e = kwargs.pop("printout_rel_e", True)
-        self.program_a = kwargs.pop("program_a", "molpro@2010.1.67+mpi")
-        self.program_b = kwargs.pop("program_b", "molpro@2010.1.67+mpi")
-        self.program_c = kwargs.pop("program_c", "molpro@2010.1.67+mpi")
+        self.program_a = kwargs.pop("program_a", "molpro")
+        self.program_b = kwargs.pop("program_b", "molpro")
+        self.program_c = kwargs.pop("program_c", "molpro")
         self.proj_tol = kwargs.pop("proj_tol", 1.0e-14)
         self.queue = kwargs.pop("queue", "batch")
         self.reduced_disp = kwargs.pop("reduced_disp", False)
@@ -60,6 +60,7 @@ class Options(object):
         self.second_order = kwargs.pop("second_order", False)
         self.rmsd = kwargs.pop("rmsd", False)
         self.ted_check = kwargs.pop("ted_check", False)
+        self.scaled_disp = kwargs.pop("scaled_disp", False)
         self.spin = kwargs.pop("spin", 1)
         self.subgroup = kwargs.pop("subgroup", False)
         self.success_regex_a = kwargs.pop("success_regex_a", "")

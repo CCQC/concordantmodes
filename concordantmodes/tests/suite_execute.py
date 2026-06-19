@@ -56,7 +56,8 @@ class execute_suite(object):
             self.ZMAT,
             "internal",
             False,
-            self.TED_obj,
+            self.s_vec.proj,
+            # self.TED_obj.proj,
             self.options,
         )
         self.f_conv.run()
@@ -64,11 +65,16 @@ class execute_suite(object):
         self.F = self.f_conv.F
         self.G = np.dot(self.TED_obj.proj.T, np.dot(self.g_mat.G, self.TED_obj.proj))
         self.GF = GFMethod(
-            self.G, self.F, self.ZMAT, self.TED_obj, self.options, self.symm_obj.symtext
+            self.G,
+            self.F,
+            self.ZMAT,
+            self.TED_obj,
+            self.options,
+            symtext=self.symm_obj.symtext,
         )
 
         self.GF.run()
-        self.algo = Algorithm(len(self.GF.L), None, self.options, None)
+        self.algo = Algorithm(len(self.GF.L), None, self.options)
         self.algo.run()
 
         self.disps = TransfDisp(
@@ -76,7 +82,7 @@ class execute_suite(object):
             self.ZMAT,
             self.GF.L,
             True,
-            self.TED_obj,
+            self.TED_obj.proj,
             self.options,
             self.algo.indices,
             symm_obj=self.symm_obj,

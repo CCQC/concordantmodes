@@ -11,6 +11,8 @@ options_kwargs = {
     "energy_regex_b": r"\(T\) total energy\s+(\-\d+\.\d+)",
     "cart_insert_b": 9,
     "cart_insert_a": 9,
+    # "calc_b" : False,
+    # "gen_disps_b" : False,
     "man_proj": True,
     "coords": "Custom",
     "success_regex_b": r"Molpro calculation terminated",
@@ -63,4 +65,5 @@ sym_sort = [[0, 1, 2, 4, 5, 6, 7, 9], [3, 8, 10, 11]]
 from concordantmodes.cma import ConcordantModes
 
 CMA_obj = ConcordantModes(options_obj, proj=Proj)
+# CMA_obj.run()
 CMA_obj.run(sym_sort=sym_sort)
