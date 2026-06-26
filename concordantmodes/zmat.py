@@ -386,7 +386,7 @@ class Zmat:
                     )
                     self.torsion_variables.append("D" + str(i - first_index))
         elif self.options.coords.upper() == "DELOCALIZED":
-            
+
             # Form all possible bonds, whether from qcelemental or manually input
             self._build_bonds(zmat_output)
 
@@ -868,9 +868,7 @@ class Zmat:
         for i in range(len(self.bond_indices)):
             for j in range(len(self.bond_indices) - i - 1):
                 a = np.setdiff1d(self.bond_indices[i], self.bond_indices[i + j + 1])
-                b = np.intersect1d(
-                    self.bond_indices[i], self.bond_indices[i + j + 1]
-                )
+                b = np.intersect1d(self.bond_indices[i], self.bond_indices[i + j + 1])
                 c = np.setdiff1d(self.bond_indices[i + j + 1], self.bond_indices[i])
                 if len(a) and len(b) and len(c):
                     d = np.array([a[0], b[0], c[0]])
@@ -922,9 +920,7 @@ class Zmat:
                             self.torsion_indices, tor, tor=True
                         )
                         if not cont_bool:
-                            self.torsion_indices = np.append(
-                                self.torsion_indices, 0
-                            )
+                            self.torsion_indices = np.append(self.torsion_indices, 0)
                             self.torsion_indices[-1] = np.array(tor, dtype=object)
 
         for i in range(len(self.torsion_indices)):
@@ -989,10 +985,7 @@ class Zmat:
             new_walks = np.delete(new_walks, del_list, axis=0)
             prev_walks = new_walks
             if count > self.options.topo_max_it or not len(new_walks):
-                print(
-                    "Walk generator has terminated at walk lengths of "
-                    + str(count)
-                )
+                print("Walk generator has terminated at walk lengths of " + str(count))
                 break
             X_len_walks_dict[str(count) + "_length_walks"] = new_walks
             print(str(count) + "_length_walks")
@@ -1000,8 +993,8 @@ class Zmat:
             print(new_walks)
 
         dict_len = len(X_len_walks_dict) - 1
-        
-        print('Looking for rings')
+
+        print("Looking for rings")
         cycles_dict = {}
         for i in range(dict_len):
             # print(str(i + 3))
@@ -1016,15 +1009,11 @@ class Zmat:
                 for k in range(len(self.bond_indices)):
                     b = np.intersect1d(a, self.bond_indices[k])
                     if len(b) == 2:
-                        cycle = X_len_walks_dict[str(i + 3) + "_length_walks"][
-                            j
-                        ].copy()
+                        cycle = X_len_walks_dict[str(i + 3) + "_length_walks"][j].copy()
                         cycles_dict[str(i + 3)] = np.append(
                             cycles_dict[str(i + 3)], cycle
                         )
-            cycles_dict[str(i + 3)] = cycles_dict[str(i + 3)].reshape(
-                (-1, i + 3)
-            )
+            cycles_dict[str(i + 3)] = cycles_dict[str(i + 3)].reshape((-1, i + 3))
             del_array = np.array([])
             if len(cycles_dict[str(i + 3)]):
                 for j in range(len(cycles_dict[str(i + 3)])):
@@ -1040,9 +1029,9 @@ class Zmat:
                 cycles_dict[str(i + 3)] = np.delete(
                     cycles_dict[str(i + 3)], del_array, axis=0
                 )
-                print(f"{i+3}-membered ring detected!" )
+                print(f"{i+3}-membered ring detected!")
                 print(cycles_dict[str(i + 3)])
-    
+
     def _generate_walks(self):
         pass
 
