@@ -80,10 +80,6 @@ class GFMethod:
         analysis routines. Required when symmetry block
         diagonalization is enabled.
 
-    cma : bool, optional
-        Indicates whether the calculation is being performed within
-        the Concordant Modes Algorithm workflow.
-
     sym_sort : list, optional
         User-defined symmetry sorting information.
 
@@ -149,14 +145,13 @@ class GFMethod:
     internal coordinate to every normal mode.
     """
 
-    def __init__(self, G, F, zmat, ted, options, symtext=None, cma=None, sym_sort=[]):
+    def __init__(self, G, F, zmat, ted, options, symtext=None, sym_sort=[]):
         self.G = G
         self.F = F
         self.zmat = zmat
         self.ted = ted
         self.options = options
         self.symtext = symtext
-        self.cma = cma
         self.sym_sort = sym_sort
         self.AMU_ELMASS = 5.48579909065 * (10 ** (-4))
         self.HARTREE_WAVENUM = 219474.6313708

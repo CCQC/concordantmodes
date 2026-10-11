@@ -202,7 +202,7 @@ class Reap:
         by the :class:`ForceConstant` class to construct finite-difference
         gradients and Hessians.
         """
-        if self.deriv_level:
+        if self.deriv_level == 1:
             return self._run_gradients()
         return self._run_energies()
 
@@ -285,6 +285,8 @@ class Reap:
         m_list = []
 
         ref_grad = self._read_gradient(1)
+
+        print(self.indices)
 
         for idx in self.indices:
             i = idx[0]
@@ -372,12 +374,13 @@ class Reap:
         The transformed gradients replace the Cartesian gradients stored
         in ``p_grad_array`` and ``m_grad_array``.
         """
+
         if not (
             self.options.conv_grad
             and self.zmat is not None
             and len(self.proj)
             and self.disp is not None
-            and not self.deriv_level
+            and self.deriv_level
         ):
             return
 

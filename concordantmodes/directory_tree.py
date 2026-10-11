@@ -192,6 +192,7 @@ class DirectoryTree:
         if self.prog_name not in self.PROG_LIST:
             raise RuntimeError(f"Unsupported program: {self.prog_name}")
 
+        print(root)
         data = self.template.read_text().splitlines(keepends=True)
         n_atoms = len(self.zmat.atom_list)
 

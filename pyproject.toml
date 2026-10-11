@@ -27,11 +27,24 @@ tests = [
     "pytest-pep8",
 ]
 
+docs = [
+    "numpydoc",
+    "pydata-sphinx-theme",
+    "sphinx<8",
+    "sphinx-automodapi",
+    "sphinx-design",
+    "sphinxcontrib-napoleon",
+    "sphinx-autobuild",
+    "autodoc_pydantic>=1.9.1",
+    "pint",
+]
+
 [project.urls]
 Homepage = "https://github.com/CCQC/ConcordantModes"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "_version.py"
+Documentation = "https://optking.readthedocs.io/en/latest/"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -39,4 +52,18 @@ include = [
 ]
 [tool.hatch.version]
 source = "vcs"
+docs = [
+    "numpydoc",
+    "pydata-sphinx-theme",
+    "sphinx<8",
+    "sphinx-automodapi",
+    "sphinx-design",
+    "sphinxcontrib-napoleon",
+    "sphinx-autobuild",
+    "autodoc_pydantic>=1.9.1",
+    "pint",
+]
 
+[tool.hatch.envs.docs.scripts]
+build = "sphinx-build -M html docs/source docs/build"
+serve = "sphinx-autobuild --port=0 --open-browser docs/source docs/build/html/ &"

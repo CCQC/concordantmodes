@@ -237,8 +237,8 @@ class SVectors:
             e_2 = self.compute_e(x2, x3)
             e_3 = self.compute_e(x3, x4)
             ax = self.calc_alpha_x(e_1, e_2, e_3)
-            phi_1 = self.compute_phi(-e_1, e_2)
-            phi_2 = self.compute_phi(-e_2, e_3)
+            phi_1 = self.compute_phi(e_1, -e_2)
+            phi_2 = self.compute_phi(e_2, -e_3)
 
             lx1 = self.compute_LINX1(e_1, e_2, e_3, r_1, phi_1, phi_2, ax)
             lx2 = self.compute_LINX2(e_1, e_2, e_3, r_1, r_2, phi_1, phi_2, ax)
@@ -260,13 +260,14 @@ class SVectors:
             e_1 = self.compute_e(x1, x2)
             e_2 = self.compute_e(x2, x3)
             e_3 = self.compute_e(x3, x4)
+            ax = self.calc_alpha_x(e_1, e_2, e_3)
             ay = self.calc_alpha_y(e_1, e_2, e_3)
-            phi_1 = self.compute_phi(-e_1, e_2)
-            phi_2 = self.compute_phi(-e_2, e_3)
+            phi_1 = self.compute_phi(e_1, -e_2)
+            phi_2 = self.compute_phi(e_2, -e_3)
 
             ly1 = self.compute_LINY1(e_1, e_2, e_3, r_1, phi_1, ay)
-            ly2 = self.compute_LINY2(e_1, e_2, e_3, r_1, r_2, phi_1, ay)
-            ly4 = self.compute_LINY4(e_1, e_2, e_3, r_2, r_3, phi_1, ay)
+            ly2 = self.compute_LINY2(e_1, e_2, e_3, r_1, r_2, phi_1, phi_2, ax, ay)
+            ly4 = self.compute_LINY4(e_1, e_2, e_3, r_3, phi_1, ay)
             ly3 = -ly1 - ly2 - ly4
 
             values = [ly1, ly2, ly3, ly4]
@@ -283,13 +284,23 @@ class SVectors:
 
         self.B = np.array(rows)
 
-        tol = 1e-4
+        # if len(self.proj):
+        # print("Redundancy Check:")
+        # # B_projected = np.dot(self.proj.T,self.B)
+        # B_projected = self.B
+        # proj, eigs, _ = LA.svd(B_projected)
+        # for i in eigs:
+        # print(i)
+        # print(proj[:,-1])
+        # raise RuntimeError
+
+        tol = self.options.red_tol
         # Now we acquire a linearly independant set of internal coordinates from the diagonalized
         # BB^T Matrix
         if not self.options.man_proj:
             if self.options.coords.upper() != "ZMAT":
                 proj, eigs, _ = LA.svd(self.B)
-                proj[np.abs(proj) < tol] = 0
+                # proj[np.abs(proj) < tol] = 0
                 print("proj singular values:")
                 print(eigs)
                 if B_proj:
@@ -375,60 +386,52 @@ class SVectors:
         return s
 
     def compute_LINX1(self, e_1, e_2, e_3, r, phi_1, phi_2, ax):
-        a = -ax * e_1 / (r * np.sin(phi_1) ** 2)
-        b = -e_2 * (ax * (np.tan(phi_1) ** -1) + np.cos(phi_2)) / (r * np.sin(phi_1))
-        c = -e_3 / (r * np.sin(phi_1))
-        s = a + b + c
+        denom = r * np.sin(phi_1)
+        a = -ax * e_1 / np.sin(phi_1)
+        b = -e_2 * (ax / np.tan(phi_1) + np.cos(phi_2))
+        s = a + b - e_3
+        s /= denom
         return s
 
     def compute_LINX2(self, e_1, e_2, e_3, r_1, r_2, phi_1, phi_2, ax):
-        a = (
-            e_1
-            * (ax * (r_2 - r_1 * np.cos(phi_1)) - r_1 * np.sin(phi_1) * np.cos(phi_2))
-            / (r_1 * r_2 * np.sin(phi_1) ** 2)
-        )
-        b = (
-            -e_2
-            * (
-                ax * (np.tan(phi_1) ** -1) * (r_1 * np.cos(phi_1) - r_2)
-                + np.cos(phi_2) * (2 * r_1 * np.cos(phi_1) - r_2)
-            )
-            / (r_1 * r_2 * np.sin(phi_1))
-        )
-        c = -e_3 * (r_1 * np.cos(phi_1) - r_2) / (r_1 * r_2 * np.sin(phi_1))
-        s = a + b + c
+        cos_1 = np.cos(phi_1)
+        sin_1 = np.sin(phi_1)
+        denom = r_1 * r_2 * sin_1
+        piece_1 = ax * (r_2 - r_1 * cos_1) / sin_1
+        a = e_1 * (piece_1 - r_1 * np.cos(phi_2))
+        piece_1 = ax * (r_1 * cos_1 - r_2) / np.tan(phi_1)
+        piece_2 = np.cos(phi_2) * (2 * r_1 * cos_1 - r_2)
+        b = -e_2 * (piece_1 + piece_2)
+        c = e_3 * (r_2 - r_1 * cos_1)
+        s = (a + b + c) / denom
         return s
 
     def compute_LINX4(self, e_1, e_2, e_3, r, phi, ax):
         a = e_1 / (r * np.sin(phi))
-        b = e_2 * (np.tan(phi) ** -1) / r
+        b = e_2 / (r * np.tan(phi))
         c = ax * e_3 / r
         s = a + b + c
         return s
 
     def compute_LINY1(self, e_1, e_2, e_3, r, phi, ay):
-        a = -ay * (np.tan(phi) ** -1) * (e_1 * np.cos(phi) + e_2) / (r * np.sin(phi))
-        b = np.cross(e_2, -e_3) / (r * np.sin(phi))
-        c = -e_1 * ay / r
-        s = a + b + c
+        denom = r * np.sin(phi)
+        a = ay * (e_1 + np.cos(phi) * e_2) / np.sin(phi)
+        b = np.cross(-e_2, -e_3)
+        s = -(a + b) / denom
         return s
 
-    def compute_LINY2(self, e_1, e_2, e_3, r_1, r_2, phi, ay):
-        a = (
-            -np.cos(phi)
-            * ay
-            * (e_1 * (r_1 - r_2 * np.cos(phi)) - e_2 * (r_2 - r_1 * np.cos(phi)))
-            / (r_1 * r_2 * np.sin(phi) ** 2)
-        )
-        b = (r_2 * np.cross(e_2, -e_3) + r_1 * np.cross(-e_3, e_1)) / (
-            r_1 * r_2 * np.sin(phi)
-        )
-        c = ay * (e_1 * r_2 + e_2 * r_1) / (r_1 * r_2)
-        s = a + b + c
+    def compute_LINY2(self, e_1, e_2, e_3, r_1, r_2, phi_1, phi_2, ax, ay):
+        sin_1 = np.sin(phi_1)
+        cos_1 = np.cos(phi_1)
+        denom = r_1 * r_2 * sin_1
+        a = r_2 * ay * (e_1 + cos_1 * e_2) / sin_1
+        b = r_1 * (ax / np.tan(phi_1) + np.cos(phi_2)) * np.cross(e_1, -e_2)
+        c = r_2 * np.cross(-e_2, -e_3)
+        s = (a + b + c) / denom
         return s
 
-    def compute_LINY4(self, e_1, e_2, e_3, r_1, r_2, phi, ay):
-        s = ((np.sin(phi) ** -1) * np.cross(e_1, e_2) + e_3 * ay) / r_2
+    def compute_LINY4(self, e_1, e_2, e_3, r, phi, ay):
+        s = -(np.cross(e_1, -e_2) / np.sin(phi) - e_3 * ay) / r
         return s
 
     def calc_OOP(self, x1, x2, x3, x4):
@@ -475,14 +478,16 @@ class SVectors:
         return phi
 
     def calc_alpha_x(self, e_1, e_2, e_3):
-        theta = self.compute_phi(e_1, e_2)
-        s = np.dot(np.cross(e_1, e_2), np.cross(-e_2, e_3))
-        ax = s / np.sin(theta)
+        theta_1 = self.compute_phi(e_1, -e_2)
+        theta_2 = self.compute_phi(e_2, -e_3)
+        a = np.cos(theta_1) * np.cos(theta_2)
+        b = np.dot(e_1, -e_3)
+        ax = (a + b) / np.sin(theta_1)
         return ax
 
     def calc_alpha_y(self, e_1, e_2, e_3):
-        theta = self.compute_phi(e_1, e_2)
-        s = np.dot(e_1, np.cross(-e_2, e_3))
+        theta = self.compute_phi(e_1, -e_2)
+        s = np.dot(e_1, np.cross(e_2, -e_3))
         ay = s / np.sin(theta)
         return ay
 
@@ -497,7 +502,7 @@ class SVectors:
         return rc
 
     def num_differentiate(self, B_list_p, B_list_m):
-        disp_size = self.options.disp
+        disp_size = self.options.disp_b
 
         # Numerical first derivative
         B = (B_list_p - B_list_m) / (2 * disp_size)

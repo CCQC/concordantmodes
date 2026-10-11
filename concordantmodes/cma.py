@@ -34,7 +34,7 @@ from concordantmodes.zmat import Zmat
 
 class ConcordantModes:
     """
-    Driver class for the Concordant Modes Algorithm (CMA).
+    Driver class for the Concordant Mode Approach (CMA).
 
     This class orchestrates the complete vibrational analysis workflow,
     including:
@@ -107,12 +107,13 @@ class ConcordantModes:
         self.options = options
         # These constants are from:
         # https://physics.nist.gov/cgi-bin/cuu/Value?hr
+        # https://physics.nist.gov/cgi-bin/cuu/Value?bohrrada0|search_for=bohr
         # If this link dies, find the new link on NIST
         # for the Hartree to Joule conversion and pop it in there.
-        # There is a standard uncertainty of 0.0000000000085 to the MDYNE_HART constant.
-        # BOHR_ANG: Standard uncertainty of 0.00000000080
-        self.MDYNE_HART = 4.3597447222071
-        self.BOHR_ANG = 0.529177210903
+        # There is a standard uncertainty of 0.0000000000048 to the MDYNE_HART constant.
+        # BOHR_ANG: Standard uncertainty of 0.00000000082
+        self.MDYNE_HART = 4.3597447222060
+        self.BOHR_ANG = 0.529177210544
         self.proj = proj
         self.extra_indices = extra_indices
 
@@ -170,16 +171,18 @@ class ConcordantModes:
         g_mat = GMatrix(self.zmat_obj, self.s_vec, self.options, proj=self.proj)
         g_mat.run()
         G = g_mat.G.copy()
+        print(G.shape)
+        print(self.F_b.shape)
 
         self.options.init_bool = False
 
         if len(self.sym_sort) > 1:
-            F, g_mat.G = self.symm_obj.GF_sym_sort(self.F_b, g_mat, self.sym_sort)
+            self.F_b, G = self.symm_obj.GF_sym_sort(self.F_b, G, self.sym_sort)
 
         # Run the GF matrix method with the internal F-Matrix and computed G-Matrix!
         print("Level B Frequencies:")
         b_GF = GFMethod(
-            g_mat.G.copy(),
+            G.copy(),
             self.F_b.copy(),
             self.zmat_obj,
             self.TED_obj,
@@ -205,10 +208,27 @@ class ConcordantModes:
             ted_b = ted_b.T
             #### end of block that could probably be moved inside the symmetry.py module?
 
-        self.F_b = np.dot(np.dot(b_GF.L.T, self.F_b), b_GF.L)
-        # Now for the TED check.
+        self.disp = TransfDisp(
+            None,
+            self.zmat_obj,
+            None,
+            None,
+            None,
+            self.options,
+            None,
+        )
+        eig_inv = self.disp._build_eig_inv(b_GF.L)
+
+        # Use inv of normalized eig_inv instead of b_GF.L?
+        # self.F_b = np.dot(np.dot(b_GF.L.T, self.F_b), b_GF.L)
+        self.F_b = np.dot(np.dot(inv(eig_inv).T, self.F_b), inv(eig_inv))
+        # Now for the TED check. The statement above could be problematic
+        # for the TED check. Might want to fold it into an "else"
+        # statement to the TED check. Also, might want to use
+        # normalized eig_inv for TED check, it's just a scale factor
+        # to the diagonal G-matrix anyways...
         if self.options.ted_check:
-            self.G = np.dot(np.dot(LA.inv(b_GF.L), g_mat.G), LA.inv(b_GF.L).T)
+            self.G = np.dot(np.dot(LA.inv(b_GF.L), G), LA.inv(b_GF.L).T)
             self.G[np.abs(self.G) < self.options.tol] = 0
             self.F = np.dot(np.dot(b_GF.L.T, self.F_b), b_GF.L)
             self.F[np.abs(self.F) < self.options.tol] = 0
@@ -221,7 +241,6 @@ class ConcordantModes:
                 self.TED_obj,
                 self.options,
                 self.symm_obj.symtext,
-                cma=False,
             )
             TED_GF.run()
 
@@ -284,6 +303,7 @@ class ConcordantModes:
         # Can we generalize compute_hessian to run this too?
         # Now switch state to cma_level = "A"
         cma_level = "A"
+        self.options.cart_fc_b = False
 
         fc = np.array([])
         if self.options.reduced_disp:
@@ -304,6 +324,7 @@ class ConcordantModes:
             eigs=b_GF.L,
             fc=fc,
         )
+        # print(self.F_a)
 
         # Recompute the G-matrix with the new geometry, and then transform
         # the G-matrix using the lower level of theory eigenvalue matrix.
@@ -315,13 +336,19 @@ class ConcordantModes:
 
         self.G = g_mat.G
 
-        self.G = np.dot(np.dot(self.disp.eig_inv, self.G), self.disp.eig_inv.T)
+        if len(self.sym_sort) > 1:
+            _, self.G = self.symm_obj.GF_sym_sort(
+                np.zeros(self.F_b.shape), self.G, self.sym_sort
+            )
+
+        self.G = np.dot(np.dot(eig_inv, self.G), eig_inv.T)
         self.G[np.abs(self.G) < self.options.tol] = 0
 
-        if self.options.benchmark_full:
-            cma = True
-        else:
-            cma = False
+        np.set_printoptions(precision=7, edgeitems=60, linewidth=10000)
+        print("Normal Mode G")
+        print(self.G)
+        print("Diag F")
+        print(self.F_a)
 
         # Final GF Matrix run
         print("Final Harmonic Frequencies:")
@@ -332,7 +359,6 @@ class ConcordantModes:
             self.TED_obj,
             self.options,
             self.symm_obj.symtext,
-            cma=cma,
         )
         a_GF.run()
 
@@ -355,12 +381,25 @@ class ConcordantModes:
             + " (hartrees) "
         )
 
-        # This code converts the force constants back into cartesian
-        # coordinates and writes out an "output.default.hess" file, which
-        # is of the same format as FCMFINAL of CFOUR.
+        print("Frequency Shift (cm^-1): ")
+        print(a_GF.freq - b_GF.freq)
+        for i in a_GF.freq - b_GF.freq:
+            print(i)
+        print("RMSD Freq Shift (cm^-1): ")
+        print(np.sqrt(np.mean((a_GF.freq - b_GF.freq) ** 2)))
+        print("MAX Freq Shift (cm^-1): ")
+        print(np.max(np.abs(a_GF.freq - b_GF.freq)))
 
-        self.F_a = np.dot(np.dot(self.disp.eig_inv.T, self.F_a), self.disp.eig_inv)
-        self.gradient = np.dot(self.grad_a, self.disp.eig_inv)
+        # Write a molden file
+        molden = MoldenWriter(self.zmat_obj, self.disp, a_GF.freq)
+        molden.run()
+
+        # This code converts the force constants back into cartesian
+        # coordinates and writes out "fc_a.dat" and "fc_a.grad" files, which
+        # are of the same format as FCMFINAL of CFOUR for the force constants.
+
+        self.F_a = np.dot(np.dot(eig_inv.T, self.F_a), eig_inv)
+        self.gradient = np.dot(self.grad_a, eig_inv)
 
         cart_conv = FcConv(
             self.F_a,
@@ -378,19 +417,6 @@ class ConcordantModes:
             cart_conv.run()
 
         self.F_cart = cart_conv.F
-
-        print("Frequency Shift (cm^-1): ")
-        print(a_GF.freq - b_GF.freq)
-        for i in a_GF.freq - b_GF.freq:
-            print(i)
-        print("RMSD Freq Shift (cm^-1): ")
-        print(np.sqrt(np.mean((a_GF.freq - b_GF.freq) ** 2)))
-        print("MAX Freq Shift (cm^-1): ")
-        print(np.max(np.abs(a_GF.freq - b_GF.freq)))
-
-        # Write a molden file
-        molden = MoldenWriter(self.zmat_obj, self.disp, a_GF.freq)
-        molden.run()
 
         t2 = time.time()
         print("This program took " + str(t2 - t1) + " seconds to run.")
@@ -421,7 +447,7 @@ class ConcordantModes:
         self.s_vec.run(
             ref_carts,
             b_proj,
-            proj=proj,
+            proj=self.proj,
             second_order=options.second_order,
         )
 
@@ -433,44 +459,53 @@ class ConcordantModes:
 
         self.TED_obj = TED(self.proj, zmat, options)
 
-        if os.path.exists(rootdir + "/fc_" + cma_level.lower() + ".grad"):
-            g_read_obj = GrRead("fc_" + cma_level.lower() + ".grad")
-            # Need to pass in general carts here.
-            g_read_obj.run(ref_carts)
-
         num_deg_free = self.proj.shape[1]
-        if deriv_level and self.options.cart_fc_b:
-            num_deg_free = len(ref_carts.flatten())
         options.init_bool = False
         cart_fc = False
-        if os.path.exists(rootdir + "/fc_" + cma_level.lower() + ".dat"):
-            f_read_obj = FcRead("fc_" + cma_level.lower() + ".dat")
+        if coord_type.lower() == "cartesian":
+            self.options.cart_fc_b = True
+            num_deg_free = len(ref_carts.flatten())
             cart_fc = True
+            suff = "cart_"
+        elif coord_type.lower() == "internal":
+            suff = "int_"
+        if os.path.exists(rootdir + "/fc_" + suff + cma_level.lower() + ".dat"):
+            f_read_obj = FcRead("fc_" + suff + cma_level.lower() + ".dat")
 
             f_read_obj.run()
-            f_conv_obj = FcConv(
-                f_read_obj.fc_mat,
-                self.s_vec,
-                zmat,
-                "internal",
-                False,
-                self.TED_obj,
-                options,
-            )
-            if self.options.second_order:
-                f_conv_obj.run(grad=g_read_obj.cart_grad)
+            grad = np.array([])
+            if self.options.cart_fc_b:
+                f_conv_obj = FcConv(
+                    f_read_obj.fc_mat,
+                    self.s_vec,
+                    zmat,
+                    "internal",
+                    False,
+                    self.proj,
+                    options,
+                )
+                if self.options.second_order and os.path.exists(
+                    rootdir + "/fc_" + suff + cma_level.lower() + ".grad"
+                ):
+                    g_read_obj = GrRead("fc_" + suff + cma_level.lower() + ".grad")
+                    # Need to pass in general carts here.
+                    g_read_obj.run(ref_carts)
+                    f_conv_obj.run(grad=g_read_obj.cart_grad)
+                    grad = f_conv_obj.grad
+                else:
+                    f_conv_obj.run()
+                F = f_conv_obj.F
             else:
-                f_conv_obj.run()
-            F = f_conv_obj.F
+                F = f_read_obj.fc_mat
         else:
             options.init_bool = True
 
             # First generate displacements in internal coordinates
-            if cma_level == "B":
+            if cma_level.upper() == "B":
                 eigs = np.eye(len(self.proj.T))
                 if self.options.cart_fc_b:
                     eigs = np.eye(len(ref_carts.flatten()))
-                    cart_fc = True
+                    # cart_fc = True
 
             algo = Algorithm(
                 num_deg_free,
@@ -480,23 +515,25 @@ class ConcordantModes:
             )
             algo.run()
             print("Pre sym indices:")
+            print(len(algo.indices))
             print(algo.indices)
-            # raise RuntimeError
             if (
                 not options.deriv_level_b
                 and not options.molsym_symmetry
                 and cma_level == "B"
             ):
-                # Sym_sort doesn't seem to be working
-                print("symmetric displacements:")
-                if len(self.sym_sort) > 1:
+                if len(self.sym_sort) > 1 and coord_type.lower() == "internal":
+                    print("symmetric displacements:")
                     algo.indices = self.symm_obj.create_sym_sort_disps(
                         self.sym_sort, algo.indices
                     )
             else:
                 self.symm_obj.indices_by_irrep = algo.indices_by_irrep
+
             print("Post sym indices:")
+            print(len(algo.indices))
             print(algo.indices)
+
             if cma_level == "A" and len(self.extra_indices):
                 algo.indices += self.extra_indices
             self.disp = TransfDisp(
@@ -545,6 +582,7 @@ class ConcordantModes:
                     raise RuntimeError
             else:
                 if not os.path.exists(rootdir + "/Disps" + cma_level.upper()):
+                    print(os.getcwd())
                     print(
                         "You need to have a Disps"
                         + cma_level.upper()
@@ -560,7 +598,7 @@ class ConcordantModes:
 
             reap_obj = Reap(
                 options,
-                len(eigs),
+                num_deg_free,
                 algo.indices,
                 self.symm_obj,
                 cma_level,
@@ -595,29 +633,42 @@ class ConcordantModes:
             )
             fc.run()
 
-            if options.second_order and cart_fc:
-                f_conv_obj = FcConv(
-                    fc.FC,
-                    self.s_vec,
-                    zmat,
-                    "internal",
-                    False,
-                    self.proj,
-                    options,
-                )
+            f_conv_obj = FcConv(
+                fc.FC,
+                self.s_vec,
+                zmat,
+                "internal",
+                False,
+                self.proj,
+                options,
+            )
+            f_conv_obj.N = len(fc.FC)
+            if options.second_order and self.options.cart_fc_b:
+                f_conv_obj.print_const(fc_name="fc_cart_" + cma_level.lower() + ".dat")
+                fc_name = "fc_cart_" + cma_level.lower() + ".grad"
+                fc_output = ""
+                g_print = fc.gradient.flatten()
+                for i in range(len(g_print) // 3):
+                    fc_output += "{:20.10f}".format(g_print[3 * i])
+                    fc_output += "{:20.10f}".format(g_print[3 * i + 1])
+                    fc_output += "{:20.10f}".format(g_print[3 * i + 2])
+                    fc_output += "\n"
+                if len(g_print) % 3:
+                    for i in range(len(g_print) % 3):
+                        fc_output += "{:20.10f}".format(
+                            g_print[3 * (len(g_print) // 3) + i]
+                        )
+                    fc_output += "\n"
+                with open(fc_name, "w+") as file:
+                    file.write(fc_output)
+
                 f_conv_obj.run(grad=fc.gradient)
                 fc.FC = f_conv_obj.F
+            elif not self.options.cart_fc_b:
+                f_conv_obj.print_const(fc_name="fc_int_" + cma_level.lower() + ".dat")
 
             F = fc.FC
+            grad = fc.gradient
 
         F[np.abs(F) < self.options.tol] = 0
-        del_tol = 1.0e-3
-        for row in F:
-            abs_row = np.abs(row)
-            row[abs_row < np.max(abs_row) * del_tol] = 0
-        F = F.T
-        for row in F:
-            abs_row = np.abs(row)
-            row[abs_row < np.max(abs_row) * del_tol] = 0
-        F = F.T
-        return F, fc.gradient
+        return F, grad

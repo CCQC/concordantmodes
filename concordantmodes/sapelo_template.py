@@ -13,7 +13,7 @@ class SapeloTemplate:
         self.progdict = {
             "molpro": "molpro -n $NSLOTS --nouse-logfile --no-xml-output -o \
                 output.dat input.dat",
-            "psi4": "psi4 -n $NSLOTS",
+            "psi4": "psi4 -n $THREADS",
             "cfour": prog + "+vectorization",
             "orca": "",
         }
@@ -41,7 +41,8 @@ class SapeloTemplate:
 #SBATCH --ntasks=4             # Number of MPI ranks
 #SBATCH --ntasks-per-node=4    # How many tasks on each node
 #SBATCH --cpus-per-task=1     # Number of cores per MPI rank 
-#SBATCH --mem=32GB        # Memory per processor
+#SBATCH --mem=120GB        # Memory per processor
+#SBATCH --gres=lscratch:100
 #SBATCH --time={time_limit}
 #SBATCH --output="%x.%j".out     # Standard output log
 #SBATCH --error="%x.%j".err      # Standard error log
@@ -53,36 +54,37 @@ export THREADS=1
 module load intel/2022a
 
 # to change scratch dir to use local machine scratch
-export SCRATCH_DIR=/scratch/$USER/tmp/$SLURM_JOB_ID
+export SCRATCH_DIR=/lscratch/$USER/tmp/$SLURM_JOB_ID
 mkdir -p $SCRATCH_DIR
 export APPTAINER_BIND="$SLURM_SUBMIT_DIR,$SCRATCH_DIR"
 
 export TMPDIR=$SCRATCH_DIR
 
-mpirun -n $NSLOTS apptainer exec /work/jttlab/containers/molpro-2021-gapr.sif molpro.exe input.dat --output $SLURM_SUBMIT_DIR/output.dat --nouse-logfile --directory $SCRATCH_DIR
+mpirun -n $NSLOTS apptainer exec /work/hfslab/containers/molpro-2021-gapr.sif molpro.exe input.dat --output $SLURM_SUBMIT_DIR/output.dat --nouse-logfile --directory $SCRATCH_DIR
 
 rm $SCRATCH_DIR -r
 
 
 #ignored line -- do not remove
 """
+        # SBATCH --ntasks-per-node=1    # How many tasks on each node
+        # SBATCH --nodes=1                     # Number of nodes
+        # export NSLOTS=1
         elif self.prog_name == "psi4":
             self.sapelo_template = """#!/bin/sh
 #SBATCH --job-name=Concordant             # Job name
 #SBATCH --partition=batch               # Partition (queue) name
 #SBATCH --constraint=EPYC|Intel
-#SBATCH --nodes=1                     # Number of nodes
-#SBATCH --ntasks=4             # Number of MPI ranks
-#SBATCH --ntasks-per-node=4    # How many tasks on each node
-#SBATCH --cpus-per-task=1     # Number of cores per MPI rank 
-#SBATCH --mem=32GB        # Memory per processor
+#SBATCH --ntasks=1             # Number of MPI ranks
+#SBATCH --cpus-per-task=8     # Number of cores per MPI rank 
+#SBATCH --mem=120GB        # Memory per processor
+#SBATCH --gres=lscratch:100
 #SBATCH --time={time_limit}
 #SBATCH --output="%x.%j".out     # Standard output log
 #SBATCH --error="%x.%j".err      # Standard error log
 
 cd $SLURM_SUBMIT_DIR
-export NSLOTS=4
-export THREADS=1
+export THREADS=8
 
 set -eE
 trap 'cleanup' EXIT
@@ -91,13 +93,15 @@ function cleanup(){{
   echo "Exiting. Performing Cleanup"
   rm $PSI_SCRATCH -r
 }}
-
-export PSI_SCRATCH=/scratch/$USER/tmp/$SLURM_JOB_ID
+source ~/.bashrc
+conda activate psi4_dlpno
+export PSI_SCRATCH=/lscratch/$USER/tmp/$SLURM_JOB_ID
 mkdir -p $PSI_SCRATCH
-psi4 -n $NSLOTS -o output.dat
+psi4 -n $THREADS -o output.dat
 
 #ignored line -- do not remove
 """
+        # psi4 -n $NSLOTS -o output.dat
         # rm $PSI_SCRATCH -r
         elif self.prog_name == "orca":
             self.sapelo_template = """#!/bin/bash
@@ -108,7 +112,8 @@ psi4 -n $NSLOTS -o output.dat
 #SBATCH --ntasks=4                    # Number of MPI ranks
 #SBATCH --ntasks-per-node=4           # How many tasks on each node
 #SBATCH --cpus-per-task=1             # Number of cores per MPI rank 
-#SBATCH --mem=10G                     # total Memory no more per processor
+#SBATCH --mem=120G                     # total Memory no more per processor
+#SBATCH --gres=lscratch:100
 #SBATCH --time={time_limit}
 #SBATCH --output="%x.%j".out     # Standard output log
 #SBATCH --error="%x.%j".err      # Standard error log
@@ -119,7 +124,7 @@ cd $SLURM_SUBMIT_DIR
 export NSLOTS=4
 export THREADS=1  # can try adjusting but I don't think orca uses much omp threading if any
 
-scratch_dir=/scratch/$USER/tmp/$SLURM_JOB_ID
+scratch_dir=/lscratch/$USER/tmp/$SLURM_JOB_ID
 mkdir -p $scratch_dir
 
 module=ORCA/6.1.0-OpenMPI-4.1.8-GCC-13.3.0-avx2
@@ -153,6 +158,77 @@ echo " Job complete on `hostname`."
 
 rm $scratch_dir -r
 
+"""
+        elif self.prog_name == "cfour":
+            self.sapelo_template = """#!/bin/bash
+#SBATCH --partition=batch
+#SBATCH --constraint="EPYC|Intel"
+#SBATCH --job-name=azulene-1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=4:00:00
+#SBATCH --mem=60GB
+#SBATCH --gres=lscratch:100
+#SBATCH --output="%x.%j".out    # Standard output log
+#SBATCH --error="%x.%j".err     # Standard error log
+
+cd $SLURM_SUBMIT_DIR
+export NSLOTS=1
+
+module=cfour/2.1-intel-2023a-serial
+export OMP_NUM_THREADS=$NSLOTS
+
+scratch_dir=/lscratch/$USER/tmp/$SLURM_JOB_ID
+mkdir -p $scratch_dir
+
+
+# make sure MRCC is around just in case
+export PATH=$PATH:/work/hfslab/mrcc/2020/
+prefix=/apps/eb/$module/
+module load $module
+
+# Copy job data
+if [[ -e input.dat && ! -e ZMAT ]]; then
+  cp input.dat $scratch_dir/ZMAT
+else
+  cp $SLURM_SUBMIT_DIR/ZMAT $scratch_dir
+fi
+
+cp $prefix/basis/GENBAS $scratch_dir
+cp $prefix/basis/ECPDATA $scratch_dir
+if [ -e JAINDX ]; then cp JAINDX $scratch_dir ; fi
+if [ -e JOBARC ]; then cp JOBARC $scratch_dir ; fi
+if [ -e FCMINT ]; then cp FCMINT $scratch_dir ; fi
+if [ -e GENBAS ]; then cp GENBAS $scratch_dir ; fi
+if [ -e ECPDATA ]; then cp ECPDATA $scratch_dir ; fi
+if [ -e OPTARC ]; then cp OPTARC $scratch_dir ; fi
+if [ -e ISOTOPES ]; then cp ISOTOPES $scratch_dir ; fi
+if [ -e ISOMASS ]; then cp ISOMASS $scratch_dir ; fi
+if [ -e initden.dat ]; then cp initden.dat $scratch_dir ; fi
+if [ -e OLDMOS ]; then cp OLDMOS $scratch_dir ; fi
+
+echo " Running cfour on `hostname`"
+echo " Running calculation..."
+
+cd $scratch_dir
+xcfour >& $SLURM_SUBMIT_DIR/output.dat
+xja2fja
+
+echo " Saving data and cleaning up..."
+if [ -e ZMATnew ]; then cp -f ZMATnew $SLURM_SUBMIT_DIR/ZMATnew ; fi
+if [ -e GRD ]; then cp -f GRD $SLURM_SUBMIT_DIR/GRD ; fi
+if [ -e FCMFINAL ]; then cp -f FCMFINAL $SLURM_SUBMIT_DIR/FCMFINAL ; fi
+
+# Create a job data archive file
+tar --transform "s,^,Job_Data_$SLURM_JOB_ID/," -vcf $SLURM_SUBMIT_DIR/Job_Data_$SLURM_JOB_ID.tar OPTARC FCMINT FCMFINAL ZMATnew JMOL.plot JOBARC JAINDX FJOBARC DIPDER HESSIAN MOLDEN NEWMOS den.dat
+if [ -e zmat001 ]; then tar --transform "s,^,Job_Data_$SLURM_JOB_ID/," -vrf $SLURM_SUBMIT_DIR/Job_Data_$SLURM_JOB_ID.tar zmat* ; fi
+gzip $SLURM_SUBMIT_DIR/Job_Data_$SLURM_JOB_ID.tar
+
+echo " Job complete on `hostname`."
+
+rm $scratch_dir -r
+
+# ignored line -- do not remove
 """
 
     def run(self):

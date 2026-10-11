@@ -128,7 +128,7 @@ class FcConv:
 
     def __init__(self, fc_mat, s_vec, zmat, coord, print_f, proj, options):
         self.coord = coord
-        self.F = fc_mat
+        self.F = fc_mat.copy()
         self.print_f = print_f
         self.s_vec = s_vec
         self.proj = proj
@@ -171,8 +171,10 @@ class FcConv:
                 B = self.s_vec.B
             else:
                 B = np.dot(self.proj.T, self.s_vec.B)
+
             G = np.dot(B, B.T)
             self.A_T = np.dot(LA.inv(G), B)
+
             if self.options.units == "MdyneAng":
                 self.F /= self.BOHR_ANG
                 self.F *= self.MDYNE_HART
@@ -193,12 +195,12 @@ class FcConv:
                 C2 = np.einsum("rpj,qj->rpq", C2, self.A_T)
                 V2 = np.einsum("q,qpr->pr", self.v_q, C2)
 
-                grad = np.dot(grad, self.A_T.T)
+                self.grad = np.dot(grad, self.A_T.T)
 
             self.F -= V2
 
             if self.print_f:
-                self.print_const(fc_name="fc_int.dat", grad=grad)
+                self.print_const(fc_name="fc_int.dat", grad=self.grad)
         elif self.coord.lower() == "cartesian":
 
             if not len(self.proj):
@@ -225,7 +227,7 @@ class FcConv:
             if self.print_f:
                 self.print_const(grad=grad)
 
-    def print_const(self, fc_name="fc_a.dat", grad=np.array([])):
+    def print_const(self, fc_name="fc_cart_a.dat", grad=np.array([])):
         """
         Write transformed force constants and gradients to disk.
 
@@ -280,5 +282,20 @@ class FcConv:
                     )
                 fc_output += "\n"
             # Introduce grad_name
-            with open("fc_a.grad", "w+") as file:
+            with open("fc_cart_a.grad", "w+") as file:
                 file.write(gr_output)
+
+    def _build_mass_matrix(self):
+        """
+        Construct inverse mass-weight matrix.
+        """
+
+        masses = np.asarray(self.zmat.masses, dtype=float)
+
+        inv_masses = np.where(
+            np.asarray(self.zmat.atom_list) == "X",
+            0.0,
+            1.0 / masses,
+        )
+
+        return np.diag(np.repeat(inv_masses, 3))
