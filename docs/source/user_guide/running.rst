@@ -121,9 +121,5 @@ New profiles go in ``PROFILES`` in ``concordantmodes/options.py``.
 When something goes wrong
 -------------------------
 
-* Every error names the file or option to fix. Unknown option names get a
-  "did you mean" suggestion; ``cma options <name>`` shows what an option
-  does.
-* ``verbosity = "debug"`` (or ``cma run --set verbosity=debug``) prints every
-  intermediate matrix; the same detail is always in ``cma.log``.
-* ``cma run --debug`` shows the Python traceback for an error.
+See :doc:`troubleshooting` for the common error messages and what to do about
+them.

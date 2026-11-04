@@ -19,14 +19,11 @@ class ForceConstant:
 
     Two differentiation schemes are supported:
 
-    * Energy finite differences (``deriv_level=0``)
-      - Computes first derivatives (gradients) and second derivatives
-        (force constants) from displaced energies.
-      - Includes diagonal and off-diagonal Hessian elements.
-
-    * Gradient finite differences (``deriv_level=1``)
-      - Computes force constants directly from displaced gradients.
-      - Produces a symmetric Hessian matrix.
+    * Energy finite differences (``deriv_level=0``): first derivatives
+      (gradients) and second derivatives (force constants, diagonal and
+      off-diagonal) from displaced energies.
+    * Gradient finite differences (``deriv_level=1``): force constants
+      directly from displaced gradients, symmetrised.
 
     The resulting force-constant matrix is expressed in the displacement
     coordinate basis used by the Concordant Modes Algorithm (CMA), which may

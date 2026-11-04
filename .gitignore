@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+
+# Sphinx output and generated pages
+docs/build/
+docs/source/reference/options.rst
+
+# CMA run logs
+cma.log

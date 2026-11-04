@@ -1,17 +1,8 @@
 Quickstart: water with Molpro
 =============================
 
-Install
--------
-
-.. code-block:: bash
-
-   conda env create -f devtools/conda-envs/base.yaml   # or any Python >= 3.10
-   conda activate concordantmodes
-   pip install -e .                  # from the repository root
-   pip install -e ".[symmetry]"      # optional: MolSym, for molsym_symmetry = True
-
-This installs the ``concordantmodes`` package and the ``cma`` command.
+Install the package first (:doc:`installation`); this gives you the
+``cma`` command.
 
 Set up a run directory
 ----------------------
@@ -82,25 +73,9 @@ Results
 -------
 
 The console shows the level-B and final frequencies, the total energy
-distribution and the frequency shifts; the full record (every intermediate
-matrix) is in ``cma.log``. Force constants and gradients go in the
-``force_constants/`` folder:
-
-``fc_int_b.dat`` / ``fc_int_b.grad``
-    Level-B force constants and gradient (internal coordinates). Delete them,
-    and ``DispsB``, to redo level B.
-``fc_int_a.dat`` / ``fc_int_a.grad``
-    Level-A force constants and gradient (normal coordinates). Later runs
-    read these instead of ``DispsA``; delete them to re-read ``DispsA``
-    after rerunning calculations.
-``fc_cart_a.dat`` (and ``fc_cart_a.grad`` with ``second_order``)
-    Final Cartesian force constants (CFOUR FCMFINAL format).
-
-and in the run directory:
-
-``MOLDEN``
-    Normal modes and frequencies for visualisation (``write_molden = false``
-    turns it off).
+distribution and the frequency shifts; ``cma.log`` has the complete record.
+The force constants are written to the ``force_constants/`` folder and the
+normal modes to ``MOLDEN``. :doc:`outputs` describes every file.
 
 Using a Python script instead
 -----------------------------
