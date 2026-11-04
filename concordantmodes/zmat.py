@@ -7,6 +7,11 @@ from . import masses
 from qcelemental.covalent_radii import CovalentRadii
 from concordantmodes.int2cart import Int2Cart
 from concordantmodes.transf_disp import TransfDisp
+import logging
+from concordantmodes.errors import CMAError
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class Zmat:
@@ -229,8 +234,17 @@ class Zmat:
         s = r"([A-Za-z]+[0-9]*)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s*\n"
         self.cartesian_atom_regex = re.compile(s)
         self.divider_regex = re.compile(r"^\s*\-\-\-\s*\n")
+        if not os.path.exists(zmat_name):
+            raise CMAError(
+                "The geometry file '{}' was not found in {}.".format(
+                    zmat_name, os.getcwd()
+                )
+            )
         with open(zmat_name, "r") as file:
             output = file.readlines()
+        # Every regex below expects a trailing newline, including on the last line.
+        output = [line if line.endswith("\n") else line + "\n" for line in output]
+        self.check_input(output, zmat_name)
         # Read in the input cartesian coordinates
         self.cartesians_b = []
         self.cartesians_a = []
@@ -311,7 +325,158 @@ class Zmat:
 
         return zmat_output
 
+    def check_input(self, output, zmat_name="zmat"):
+        """Check the zmat file's layout before parsing and report the first
+        problem with its line number (instead of failing deep in the parser)."""
+
+        def where(i):
+            return "{} line {} ({!r})".format(zmat_name, i + 1, output[i].rstrip("\n"))
+
+        def find(regex, start=0):
+            for i in range(start, len(output)):
+                if regex.search(output[i]):
+                    return i
+            return None
+
+        if not any(line.strip() for line in output):
+            raise CMAError(
+                "{} is empty. It needs a 'cart begin' ... 'cart end' block with "
+                "the geometry and a 'ZMAT begin' ... 'ZMAT end' block with the "
+                "coordinates; see the examples directory.".format(zmat_name)
+            )
+
+        cb = find(self.cart_begin_regex)
+        if cb is None:
+            raise CMAError(
+                "{} has no 'cart begin' line. Put the Cartesian geometry between "
+                "'cart begin' and 'cart end' lines.".format(zmat_name)
+            )
+        ce = find(self.cart_end_regex, cb + 1)
+        if ce is None:
+            raise CMAError(
+                "{}: 'cart begin' on line {} is never closed by a 'cart end' "
+                "line.".format(zmat_name, cb + 1)
+            )
+
+        n_atoms = [0]
+        for i in range(cb + 1, ce):
+            line = output[i]
+            if not line.strip():
+                continue
+            if self.divider_regex.search(line):
+                n_atoms.append(0)
+                continue
+            if not self.cartesian_regex.search(line):
+                raise CMAError(
+                    "{} is not a valid Cartesian line. Expected an element symbol and "
+                    "three coordinates written with a decimal point, e.g. "
+                    "'O  0.000000  0.000000  -0.125505'.".format(where(i))
+                )
+            n_atoms[-1] += 1
+        if n_atoms[0] == 0:
+            raise CMAError(
+                "{}: the cart block (lines {}-{}) contains no atoms.".format(
+                    zmat_name, cb + 1, ce + 1
+                )
+            )
+        if len(n_atoms) > 2:
+            raise CMAError(
+                "{}: the cart block has more than one '---' divider; use at "
+                "most one (level-B geometry, ---, level-A geometry).".format(zmat_name)
+            )
+        if len(n_atoms) == 2 and n_atoms[1] != n_atoms[0]:
+            raise CMAError(
+                "{}: the two geometries in the cart block have different numbers of atoms "
+                "({} before '---', {} after).".format(zmat_name, n_atoms[0], n_atoms[1])
+            )
+        natom = n_atoms[0]
+
+        if self.options.covalent_radii:
+            return
+
+        zb = find(self.zmat_begin_regex)
+        if zb is None:
+            raise CMAError(
+                "{} has no 'ZMAT begin' line. List the internal coordinates "
+                "between 'ZMAT begin' and 'ZMAT end' (or set covalent_radii = "
+                "True to find bonds automatically).".format(zmat_name)
+            )
+        ze = find(self.zmat_end_regex, zb + 1)
+        if ze is None:
+            raise CMAError(
+                "{}: 'ZMAT begin' on line {} is never closed by a 'ZMAT end' "
+                "line.".format(zmat_name, zb + 1)
+            )
+
+        # Remembered for check_coordinate_lines (run when the block is parsed).
+        self._check_ctx = (zmat_name, zb, natom)
+
+    def check_coordinate_lines(self, zmat_output):
+        """Check every line of the ZMAT block against the forms valid for the
+        chosen coords mode, and every atom number against the cart block."""
+        ctx = getattr(self, "_check_ctx", None)
+        if ctx is None:
+            return
+        zmat_name, zb, natom = ctx
+
+        def where(i, line):
+            return "{} line {} ({!r})".format(zmat_name, i + 1, line.rstrip("\n"))
+
+        if self.options.coords.upper() == "ZMAT":
+            forms = [
+                self.first_atom_regex,
+                self.second_atom_regex,
+                self.third_atom_regex,
+                self.full_atom_regex,
+            ]
+            hint = (
+                "In coords = 'ZMAT' mode each line is an atom and the atoms it is "
+                "connected to, e.g. 'O', 'H 1', 'H 1 2'."
+            )
+        else:
+            forms = [
+                self.bond_regex,
+                self.angle_regex,
+                self.torsion_regex,
+                self.oop_regex,
+                self.lin_regex,
+                self.linx_regex,
+                self.liny_regex,
+                self.rcom_regex1,
+                self.bond_centroid_regex,
+                self.angle_centroid_regex,
+                self.torsion_centroid_regex,
+                self.oop_centroid_regex,
+                self.lin_centroid_regex,
+                self.linx_centroid_regex,
+                self.liny_centroid_regex,
+            ]
+            hint = (
+                "Valid lines are 'i j' (bond), 'i j k' (angle), 'i j k l T' (torsion), "
+                "'i j k l O' (out-of-plane), 'i j k l L|Lx|Ly' (linear bends), with "
+                "atom numbers from the cart block; groups of atoms start with ';', e.g. "
+                "'; 1 ; 3 4 5' for a bond to the centroid of atoms 3-5."
+            )
+        for k, line in enumerate(zmat_output):
+            i = zb + 1 + k
+            if not line.strip():
+                continue
+            if not any(f.search(line) for f in forms):
+                raise CMAError(
+                    "{} is not a recognised coordinate line. {}".format(
+                        where(i, line), hint
+                    )
+                )
+            numbers = [int(x) for x in re.findall(r"\b\d+\b", line)]
+            bad = [n for n in numbers if n < 1 or n > natom]
+            if bad:
+                raise CMAError(
+                    "{} refers to atom {} but the cart block has {} atoms (atoms are "
+                    "numbered from 1).".format(where(i, line), bad[0], natom)
+                )
+
     def zmat_process(self, zmat_output):
+        self.check_coordinate_lines(zmat_output)
         # Initialize necessary lists
         self.bond_indices = np.array([], dtype=object)
         self.bond_variables = []
@@ -553,8 +718,8 @@ class Zmat:
                     List1 = re.findall(self.rcom_regex2, List[0])
                     List2 = re.findall(self.rcom_regex2, List[2])
                     List = [List1, List2]
-                    print("RCOM List:")
-                    print(List)
+                    debug_print(logger, "RCOM List:")
+                    debug_print(logger, List)
                     self.rcom_indices = np.append(self.rcom_indices, 0)
                     self.rcom_indices[-1] = np.array(List, dtype=object)
                     self.rcom_variables.append(
@@ -743,42 +908,46 @@ class Zmat:
 
     def zmat_print(self):
         # Print off the internal coordinate and its value in Bohr/Degree
-        print("Initial Geometric Internal Coordinate Values:")
+        debug_print(logger, "Initial Geometric Internal Coordinate Values:")
         for i in range(len(self.variables)):
-            print(
+            debug_print(
+                logger,
                 str(self.index_dictionary[self.variables[i]])
                 + " "
                 + self.variables[i]
                 + " = "
-                + str(self.variable_dictionary_b[self.variables[i]])
+                + str(self.variable_dictionary_b[self.variables[i]]),
             )
-        print("Final Geometric Internal Coordinate Values:")
+        debug_print(logger, "Final Geometric Internal Coordinate Values:")
         for i in range(len(self.variables)):
-            print(
+            debug_print(
+                logger,
                 str(self.index_dictionary[self.variables[i]])
                 + " "
                 + self.variables[i]
                 + " = "
-                + str(self.variable_dictionary_a[self.variables[i]])
+                + str(self.variable_dictionary_a[self.variables[i]]),
             )
-        print("Final - Initial Geometric Internal Coordinate Values:")
+        debug_print(logger, "Final - Initial Geometric Internal Coordinate Values:")
         for i in range(len(self.variables)):
-            print(
+            debug_print(
+                logger,
                 self.variables[i]
                 + " = "
                 + str(
                     self.variable_dictionary_a[self.variables[i]]
                     - self.variable_dictionary_b[self.variables[i]]
-                )
+                ),
             )
-        print("Angstrom Bond Length Values:")
+        debug_print(logger, "Angstrom Bond Length Values:")
         for i in range(len(self.bond_indices)):
-            print(
+            debug_print(
+                logger,
                 str(self.index_dictionary[self.variables[i]])
                 + " "
                 + self.variables[i]
                 + " = "
-                + str(self.variable_dictionary_a[self.variables[i]] * self.Bohr_Ang)
+                + str(self.variable_dictionary_a[self.variables[i]] * self.Bohr_Ang),
             )
         if self.options.geom_check:
             Sum = 0
@@ -802,33 +971,33 @@ class Zmat:
                 )
                 # Sum += diff**2
                 ang_diff.append(diff)
-            print("max signed bond diff angstrom")
-            print(np.max(bond_diff) * self.Bohr_Ang)
-            print("max signed bond diff bohr")
-            print(np.max(bond_diff))
-            print("min signed bond diff angstrom")
-            print(np.min(bond_diff) * self.Bohr_Ang)
-            print("min signed bond diff bohr")
-            print(np.min(bond_diff))
-            print("max abs bond diff angstrom")
-            print(np.max(np.abs(bond_diff)) * self.Bohr_Ang)
-            print("max abs bond diff bohr")
-            print(np.max(np.abs(bond_diff)))
-            print(bond_diff)
-            print("max signed ang diff")
-            print(np.max(ang_diff))
-            print("min signed ang diff")
-            print(np.min(ang_diff))
-            print("max abs ang diff")
-            print(np.max(np.abs(ang_diff)))
-            print(ang_diff)
+            debug_print(logger, "max signed bond diff angstrom")
+            debug_print(logger, np.max(bond_diff) * self.Bohr_Ang)
+            debug_print(logger, "max signed bond diff bohr")
+            debug_print(logger, np.max(bond_diff))
+            debug_print(logger, "min signed bond diff angstrom")
+            debug_print(logger, np.min(bond_diff) * self.Bohr_Ang)
+            debug_print(logger, "min signed bond diff bohr")
+            debug_print(logger, np.min(bond_diff))
+            debug_print(logger, "max abs bond diff angstrom")
+            debug_print(logger, np.max(np.abs(bond_diff)) * self.Bohr_Ang)
+            debug_print(logger, "max abs bond diff bohr")
+            debug_print(logger, np.max(np.abs(bond_diff)))
+            debug_print(logger, bond_diff)
+            debug_print(logger, "max signed ang diff")
+            debug_print(logger, np.max(ang_diff))
+            debug_print(logger, "min signed ang diff")
+            debug_print(logger, np.min(ang_diff))
+            debug_print(logger, "max abs ang diff")
+            debug_print(logger, np.max(np.abs(ang_diff)))
+            debug_print(logger, ang_diff)
 
-            # print("squared sum: ")
-            # print(Sum)
-            # print("# of bonds:")
-            # print(len(self.bond_indices))
-            # print("RMSD:")
-            # print(np.sqrt(Sum / len(self.bond_indices)))
+            # debug_print(logger, "squared sum: ")
+            # debug_print(logger, Sum)
+            # debug_print(logger, "# of bonds:")
+            # debug_print(logger, len(self.bond_indices))
+            # debug_print(logger, "RMSD:")
+            # debug_print(logger, np.sqrt(Sum / len(self.bond_indices)))
 
     def red_mass(self, indices):
         r = 0
@@ -884,18 +1053,18 @@ class Zmat:
                             [str(j + 1), str(i + 1)], dtype=object
                         )
                         self.bond_variables.append("R" + str(bond_count))
-            print("Interatomic Distance Matrix:")
-            print(inter_atomic_len)
-            print("Adjacency Matrix:")
-            print(adj_mat)
+            debug_print(logger, "Interatomic Distance Matrix:")
+            debug_print(logger, inter_atomic_len)
+            debug_print(logger, "Adjacency Matrix:")
+            debug_print(logger, adj_mat)
             for i in range(len(adj_mat)):
-                print("Degree of vertex " + str(i))
-                print(np.sum(adj_mat[i]))
+                debug_print(logger, "Degree of vertex " + str(i))
+                debug_print(logger, np.sum(adj_mat[i]))
             adj_mat2 = np.dot(adj_mat, adj_mat)
             for i in range(len(adj_mat2)):
                 adj_mat2[i, i] = 0
-            print("Covalent Radius Scale Factor:")
-            print(self.options.bond_threshold)
+            debug_print(logger, "Covalent Radius Scale Factor:")
+            debug_print(logger, self.options.bond_threshold)
         else:
             for i in range(len(zmat_output)):
                 if re.search(self.bond_regex, zmat_output[i]):
@@ -1011,7 +1180,7 @@ class Zmat:
 
             count += 1
             new_walks = new_walks.reshape((-1, count)).tolist()
-            print(new_walks)
+            debug_print(logger, new_walks)
             new_walks = np.unique(new_walks, axis=0)
 
             del_list = np.array([])
@@ -1026,16 +1195,19 @@ class Zmat:
             new_walks = np.delete(new_walks, del_list, axis=0)
             prev_walks = new_walks
             if count > self.options.topo_max_it or not len(new_walks):
-                print("Walk generator has terminated at walk lengths of " + str(count))
+                debug_print(
+                    logger,
+                    "Walk generator has terminated at walk lengths of " + str(count),
+                )
                 break
             X_len_walks_dict[str(count) + "_length_walks"] = new_walks
-            print(str(count) + "_length_walks")
-            print(len(new_walks))
-            print(new_walks)
+            debug_print(logger, str(count) + "_length_walks")
+            debug_print(logger, len(new_walks))
+            debug_print(logger, new_walks)
 
         dict_len = len(X_len_walks_dict) - 1
 
-        print("Looking for rings")
+        debug_print(logger, "Looking for rings")
         cycles_dict = {}
         for i in range(dict_len):
             cycles_dict[str(i + 3)] = np.array([])
@@ -1069,8 +1241,8 @@ class Zmat:
                 cycles_dict[str(i + 3)] = np.delete(
                     cycles_dict[str(i + 3)], del_array, axis=0
                 )
-                print(f"{i+3}-membered ring detected!")
-                print(cycles_dict[str(i + 3)])
+                debug_print(logger, f"{i+3}-membered ring detected!")
+                debug_print(logger, cycles_dict[str(i + 3)])
 
     def _generate_walks(self):
         pass

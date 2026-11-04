@@ -1,6 +1,9 @@
 from concordantmodes.options import Options
 
 options_kwargs = {
+    # CMA-0B: the level-B Hessian is read from force_constants/fc_cart_b.dat (Cartesian,
+    # CFOUR FCMFINAL format) instead of being computed.
+    "cart_fc_b": True,
     "program_a": "molpro",
     "cluster": "slurm",
     "energy_regex_a": r"\(T\) total energy\s+(\-\d+\.\d+)",

@@ -1,6 +1,11 @@
 import numpy as np
 from numpy.linalg import inv
 from numpy import linalg as LA
+import logging
+from concordantmodes.errors import CMAError
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class ForceConstant:
@@ -215,8 +220,11 @@ class ForceConstant:
                     self.FC[i + 1, j] = (self.FC[i + 1, j] + self.FC[j, i + 1]) / 2
                     self.FC[j, i + 1] = self.FC[i + 1, j]
         else:
-            print("Higher order deriv_level computations aren't yet supported")
-            raise RuntimeError
+            raise CMAError(
+                "deriv_level = {}: only 0 (energies) and 1 (gradients) are supported.".format(
+                    self.deriv_level
+                )
+            )
 
     # I might want to shift the above computation in the deriv_level == 1 down here, though it is only one line
     def first_deriv(self, e_p, e_m, disp):

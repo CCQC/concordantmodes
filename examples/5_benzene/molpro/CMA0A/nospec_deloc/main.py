@@ -11,13 +11,8 @@ options_kwargs = {
     "covalent_radii": True,
     "coords": "Delocalized",
     "topo_analysis": True,
-    "calc_b" : False,
-    # "calc_a" : False,
-    "gen_disps_b" : False,
-    # "gen_disps_a" : False,
     "success_regex_a": r"Molpro calculation terminated",
     "success_regex_b": r"Molpro calculation terminated",
-    # "symmetry": True,
     # "autosalcs": True,
 }
 options_obj = Options(**options_kwargs)

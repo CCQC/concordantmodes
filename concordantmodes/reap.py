@@ -4,7 +4,14 @@ import re
 from pathlib import Path
 from numpy.linalg import pinv
 
+import logging
+
+from concordantmodes import programs
+from concordantmodes.errors import CMAError
+from concordantmodes.log import debug_print
 from concordantmodes.s_vectors import SVectors
+
+logger = logging.getLogger(__name__)
 
 
 class Reap:
@@ -163,24 +170,69 @@ class Reap:
         self._init_regex()
 
     def _init_regex(self):
-        try:
-            grad_key, energy_key, success_key = self.REGEX_MAP[self.cma_level]
-        except KeyError:
-            raise RuntimeError("cma_level must be A, B, or C")
+        if self.cma_level not in self.REGEX_MAP:
+            raise CMAError(
+                "Internal error: cma_level must be 'A', 'B' or 'C', got {!r}.".format(
+                    self.cma_level
+                )
+            )
+        level = self.cma_level.lower()
+        self.program = programs.program_name(getattr(self.options, "program_" + level))
 
-        self.energy_regex = getattr(self.options, energy_key)
-        self.success_regex = getattr(self.options, success_key)
+        # Explicit regex options win; empty ones fall back to the program presets.
+        self.energy_regex, self.success_regex, self.gradient_regex = (
+            self.options.regexes(self.cma_level)
+        )
 
-        if self.deriv_level:
-            self.gradient_regex = getattr(self.options, grad_key)
-
-        # Compile once
         self.energy_re = re.compile(self.energy_regex)
         self.success_re = re.compile(self.success_regex)
 
         if self.deriv_level:
+            if not self.gradient_regex:
+                raise CMAError(
+                    "deriv_level_{lv} = 1 needs gradient_regex_{lv}: there is no built-in "
+                    "gradient pattern for {prog}. Set gradient_regex_{lv} = [start, end] "
+                    "to the lines that bracket the gradient in the output.".format(
+                        lv=level, prog=self.program
+                    )
+                )
             self.grad_re1 = re.compile(self.gradient_regex[0])
             self.grad_re2 = re.compile(self.gradient_regex[1])
+
+    @property
+    def output_name(self):
+        """File holding the result for this level's program and derivative."""
+        if self.deriv_level and self.program == "molpro":
+            return "output.xml"
+        return "output.dat"
+
+    def check_dir(self, direc):
+        """Status of one displacement directory without raising:
+        ``"done"``, ``"missing"`` (no output yet) or ``"failed"`` (output
+        present but the success or energy/gradient pattern is not found)."""
+        path = Path(str(direc)) / self.output_name
+        if not path.exists():
+            return "missing"
+        try:
+            data = path.read_text(errors="replace")
+        except OSError:
+            return "missing"
+        if self.deriv_level:
+            if not (self.grad_re1.search(data) and self.grad_re2.search(data)):
+                return "failed"
+            # The success line may live in output.dat even when the gradient
+            # is read from output.xml (Molpro).
+            if not self.success_re.search(data):
+                other = Path(str(direc)) / "output.dat"
+                if not (
+                    other.exists()
+                    and self.success_re.search(other.read_text(errors="replace"))
+                ):
+                    return "failed"
+            return "done"
+        if not self.success_re.search(data) or not self.energy_re.search(data):
+            return "failed"
+        return "done"
 
     # -------------------------
     # Core runner
@@ -226,11 +278,11 @@ class Reap:
         The resulting arrays ``p_en_array`` and ``m_en_array`` are used
         for finite-difference evaluation of gradients and force constants.
         """
-        print(os.getcwd())
-        print("Checking energies...")
+        debug_print(logger, os.getcwd())
+        debug_print(logger, "Checking energies...")
 
         ref_en = self._read_energy(1)
-        print(f"Reference energy: {ref_en:.10f}")
+        debug_print(logger, f"Reference energy: {ref_en:.10f}")
 
         size = self.num_deg_free
         p_en = np.zeros((size, size))
@@ -250,8 +302,8 @@ class Reap:
             m_en[i, j] = e_minus
             results.append(((i, j), "minus", e_minus, direc + 1))
 
-            print(f"[{i},{j}] Δ+ = {e_plus - ref_en:.9f}")
-            print(f"[{i},{j}] Δ- = {e_minus - ref_en:.9f}")
+            debug_print(logger, f"[{i},{j}] Δ+ = {e_plus - ref_en:.9f}")
+            debug_print(logger, f"[{i},{j}] Δ- = {e_minus - ref_en:.9f}")
 
             direc += 2
 
@@ -286,7 +338,7 @@ class Reap:
 
         ref_grad = self._read_gradient(1)
 
-        print(self.indices)
+        debug_print(logger, self.indices)
 
         for idx in self.indices:
             i = idx[0]
@@ -320,22 +372,32 @@ class Reap:
 
         direc = Path(str(direc))
 
-        data = self._read_file(direc, "output.dat")
-
-        if not self.success_re.search(data):
+        try:
+            data = self._read_file(direc, "output.dat")
+        except OSError:
             self.fail_list.append(str(direc))
             return 0.0
 
-        return float(self.energy_re.findall(data)[0])
+        found = self.energy_re.findall(data)
+        if not self.success_re.search(data) or not found:
+            self.fail_list.append(str(direc))
+            return 0.0
+
+        value = found[0]
+        if isinstance(value, tuple):  # regex with several groups: use the first
+            value = value[0]
+        return float(value)
 
     def _read_gradient(self, direc):
-        fname = "output.xml" if self.options.program_b == "molpro" else "output.dat"
-        lines = self._read_file(direc, fname, lines=True)
-
-        start = next(i for i, l in enumerate(lines) if self.grad_re1.search(l)) + 1
-        end = next(
-            i for i, l in enumerate(lines[start:], start) if self.grad_re2.search(l)
-        )
+        try:
+            lines = self._read_file(direc, self.output_name, lines=True)
+            start = next(i for i, l in enumerate(lines) if self.grad_re1.search(l)) + 1
+            end = next(
+                i for i, l in enumerate(lines[start:], start) if self.grad_re2.search(l)
+            )
+        except (OSError, StopIteration):
+            self.fail_list.append(str(direc))
+            return np.zeros(0)
 
         grad = [
             line.split()[-3:]
@@ -347,8 +409,8 @@ class Reap:
 
     def _read_file(self, direc, filename, lines=False):
         path = Path(str(direc)) / filename
-        print(path)
-        with open(path, "r") as f:
+        logger.debug("Reading %s", path)
+        with open(path, "r", errors="replace") as f:
             return f.readlines() if lines else f.read()
 
     def _maybe_convert_gradients(self):
@@ -416,4 +478,20 @@ class Reap:
             the user-defined success criterion.
         """
         if self.fail_list:
-            raise RuntimeError(f"Failed jobs: {self.fail_list}")
+            dirs = sorted(
+                set(self.fail_list), key=lambda d: int(d) if d.isdigit() else 0
+            )
+            shown = ", ".join(dirs[:20]) + (" ..." if len(dirs) > 20 else "")
+            raise CMAError(
+                "{n} level-{lv} calculation(s) did not finish successfully (Disps{lv} "
+                "directories {shown}). Each needs a {out} containing the success "
+                "pattern {succ!r} and the {what} pattern. Check those outputs, fix or "
+                "rerun them, then run CMA again; finished directories are kept.".format(
+                    n=len(dirs),
+                    lv=self.cma_level,
+                    shown=shown,
+                    out=self.output_name,
+                    succ=self.success_regex,
+                    what="gradient" if self.deriv_level else "energy",
+                )
+            )

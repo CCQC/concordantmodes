@@ -9,7 +9,8 @@ options_kwargs = {
     "cart_insert_b": 9,
     "cart_insert_a": 9,
     "coords": "Delocalized",
-    "disp" : 0.005,
+    # "disp": 0.005 was never a CMA option and had no effect;
+    # the displacement sizes are "disp_a" and "disp_b".
     "covalent_radii": True,
     "success_regex_b": r"Molpro calculation terminated",
     "success_regex_a": r"Molpro calculation terminated",

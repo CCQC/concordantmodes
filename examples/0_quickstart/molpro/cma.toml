@@ -1,0 +1,19 @@
+# Concordant Modes options. Run 'cma options' for the full list.
+# Values use TOML syntax: strings in quotes, true/false, numbers, [lists].
+
+coords = "Delocalized"        # ZMAT, Custom or Delocalized
+
+# Low-level (B) and high-level (A) programs: molpro, psi4, orca or cfour.
+program_b = "molpro"
+program_a = "molpro"
+# method_a = "ccsd(t)"        # Molpro only, if the input runs several methods
+
+# How the displacement calculations get run:
+#   "manual" - CMA writes the inputs; you run them and then 'cma run' again
+#   "slurm" / "sge" - CMA submits, waits and continues by itself
+cluster = "manual"
+# cluster_profile = "sapelo2_hfslab"   # your group's cluster settings
+# nslots = 4
+# memory = "16GB"
+# time_limit = "12:00:00"
+# job_setup = "module load Molpro"

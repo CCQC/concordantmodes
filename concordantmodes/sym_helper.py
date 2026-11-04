@@ -2,6 +2,11 @@ import numpy as np
 from concordantmodes.s_vectors import SVectors
 from concordantmodes.symmetry import Symmetry
 from concordantmodes.zmat import Zmat
+import logging
+from concordantmodes.errors import CMAError
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class SymHelper:
@@ -21,16 +26,16 @@ class SymHelper:
         self.zmat_obj = Zmat(self.options)
         self.zmat_obj.run()
         if self.options.geom_check:
-            raise RuntimeError
+            raise CMAError("geom_check is set: stopping after reading the zmat file.")
 
         # Do we want to use symmetry? Default is False
         self.symm_obj = Symmetry(self.zmat_obj, self.options, self.proj)
         if self.options.molsym_symmetry:
             self.symm_obj.run()
-            print("The symtext")
-            print(self.symm_obj.symtext)
+            debug_print(logger, "The symtext")
+            debug_print(logger, self.symm_obj.symtext)
             self.symm_obj.molsym_salcs_ic()
-            print(self.symm_obj.sym_sort)
+            debug_print(logger, self.symm_obj.sym_sort)
             self.sym_sort = self.symm_obj.sym_sort
-            print("The sym sort")
-            print(self.sym_sort)
+            debug_print(logger, "The sym sort")
+            debug_print(logger, self.sym_sort)

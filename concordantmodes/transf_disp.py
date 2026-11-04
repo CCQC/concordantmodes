@@ -5,6 +5,11 @@ from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
 from . import masses
 from concordantmodes.s_vectors import SVectors as s_vec
+import logging
+from concordantmodes.errors import CMAError
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 np.set_printoptions(precision=8, linewidth=240)
 
@@ -168,8 +173,7 @@ class TransfDisp:
         elif cma_level.upper() == "C":
             self.disp = self.options.disp_c
         else:
-            print("Not a valid cma_level specification.")
-            raise RuntimeError
+            raise CMAError("Internal error: cma_level must be 'A', 'B' or 'C'.")
 
     def run(self, fc=None):
         np.set_printoptions(precision=8, linewidth=240)
@@ -256,10 +260,10 @@ class TransfDisp:
 
     def _print_normal_coordinates(self):
 
-        print("Normal Coordinate Values:")
+        debug_print(logger, "Normal Coordinate Values:")
 
         for i, value in enumerate(self.n_coord, start=1):
-            print(f"Normal Coordinate #{i:<4}: {value: 3.5f}")
+            debug_print(logger, f"Normal Coordinate #{i:<4}: {value: 3.5f}")
 
     def _build_displacements(self, fc):
 
@@ -319,7 +323,7 @@ class TransfDisp:
 
             disp = np.zeros(n)
             disp[i] = self.disp[i]
-            print(disp)
+            debug_print(logger, disp)
 
             p_disp[i] = self.coord_convert(
                 disp,
@@ -692,7 +696,7 @@ class TransfDisp:
             new_carts += cart_disp_shaped
             coord_check = self.int_c(new_carts, self.eig_inv, self.proj)
             n_disp = new_n - coord_check
-            # print(n_disp)
+            # debug_print(logger, n_disp)
 
             # if tight_disp:
             # sVec = s_vec(zmat, options)
@@ -703,12 +707,12 @@ class TransfDisp:
             if LA.norm(n_disp) < tolerance:
                 break
         if LA.norm(n_disp) > tolerance:
-            print("This displacement did not converge.")
-            print(np.where(abs(disp) == self.Disp))
-            print("Norm:")
-            print(LA.norm(n_disp))
-            print("Tolerance:")
-            print(tolerance)
+            debug_print(logger, "This displacement did not converge.")
+            debug_print(logger, np.where(abs(disp) == self.Disp))
+            debug_print(logger, "Norm:")
+            debug_print(logger, LA.norm(n_disp))
+            debug_print(logger, "Tolerance:")
+            debug_print(logger, tolerance)
         return new_carts
 
     def compute_A(self, B, proj, eig_inv, u, cma_level="B"):
@@ -733,9 +737,9 @@ class TransfDisp:
 
         # A = inv(B.dot(np.sqrt(u)).dot(B.T)) # (s x s)
         A = inv(B.dot(u).dot(B.T))  # (s x s)
-        # print(u)
-        # print("inv G-mat:")
-        # print(A)
+        # debug_print(logger, u)
+        # debug_print(logger, "inv G-mat:")
+        # debug_print(logger, A)
         A = (B.T).dot(A)  # (3N x s)
         # A = np.sqrt(u).dot(A)
         A = u.dot(A)

@@ -1,0 +1,13 @@
+memory 4 gb
+
+molecule {
+0 1
+units bohr
+no_reorient
+no_com
+{geometry}
+}
+
+set basis cc-pvtz
+
+energy('ccsd(t)')

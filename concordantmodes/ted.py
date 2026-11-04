@@ -1,5 +1,10 @@
 import numpy as np
 from numpy import linalg as LA
+import logging
+from concordantmodes.errors import CMAError
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class TED:
@@ -92,34 +97,43 @@ class TED:
         self.zmat = zmat
         self.options = options
 
-    def run(self, eigs, freq, symtext=None, rect_print=True):
+    def run(self, eigs, freq, symtext=None, rect_print=True, show=False):
+        """``show=True`` prints the TED table at the normal verbosity
+        (used for the final TED); otherwise it goes to the debug log."""
         self.symtext = symtext
+        self._show = show
 
         proj_eigs = np.dot(self.proj, eigs) if rect_print else eigs
         proj_eigs_inv = LA.pinv(proj_eigs)
 
-        print("The eigenvectors (check these for phase):")
-        print(proj_eigs)
+        debug_print(logger, "The eigenvectors (check these for phase):")
+        debug_print(logger, proj_eigs)
 
         self.TED = np.multiply(proj_eigs, proj_eigs_inv.T) * 100
         self.table_print(freq, self.TED, rect_print)
 
     def table_print(self, freq, TED, rect_print):
         if len(freq) != TED.shape[1]:
-            print(
+            debug_print(
+                logger,
                 "Something has gone terribly wrong. Your Total Energy "
                 "distribution should have the same number of columns as "
-                "frequencies, but it does not."
+                "frequencies, but it does not.",
             )
-            print("TED columns: " + str(TED.shape[1]))
-            print("# frequencies: " + str(len(freq)))
-            raise RuntimeError
+            raise CMAError(
+                "Internal error: the TED table has {} columns but there are {} "
+                "frequencies.".format(TED.shape[1], len(freq))
+            )
 
         div = 15
         chunks = [freq[i : i + div] for i in range(0, len(freq), div)]
 
         for idx, chunk in enumerate(chunks):
-            print(self.sub_table(chunk, TED, idx, div, rect_print))
+            table = self.sub_table(chunk, TED, idx, div, rect_print)
+            if getattr(self, "_show", False):
+                info_print(logger, table)
+            else:
+                debug_print(logger, table)
 
     def _coord_label(self, i):
         """Return formatted coordinate label prefix (exact same formatting)."""

@@ -4,48 +4,80 @@
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 </p>
 
-This program utilizes the Concordant Modes theoretical framework to compute highly accurate Hessians with linear scaling. The CMA protocol is detailed in literature (J. Am. Chem. Soc., 2022, 144, 51, 23271–23274.; J. Chem. Theory Comput., 2024, 20, 24, 10886–10898.).
-As of right now, the user must be on a cluster with either a Sun Grid Engine or Slurm queueing system and have access to CCQC programs to use the built in computation submission procedure. A feature to allow for custom submit scripts to be utilized is in the works.
-The following procedure may be used to enact the CMA-0A procedure using manual submission of computations for any electronic structure program on any machine. To use CMA-0A, the following files must be present in the working directory: templateA.dat, templateB.dat, main.py, and zmat. These files are discussed below, and sample versions are present in the examples directory. When the files are set, then follow this procedure.
-1)	Set the "gen_disps_b" keyword to True and the "calc_b" keyword to False, then run the CMA program
-2)	Compute the generated initial displacements using your quantum chemistry package of choice.
-3)	Set the "gen_disps_b" and "calc_a" keywords to False and the "gen_disps_a" keyword to True, then run the CMA program again.
-4)	Compute the generated displacements using your quantum chemistry package of choice.
-5)	Set the "gen_disps_a" keyword to False and run the CMA program one more time.
-
+Concordant Modes (CMA) computes harmonic vibrational frequencies at a high level of theory with linear scaling. Normal modes from a cheap level of theory (level B) are used to choose the displacements, so the expensive method (level A) is needed for far fewer calculations. The method is described in *J. Am. Chem. Soc.* 2022, **144**, 23271–23274; *J. Chem. Theory Comput.* 2024, **20**, 10886–10898; and *J. Phys. Chem. A* 2026, **130**, 3249–3260.
 
 ## Installation
 
-User must have at least:
-Python version 3.10
-Numpy version 1.13.3
-qcelemental
+Python 3.10 or newer.
 
-Developers must have:
-Pytest 7.2.0 (-c condaforge)
-Pytest-xdist 3.0.2 (-c condaforge)
+```bash
+conda env create -f devtools/conda-envs/base.yaml   # optional: a ready environment
+conda activate concordantmodes
+pip install -e .                 # from this directory; installs the `cma` command
+pip install -e ".[symmetry]"     # optional: MolSym, needed only for molsym_symmetry = True
+```
 
-A simple way to ensure this program may be run is by creating a conda environment with the following command:
+## Quickstart
 
-`conda create --name CMA python=3.10 sympy numpy scipy qcelemental`
+```bash
+mkdir water && cd water
+cma init --program molpro    # writes zmat, templateA.dat, templateB.dat, cma.toml
+# edit zmat (your molecule) and the templates (method, basis), then:
+cma run
+```
 
-If you need to install anaconda, consult the [official website](https://www.anaconda.com/products/individual)
+`cma run` does whatever is needed next and can be run as often as you like:
 
-Alternatively, after installing the source code, ensure `pip` is installed and run `pip install -e .` from `ConcordantModes/`. All
-dependencies will be installed and `concordantmodes` will be made available as a python module.
+1. It writes the level-B displacement inputs to `DispsB/1`, `DispsB/2`, ...
+2. With the default `cluster = "manual"` it stops and tells you which inputs to run. Run each `input.dat` so that it writes `output.dat` next to it, then `cma run` again.
+3. It reads the level-B results, writes the level-A inputs to `DispsA`, and stops again.
+4. Once those are done, `cma run` prints the final frequencies.
 
-## Quickstart Guide
+Finished calculations are never redone; only missing or failed ones are run again. `cma status` shows the progress of each level, and `cma options` lists every option.
 
-A myriad of examples are provided in the "examples" directory.
+With `cluster = "slurm"` or `"sge"` CMA submits the calculations itself (as job arrays), waits for them, and finishes in a single `cma run`. On Sapelo2 with the HFS lab setup, `cluster_profile = "sapelo2_hfslab"` sets everything up.
 
-4 files are necessary for CMA-0A: "zmat", "templateA.dat", "templateB.dat",  "main.py"
+A `main.py` works as well:
 
-zmat: This file contains geometric information about the system of interest. There is a "ZMAT" block and a "cart" block.
-The "ZMAT" block contains connectivity information for specifying the internal coordinates of the molecule by which the normal modes will be described. The user may consult the "examples" directory contained herein for more guidance on how to construct the different connectivities.
+```python
+from concordantmodes import ConcordantModes, Options
 
-The "cart" block contains the cartesian structures for the system. If two structures are entered (separated by a --- on a new line), the first structure will be used to construct the starting normal modes from the provided force constants. These normal modes are then placed atop the second structure and the requisite displacements are generated to compute force constants for these modes and the subsequent frequencies (CMA-0B). If only one structure is entered, the same process will take place but all atop a single structure (CMA-0A). The default units are bohr.
+options = Options(coords="Delocalized", program_a="molpro", program_b="molpro")
+ConcordantModes(options).run()   # returns "finished" or "waiting"
+```
 
-templateA/B.dat: This is the template input file for an interfacing quantum chemistry code. The displaced geometries are inserted into this file and single point energies/gradients for each displaced geometry are computed. The energies/gradients are then reaped and a second/first order numerical derivative is performed to calculate force constants from these energies.
+## Input files
 
-main.py: This file imports the Concordant Mode options and program, and then runs the program. A manual detailing each keyword is in the works. In the meantime consult the examples directory for templates of different procedures. To run the program, simply enter "python main.py" or "nohup python -u main.py &" if you would like to retain the output.
+| File | Contents |
+|---|---|
+| `zmat` | The Cartesian geometry (`cart begin` ... `cart end`) and the internal coordinates (`ZMAT begin` ... `ZMAT end`). A second geometry after a `---` line is used for level A. |
+| `templateB.dat`, `templateA.dat` | Inputs for `program_b` / `program_a` (molpro, psi4, orca or cfour). A `{geometry}` line is replaced by each displaced geometry (in Bohr), `{natoms}` by the number of atoms. |
+| `cma.toml` | Options, one `name = value` per line. |
 
+CMA knows how each program reports a finished calculation and its energy, so no regular expressions are needed for Molpro, Psi4, ORCA or CFOUR. `energy_regex_*` and `success_regex_*` still override the presets.
+
+To skip level B (CMA-0B), put its Hessian in `force_constants/` as `fc_int_b.dat` (internal coordinates) or, with `cart_fc_b = True`, `fc_cart_b.dat` (Cartesian, CFOUR FCMFINAL format).
+
+## Output
+
+The console shows the level-B and final frequencies, the total energy distribution and the frequency shifts (`verbosity = "quiet"` or `"debug"` changes how much). The complete record is always in `cma.log`. The normal modes go to `MOLDEN` (`write_molden = false` turns it off). All force constants and gradients go in the `force_constants/` folder: the final Cartesian force constants in `fc_cart_a.dat`, and the level-B and level-A results in `fc_int_b.dat`/`.grad` and `fc_int_a.dat`/`.grad`. Later runs read these and ignore the `Disps` folders, so delete `force_constants/fc_int_a.dat` (and `.grad`) to pick up rerun level-A calculations. Files from older versions in the run directory are still found.
+
+## Documentation and examples
+
+- `docs/source` — quickstart, zmat format, templates and output parsing, running on clusters, and the full options reference (build with `sphinx-build docs/source docs/build`).
+- `examples/0_quickstart` — the files `cma init` writes, for Molpro and Psi4.
+- `examples/` — water, methanol, ammonia, cyclopropane and benzene with different coordinate systems, programs and CMA variants.
+
+## Development
+
+```bash
+pip install -e ".[tests]"
+pytest
+```
+
+### Upgrading from older versions
+
+- `gen_disps_a/b` and `calc_a/b` are gone: CMA works out the stage from the files on disk. Remove them from `main.py`; CMA says so if they are still there.
+- Unknown option names are now errors instead of being silently ignored.
+- `cluster` now defaults to `"manual"` (it was `"sge"`).
+- The Sapelo2 and Vulcan job scripts are now the `sapelo2_hfslab` and `vulcan_ccqc` cluster profiles; without a profile, generic Slurm/SGE scripts built from `nslots`, `memory`, `time_limit`, `job_setup` etc. are used.

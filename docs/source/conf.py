@@ -1,30 +1,43 @@
 # Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+import os
+import sys
 
-project = 'concordantmodes'
-copyright = '2026, Mitchell Lahm'
-author = 'M.E. Lahm and N. L. Kitzmiller'
-release = '0.0.0'
+sys.path.insert(0, os.path.abspath("../.."))
 
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
+project = "concordantmodes"
+copyright = "2026, Mitchell Lahm"
+author = "M.E. Lahm and N. L. Kitzmiller"
+
+try:
+    from importlib.metadata import version as _version
+
+    release = _version("concordantmodes")
+except Exception:
+    release = "unknown"
 
 extensions = [
-    'sphinx.ext.autodoc',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
 ]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
+language = "en"
 
-language = 'English'
+html_theme = "alabaster"
+html_static_path = []
 
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
-html_static_path = ['_static']
+# The options reference is generated from concordantmodes/options.py so it
+# always matches the code.
+def _write_options_page(app):
+    from generate_options import write_options_rst
+
+    write_options_rst(os.path.join(app.srcdir, "options.rst"))
+
+
+def setup(app):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    app.connect("builder-inited", _write_options_page)

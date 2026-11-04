@@ -5,6 +5,10 @@ from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
 from scipy.linalg import block_diag
 import copy
+import logging
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class GFMethod:
@@ -212,34 +216,36 @@ class GFMethod:
             else:
                 self.freq[i] = -np.imag(self.freq[i])
 
-        # This seems to fix the constant warning I get about casting out imaginary values from the complex numbers,
-        # however I will need to test it on transition states to see if it captures the imaginary frequencies.
-        self.freq = self.freq.astype(float)
+        # Every entry is real by now (imaginary modes were stored as negative
+        # numbers above), so dropping the zero imaginary parts loses nothing.
+        self.freq = np.real(self.freq).astype(float)
 
         # Convert from Hartrees to wavenumbers.
         self.freq *= self.HARTREE_WAVENUM
         if self.options.molsym_symmetry:
             for i in range(len(self.freq)):
-                print(
+                info_print(
+                    logger,
                     "frequency #"
                     + "{:3d}".format(i + 1)
                     + ": "
                     + "{:10.2f}".format(self.freq[i])
                     + " {}".format(self.irrep_degen[i])
-                    + " x {}".format(self.irrep_labels[i])
+                    + " x {}".format(self.irrep_labels[i]),
                 )
         else:
             for i in range(len(self.freq)):
-                print(
+                info_print(
+                    logger,
                     "frequency #"
                     + "{:3d}".format(i + 1)
                     + ": "
-                    + "{:10.2f}".format(self.freq[i])
+                    + "{:10.2f}".format(self.freq[i]),
                 )
         # Compute and then print the TED.
-        print("////////////////////////////////////////////")
-        print("//{:^40s}//".format("Total Energy Distribution (TED)"))
-        print("////////////////////////////////////////////")
+        debug_print(logger, "////////////////////////////////////////////")
+        debug_print(logger, "//{:^40s}//".format("Total Energy Distribution (TED)"))
+        debug_print(logger, "////////////////////////////////////////////")
         if self.options.molsym_symmetry:
             self.ted.run(self.L, self.freq, self.symtext, rect_print=False)
         else:

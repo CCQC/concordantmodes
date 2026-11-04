@@ -2,11 +2,15 @@ import numpy as np
 from copy import copy
 import scipy.linalg as la
 import time
+import logging
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class RMSD:
     def __init__(self):
-        print("Nothing to init")
+        debug_print(logger, "Nothing to init")
 
     # computes the moment of inertia given a molecule and the axis
 
@@ -392,8 +396,10 @@ class RMSD:
             )
             bars = np.dot(grud, np.linalg.inv(huss))
             if self.norm(grud) < 1e-12:
-                print("Optimization of Euler-angles optimization has converged")
-                print(f"Norm of gradient is {self.norm(grud)}")
+                debug_print(
+                    logger, "Optimization of Euler-angles optimization has converged"
+                )
+                debug_print(logger, f"Norm of gradient is {self.norm(grud)}")
                 break
             A = A - bars[0]
             B = B - bars[1]
@@ -403,7 +409,7 @@ class RMSD:
 
     def derive_opt_rotate(self, mol1_rot, mol2_rot, n):  # , oilrod):
         a, b, c = self.handwritten_hess(mol1_rot, mol2_rot, n)
-        print(a, b, c)
+        debug_print(logger, a, b, c)
 
         rot_matrix = np.array(
             [
@@ -499,7 +505,9 @@ class RMSD:
         res0 = self.compute_res0(mol1_rot, mol2_rot, n)
         rmsd0 = self.compute_rmsd(res0, n)
 
-        print(f"RMSD prior to optimization of the rotatation parameters {rmsd0}")
+        debug_print(
+            logger, f"RMSD prior to optimization of the rotatation parameters {rmsd0}"
+        )
         mxx1, myy1, mzz1 = self.compute_moi(mol1_rot, n)
         mxx2, myy2, mzz2 = self.compute_moi(mol2_rot, n)
         mxy1, mxz1, myz1 = self.compute_poi(mol1_rot, n)
@@ -521,39 +529,47 @@ class RMSD:
             ]
         )
 
-        print("CHECK: Is molecule at origin? These should be zero vectors")
-        print(self.mol_test(mol1_rot, n))
-        print(
+        debug_print(
+            logger, "CHECK: Is molecule at origin? These should be zero vectors"
+        )
+        debug_print(logger, self.mol_test(mol1_rot, n))
+        debug_print(
+            logger,
             """     
 
-        """
+        """,
         )
-        print(self.mol_test(mol2_rot, n))
-        print(
+        debug_print(logger, self.mol_test(mol2_rot, n))
+        debug_print(
+            logger,
             """     
 
-        """
+        """,
         )
-        print("CHECK: Are the products of inertia zero?")
-        print(M1_I)
-        print(
+        debug_print(logger, "CHECK: Are the products of inertia zero?")
+        debug_print(logger, M1_I)
+        debug_print(
+            logger,
             """     
 
-        """
+        """,
         )
-        print(M2_I)
-        print(
+        debug_print(logger, M2_I)
+        debug_print(
+            logger,
             """     
 
-        """
+        """,
         )
-        print("Beginning optimization of Euler-angle parameters")
+        debug_print(logger, "Beginning optimization of Euler-angle parameters")
         mol2_rot = self.derive_opt_rotate(mol1_rot, mol2_rot, n)
 
         resfinal = self.compute_res0(mol1_rot, mol2_rot, n)
         rmsdfinal = self.compute_rmsd(resfinal, n)
-        print("rmsdfinal")
-        print(rmsdfinal)
+        debug_print(logger, "rmsdfinal")
+        debug_print(logger, rmsdfinal)
         end = time.time()
-        print(f"It took {end - start} seconds to compute the rmsd of {rmsdfinal}")
+        debug_print(
+            logger, f"It took {end - start} seconds to compute the rmsd of {rmsdfinal}"
+        )
         self.rmsd = rmsdfinal

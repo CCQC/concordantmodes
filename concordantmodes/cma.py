@@ -26,10 +26,13 @@ from concordantmodes.submit import Submit
 from concordantmodes.symmetry import Symmetry
 from concordantmodes.ted import TED
 from concordantmodes.transf_disp import TransfDisp
-
-# from concordantmodes.vulcan_template import VulcanTemplate
-# from concordantmodes.sapelo_template import SapeloTemplate
 from concordantmodes.zmat import Zmat
+from concordantmodes import fc_files, programs, workflow
+from concordantmodes.errors import CMAError, CMAWaiting
+from concordantmodes.log import debug_print, info_print, setup_logging
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ConcordantModes:
@@ -117,9 +120,49 @@ class ConcordantModes:
         self.proj = proj
         self.extra_indices = extra_indices
 
-    # Change to 'cma' rather than run. We should then be able to introduce a function for higher order
-    # force constant computations.
     def run(self, sym_sort=[]):
+        """Run (or continue) the CMA calculation in the current directory.
+
+        CMA works out from the files on disk what still needs doing: it
+        writes displacement inputs that do not exist yet, submits or waits
+        for calculations that are not finished (depending on ``cluster``),
+        and reads the results once every calculation of a level is done.
+        Run it again after your calculations finish; completed work is
+        never redone.
+
+        Returns ``"finished"`` when the final frequencies were computed, or
+        ``"waiting"`` when calculations still have to run (the message
+        explains what to run).
+        """
+        self.options.validate()
+        verbosity = self.options.verbosity
+        if self.options.geom_check and verbosity == "normal":
+            verbosity = "debug"  # geom_check exists to show the parsed structure
+        setup_logging(verbosity, self.options.log_file)
+        rootdir = os.getcwd()
+        logger.info("Concordant Modes run in %s", rootdir)
+        changed = self.options.changed()
+        if changed:
+            logger.debug("Options set: %s", changed)
+        for name in self.options.no_effect_set():
+            logger.warning("Option '%s' is set but currently has no effect.", name)
+        try:
+            workflow.preflight(self.options, rootdir)
+            self._run(sym_sort)
+            self.status = "finished"
+        except CMAWaiting as waiting:
+            os.chdir(rootdir)
+            # Shown even with verbosity="quiet": it says what to do next.
+            logger.warning("%s", waiting)
+            self.status = "waiting"
+        except CMAError as error:
+            os.chdir(rootdir)
+            logger.error("ERROR: %s", error)
+            error.logged = True
+            raise
+        return self.status
+
+    def _run(self, sym_sort=[]):
         t1 = time.time()
 
         rootdir = os.getcwd()
@@ -133,7 +176,16 @@ class ConcordantModes:
         self.zmat_obj = Zmat(self.options)
         self.zmat_obj.run()
         if self.options.geom_check:
-            raise RuntimeError
+            raise CMAWaiting(
+                "geom_check is set: the zmat file was read (details above). Remove "
+                "geom_check to run the calculation."
+            )
+        if self.options.off_diag == 2:
+            raise CMAError(
+                "CMA-2 (off_diag = 2) is not finished in this version: the level-C "
+                "block in cma.py uses variables that are never defined (eigs_b, "
+                "algo, b_disp). Use off_diag = 0."
+            )
 
         # Do we want to use molsym_symmetry or "manual" symmetry via sym_sort?
         self.symm_obj = Symmetry(self.zmat_obj, self.options, self.proj)
@@ -164,15 +216,13 @@ class ConcordantModes:
             proj=self.proj,
             off_diag=0,
             prog=self.options.program_b,
-            gen_disps=self.options.gen_disps_b,
-            calc=self.options.calc_b,
         )
 
         g_mat = GMatrix(self.zmat_obj, self.s_vec, self.options, proj=self.proj)
         g_mat.run()
         G = g_mat.G.copy()
-        print(G.shape)
-        print(self.F_b.shape)
+        debug_print(logger, G.shape)
+        debug_print(logger, self.F_b.shape)
 
         self.options.init_bool = False
 
@@ -180,7 +230,7 @@ class ConcordantModes:
             self.F_b, G = self.symm_obj.GF_sym_sort(self.F_b, G, self.sym_sort)
 
         # Run the GF matrix method with the internal F-Matrix and computed G-Matrix!
-        print("Level B Frequencies:")
+        info_print(logger, "Level B harmonic frequencies (cm^-1):")
         b_GF = GFMethod(
             G.copy(),
             self.F_b.copy(),
@@ -200,7 +250,7 @@ class ConcordantModes:
             self.ref_b = np.array(flat_sym_freqs)
             #### this block could probably be moved inside the symmetry.py module?
             flat_sym_modes_b = [x for xs in self.irreps_b for x in xs]
-            print(flat_sym_modes_b)
+            debug_print(logger, flat_sym_modes_b)
             del_list = []
             flat_sym_modes_b = np.delete(np.array(flat_sym_modes_b), del_list)
             ted_b = ted_b.T
@@ -233,7 +283,7 @@ class ConcordantModes:
             self.F = np.dot(np.dot(b_GF.L.T, self.F_b), b_GF.L)
             self.F[np.abs(self.F) < self.options.tol] = 0
 
-            print("TED Frequencies: Degeneracy x Irrep")
+            debug_print(logger, "TED Frequencies: Degeneracy x Irrep")
             TED_GF = GFMethod(
                 self.G,
                 self.F,
@@ -251,8 +301,9 @@ class ConcordantModes:
             if self.options.de_novo_C:
                 pass
             else:
-                print(
-                    "No extra computations, running back through level B single points"
+                debug_print(
+                    logger,
+                    "No extra computations, running back through level B single points",
                 )
                 os.chdir("DispsB")
                 reap_obj_c = Reap(
@@ -281,22 +332,22 @@ class ConcordantModes:
                 fc_c = np.dot(np.dot(b_GF.L.T, fc_c), b_GF.L)
                 fc_c[np.abs(fc_c) < self.options.tol] = 0
                 xi = copy.deepcopy(fc_c) * 0.0
-                print("xi values:")
+                debug_print(logger, "xi values:")
                 for i in range(len(xi)):
                     for j in range(i + 1):
                         if i != j:
-                            print(i, j)
+                            debug_print(logger, i, j)
                             buff = np.abs(fc_c[i, j])
                             xi[i, j] = buff / np.sqrt(
                                 np.abs(fc_c[i, i]) * np.abs(fc_c[j, j])
                             )
-                            print(i, j)
-                            print(xi[i, j])
+                            debug_print(logger, i, j)
+                            debug_print(logger, xi[i, j])
                             if xi[i, j] > self.options.xi_tol:
                                 self.extra_indices.append([j, i])
-                print("CMA-2 extra off-diag indices:")
-                print(len(self.extra_indices))
-                print(self.extra_indices)
+                debug_print(logger, "CMA-2 extra off-diag indices:")
+                debug_print(logger, len(self.extra_indices))
+                debug_print(logger, self.extra_indices)
         # elif self.options.off_diag == '1':
         # self.extra_indices = self.od_inds
 
@@ -319,12 +370,10 @@ class ConcordantModes:
             proj=self.s_vec.proj,
             off_diag=self.options.off_diag,
             prog=self.options.program_a,
-            gen_disps=self.options.gen_disps_a,
-            calc=self.options.calc_a,
             eigs=b_GF.L,
             fc=fc,
         )
-        # print(self.F_a)
+        # debug_print(logger, self.F_a)
 
         # Recompute the G-matrix with the new geometry, and then transform
         # the G-matrix using the lower level of theory eigenvalue matrix.
@@ -345,13 +394,13 @@ class ConcordantModes:
         self.G[np.abs(self.G) < self.options.tol] = 0
 
         np.set_printoptions(precision=7, edgeitems=60, linewidth=10000)
-        print("Normal Mode G")
-        print(self.G)
-        print("Diag F")
-        print(self.F_a)
+        debug_print(logger, "Normal Mode G")
+        debug_print(logger, self.G)
+        debug_print(logger, "Diag F")
+        debug_print(logger, self.F_a)
 
         # Final GF Matrix run
-        print("Final Harmonic Frequencies:")
+        info_print(logger, "\nFinal (CMA) harmonic frequencies (cm^-1):")
         a_GF = GFMethod(
             self.G,
             self.F_a,
@@ -364,42 +413,64 @@ class ConcordantModes:
 
         # This code below is a table of the TED for the final
         # frequencies in the basis of the initial internal coordinates.
-        print("////////////////////////////////////////////")
-        print("//{:^40s}//".format(" Final TED"))
-        print("////////////////////////////////////////////")
-        self.TED_obj.run(np.dot(b_GF.L, a_GF.L), a_GF.freq, self.symm_obj.symtext)
+        info_print(
+            logger,
+            "\nFinal total energy distribution (TED, % per internal coordinate):",
+        )
+        self.TED_obj.run(
+            np.dot(b_GF.L, a_GF.L), a_GF.freq, self.symm_obj.symtext, show=True
+        )
 
         # This code prints out the frequencies in order of energy as well
         # as the ZPVE in several different units.
-        print(
+        info_print(
+            logger,
             "Final Harmonic ZPVE in: "
             + "{:6.2f}".format(np.sum(a_GF.freq) / 2)
             + " (cm^-1) "
             + "{:6.2f}".format(0.5 * np.sum(a_GF.freq) / 349.7550881133)
             + " (kcal mol^-1) "
             + "{:6.2f}".format(0.5 * np.sum(a_GF.freq) / 219474.6313708)
-            + " (hartrees) "
+            + " (hartrees) ",
         )
 
-        print("Frequency Shift (cm^-1): ")
-        print(a_GF.freq - b_GF.freq)
-        for i in a_GF.freq - b_GF.freq:
-            print(i)
-        print("RMSD Freq Shift (cm^-1): ")
-        print(np.sqrt(np.mean((a_GF.freq - b_GF.freq) ** 2)))
-        print("MAX Freq Shift (cm^-1): ")
-        print(np.max(np.abs(a_GF.freq - b_GF.freq)))
+        shift = a_GF.freq - b_GF.freq
+        info_print(logger, "\nFrequency shift from level B to CMA (cm^-1):")
+        info_print(logger, "  mode      level B        CMA      shift")
+        for i, (fb, fa) in enumerate(zip(b_GF.freq, a_GF.freq)):
+            info_print(
+                logger,
+                "  {:4d} {:12.2f} {:10.2f} {:10.2f}".format(i + 1, fb, fa, fa - fb),
+            )
+        info_print(
+            logger,
+            "  RMS shift {:.2f}, largest |shift| {:.2f}".format(
+                np.sqrt(np.mean(shift**2)), np.max(np.abs(shift))
+            ),
+        )
 
         # Write a molden file
-        molden = MoldenWriter(self.zmat_obj, self.disp, a_GF.freq)
-        molden.run()
+        if self.options.write_molden:
+            molden = MoldenWriter(self.zmat_obj, self.disp, a_GF.freq)
+            molden.run()
 
         # This code converts the force constants back into cartesian
-        # coordinates and writes out "fc_a.dat" and "fc_a.grad" files, which
-        # are of the same format as FCMFINAL of CFOUR for the force constants.
+        # coordinates and writes force_constants/fc_cart_a.dat (and
+        # fc_cart_a.grad with second_order), in CFOUR FCMFINAL format.
 
         self.F_a = np.dot(np.dot(eig_inv.T, self.F_a), eig_inv)
-        self.gradient = np.dot(self.grad_a, eig_inv)
+        if np.size(self.grad_a) == eig_inv.shape[0]:
+            self.gradient = np.dot(self.grad_a, eig_inv)
+        else:
+            # fc_int_a.dat from an older version, saved without fc_int_a.grad.
+            self.gradient = np.zeros(eig_inv.shape[1])
+            if self.options.second_order:
+                logger.warning(
+                    "second_order is set but no level-A gradient was found "
+                    "(force_constants/fc_int_a.grad); a zero gradient is used for the "
+                    "Cartesian force constants. Delete force_constants/fc_int_a.dat "
+                    "to recompute both from DispsA."
+                )
 
         cart_conv = FcConv(
             self.F_a,
@@ -409,6 +480,7 @@ class ConcordantModes:
             True,
             self.proj,
             self.options,
+            out_dir=os.path.join(rootdir, fc_files.FC_DIR),
         )
         if self.options.second_order:
             cart_conv.run(grad=self.gradient)
@@ -419,10 +491,84 @@ class ConcordantModes:
         self.F_cart = cart_conv.F
 
         t2 = time.time()
-        print("This program took " + str(t2 - t1) + " seconds to run.")
+        info_print(
+            logger,
+            "\nFinished in {:.1f} s. Cartesian force constants: force_constants/fc_cart_a.dat; "
+            "{}full log: {}".format(
+                t2 - t1,
+                "normal modes: MOLDEN; " if self.options.write_molden else "",
+                self.options.log_file or "(disabled)",
+            ),
+        )
 
     # It's time to make this a real driver. Begin by creating a procedure for computing an arbitrary hessian
     # whether it's a full hessian, variable derivative levels, variable CMA_levels, variable coordinate types.
+    def _build_displacements(
+        self,
+        cma_level,
+        coord_type,
+        zmat,
+        options,
+        ref_carts,
+        num_deg_free,
+        eigs,
+        deriv_level,
+        fc,
+    ):
+        """Choose the displacement indices and build the displaced geometries
+        (``self.disp``) for one level. Nothing is written to disk."""
+        # First generate displacements in internal coordinates
+        if cma_level.upper() == "B":
+            eigs = np.eye(len(self.proj.T))
+            if self.options.cart_fc_b:
+                eigs = np.eye(len(ref_carts.flatten()))
+                # cart_fc = True
+
+        algo = Algorithm(
+            num_deg_free,
+            cma_level,
+            options,
+            proj_irreps=self.symm_obj.proj_irreps,
+        )
+        algo.run()
+        debug_print(logger, "Pre sym indices:")
+        debug_print(logger, len(algo.indices))
+        debug_print(logger, algo.indices)
+        if (
+            not options.deriv_level_b
+            and not options.molsym_symmetry
+            and cma_level == "B"
+        ):
+            if len(self.sym_sort) > 1 and coord_type.lower() == "internal":
+                debug_print(logger, "symmetric displacements:")
+                algo.indices = self.symm_obj.create_sym_sort_disps(
+                    self.sym_sort, algo.indices
+                )
+        else:
+            self.symm_obj.indices_by_irrep = algo.indices_by_irrep
+
+        debug_print(logger, "Post sym indices:")
+        debug_print(logger, len(algo.indices))
+        debug_print(logger, algo.indices)
+
+        if cma_level == "A" and len(self.extra_indices):
+            algo.indices += self.extra_indices
+        self.disp = TransfDisp(
+            self.s_vec,
+            zmat,
+            eigs,
+            True,
+            self.proj,
+            options,
+            algo.indices,
+            symm_obj=self.symm_obj,
+            coord_type=coord_type,
+            deriv_level=deriv_level,
+            cma_level=cma_level,
+        )
+        self.disp.run(fc=fc)
+        return algo
+
     def compute_hessian(
         self,
         cma_level,
@@ -435,8 +581,6 @@ class ConcordantModes:
         proj=np.array([]),
         off_diag=None,
         prog=None,
-        gen_disps=True,
-        calc=True,
         eigs=None,
         fc=np.array([]),
     ):
@@ -469,11 +613,24 @@ class ConcordantModes:
             suff = "cart_"
         elif coord_type.lower() == "internal":
             suff = "int_"
-        if os.path.exists(rootdir + "/fc_" + suff + cma_level.lower() + ".dat"):
-            f_read_obj = FcRead("fc_" + suff + cma_level.lower() + ".dat")
+        is_cart = suff == "cart_"
+        # If the force-constant file exists it is used and Disps<L> is ignored.
+        # Delete force_constants/fc_int_a.dat to re-read DispsA.
+        fc_path = fc_files.find(rootdir, fc_files.fc_name(cma_level, is_cart))
+        grad_path = fc_files.find(rootdir, fc_files.fc_name(cma_level, is_cart, "grad"))
+        if fc_path:
+            logger.info(
+                "Level %s: reading force constants from %s",
+                cma_level,
+                os.path.relpath(fc_path, rootdir),
+            )
+            f_read_obj = FcRead(fc_path)
 
             f_read_obj.run()
             grad = np.array([])
+            if not is_cart and grad_path:
+                # Gradient in the same coordinates as the force constants.
+                grad = fc_files.read_vector(grad_path)
             if self.options.cart_fc_b:
                 f_conv_obj = FcConv(
                     f_read_obj.fc_mat,
@@ -484,10 +641,8 @@ class ConcordantModes:
                     self.proj,
                     options,
                 )
-                if self.options.second_order and os.path.exists(
-                    rootdir + "/fc_" + suff + cma_level.lower() + ".grad"
-                ):
-                    g_read_obj = GrRead("fc_" + suff + cma_level.lower() + ".grad")
+                if self.options.second_order and grad_path:
+                    g_read_obj = GrRead(grad_path)
                     # Need to pass in general carts here.
                     g_read_obj.run(ref_carts)
                     f_conv_obj.run(grad=g_read_obj.cart_grad)
@@ -497,69 +652,44 @@ class ConcordantModes:
                 F = f_conv_obj.F
             else:
                 F = f_read_obj.fc_mat
+            if cma_level.upper() == "A" and options.write_molden:
+                # The MOLDEN file is drawn from the level-A displacements, so
+                # rebuild them in memory (no inputs are written).
+                options.init_bool = True
+                self._build_displacements(
+                    cma_level,
+                    coord_type,
+                    zmat,
+                    options,
+                    ref_carts,
+                    num_deg_free,
+                    eigs,
+                    deriv_level,
+                    fc,
+                )
         else:
             options.init_bool = True
 
-            # First generate displacements in internal coordinates
-            if cma_level.upper() == "B":
-                eigs = np.eye(len(self.proj.T))
-                if self.options.cart_fc_b:
-                    eigs = np.eye(len(ref_carts.flatten()))
-                    # cart_fc = True
-
-            algo = Algorithm(
-                num_deg_free,
+            algo = self._build_displacements(
                 cma_level,
-                options,
-                proj_irreps=self.symm_obj.proj_irreps,
-            )
-            algo.run()
-            print("Pre sym indices:")
-            print(len(algo.indices))
-            print(algo.indices)
-            if (
-                not options.deriv_level_b
-                and not options.molsym_symmetry
-                and cma_level == "B"
-            ):
-                if len(self.sym_sort) > 1 and coord_type.lower() == "internal":
-                    print("symmetric displacements:")
-                    algo.indices = self.symm_obj.create_sym_sort_disps(
-                        self.sym_sort, algo.indices
-                    )
-            else:
-                self.symm_obj.indices_by_irrep = algo.indices_by_irrep
-
-            print("Post sym indices:")
-            print(len(algo.indices))
-            print(algo.indices)
-
-            if cma_level == "A" and len(self.extra_indices):
-                algo.indices += self.extra_indices
-            self.disp = TransfDisp(
-                self.s_vec,
+                coord_type,
                 zmat,
-                eigs,
-                True,
-                self.proj,
                 options,
-                algo.indices,
-                symm_obj=self.symm_obj,
-                coord_type=coord_type,
-                deriv_level=deriv_level,
-                cma_level=cma_level,
+                ref_carts,
+                num_deg_free,
+                eigs,
+                deriv_level,
+                fc,
             )
-            self.disp.run(fc=fc)
 
-            prog_name = prog.split("@")[0]
+            prog_name = programs.program_name(prog)
+            disps_name = "Disps" + cma_level.upper()
 
-            if gen_disps:
-                ref_geom = self.disp.disp_cart["ref"]
-
-                dir_obj = DirectoryTree(
+            def make_tree(dir_name):
+                return DirectoryTree(
                     prog_name,
                     zmat,
-                    ref_geom,
+                    self.disp.disp_cart["ref"],
                     cma_level,
                     self.disp.p_disp,
                     self.disp.m_disp,
@@ -567,34 +697,9 @@ class ConcordantModes:
                     algo.indices,
                     self.symm_obj,
                     "template" + cma_level.upper() + ".dat",
-                    "Disps" + cma_level.upper(),
+                    dir_name,
                     deriv_level=deriv_level,
                 )
-                dir_obj.run()
-
-                if not calc:
-                    print(
-                        # "The Level B displacements have been generated, now they must be run locally."
-                        "The Level "
-                        + cma_level.upper()
-                        + " displacements have been generated, now they must be run locally."
-                    )
-                    raise RuntimeError
-            else:
-                if not os.path.exists(rootdir + "/Disps" + cma_level.upper()):
-                    print(os.getcwd())
-                    print(
-                        "You need to have a Disps"
-                        + cma_level.upper()
-                        + " directory already present if you want to proceed under current conditions!"
-                    )
-                    raise RuntimeError
-
-            if calc:
-                sub = Submit(options, cma_level, rootdir, prog_name, prog)
-                sub.run()
-
-            os.chdir(rootdir + "/Disps" + cma_level.upper())
 
             reap_obj = Reap(
                 options,
@@ -607,6 +712,21 @@ class ConcordantModes:
                 proj=self.proj,
                 zmat=zmat,
             )
+
+            # Write inputs if needed, check what is finished, and submit or
+            # stop until the remaining calculations are done.
+            workflow.prepare_level(
+                options,
+                rootdir,
+                cma_level,
+                disps_name,
+                make_tree,
+                reap_obj,
+                prog_name,
+                prog,
+            )
+
+            os.chdir(rootdir + "/" + disps_name)
             reap_obj.run()
             os.chdir(rootdir)
             # can this be folded into reap obj?
@@ -644,28 +764,33 @@ class ConcordantModes:
             )
             f_conv_obj.N = len(fc.FC)
             if options.second_order and self.options.cart_fc_b:
-                f_conv_obj.print_const(fc_name="fc_cart_" + cma_level.lower() + ".dat")
-                fc_name = "fc_cart_" + cma_level.lower() + ".grad"
-                fc_output = ""
-                g_print = fc.gradient.flatten()
-                for i in range(len(g_print) // 3):
-                    fc_output += "{:20.10f}".format(g_print[3 * i])
-                    fc_output += "{:20.10f}".format(g_print[3 * i + 1])
-                    fc_output += "{:20.10f}".format(g_print[3 * i + 2])
-                    fc_output += "\n"
-                if len(g_print) % 3:
-                    for i in range(len(g_print) % 3):
-                        fc_output += "{:20.10f}".format(
-                            g_print[3 * (len(g_print) // 3) + i]
-                        )
-                    fc_output += "\n"
-                with open(fc_name, "w+") as file:
-                    file.write(fc_output)
+                f_conv_obj.print_const(
+                    fc_name=fc_files.output_path(
+                        rootdir, fc_files.fc_name(cma_level, True)
+                    )
+                )
+                fc_files.write_vector(
+                    fc_files.output_path(
+                        rootdir, fc_files.fc_name(cma_level, True, "grad")
+                    ),
+                    fc.gradient,
+                )
 
                 f_conv_obj.run(grad=fc.gradient)
                 fc.FC = f_conv_obj.F
             elif not self.options.cart_fc_b:
-                f_conv_obj.print_const(fc_name="fc_int_" + cma_level.lower() + ".dat")
+                f_conv_obj.print_const(
+                    fc_name=fc_files.output_path(rootdir, fc_files.fc_name(cma_level))
+                )
+                # Saved so a later run that reads the force-constant file gets
+                # the same gradient (needed for second_order).
+                if np.size(fc.gradient):
+                    fc_files.write_vector(
+                        fc_files.output_path(
+                            rootdir, fc_files.fc_name(cma_level, ext="grad")
+                        ),
+                        fc.gradient,
+                    )
 
             F = fc.FC
             grad = fc.gradient

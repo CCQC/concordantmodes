@@ -1,69 +1,68 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling>=1.18", "hatch-vcs>=0.3"]
 build-backend = "hatchling.build"
 
 [project]
-name = "Concordant_Modes"
+name = "concordantmodes"
 dynamic = ["version"]
-description = "Uses normal modes at a lower level of theory to compute higher level force constants"
+description = "Concordant Mode Approach: high-level harmonic frequencies from low-level normal modes at a fraction of the cost"
 readme = "README.md"
 license = "BSD-3-Clause"
+requires-python = ">=3.10"
+authors = [
+    { name = "Mitchell Lahm" },
+    { name = "Nate Kitzmiller" },
+    { name = "Wesley D. Allen" },
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Chemistry",
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "numpy>=1.13.3",
-    "qcelemental>=0.24.0",
-    "scipy >= 1.4",
+    "numpy>=1.23",
+    "scipy>=1.9",
     "sympy",
+    "qcelemental>=0.25",
+    "tomli>=1.1; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
-tests = [
-    "pytest",
-    "pytest-cov",
-    "pytest-pep8",
-]
-
+# MolSym is only needed for molsym_symmetry = True.
+symmetry = ["MolSym @ git+https://github.com/CCQC/MolSym.git"]
+tests = ["pytest"]
 docs = [
+    "sphinx",
     "numpydoc",
     "pydata-sphinx-theme",
-    "sphinx<8",
-    "sphinx-automodapi",
     "sphinx-design",
-    "sphinxcontrib-napoleon",
-    "sphinx-autobuild",
-    "autodoc_pydantic>=1.9.1",
-    "pint",
 ]
+
+[project.scripts]
+cma = "concordantmodes.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/CCQC/ConcordantModes"
+Source = "https://github.com/CCQC/ConcordantModes"
 
-[tool.hatch.build.hooks.vcs]
-version-file = "_version.py"
-Documentation = "https://optking.readthedocs.io/en/latest/"
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "/concordantmodes",
-]
 [tool.hatch.version]
 source = "vcs"
-docs = [
-    "numpydoc",
-    "pydata-sphinx-theme",
-    "sphinx<8",
-    "sphinx-automodapi",
-    "sphinx-design",
-    "sphinxcontrib-napoleon",
-    "sphinx-autobuild",
-    "autodoc_pydantic>=1.9.1",
-    "pint",
-]
+# Used when building outside a git checkout (e.g. from a copied folder).
+raw-options = { fallback_version = "0.2.0" }
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.sdist]
+include = ["/concordantmodes", "/README.md", "/LICENSE", "/docs/source", "/examples"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["concordantmodes"]
 
 [tool.hatch.envs.docs.scripts]
 build = "sphinx-build -M html docs/source docs/build"
 serve = "sphinx-autobuild --port=0 --open-browser docs/source docs/build/html/ &"
+
+[tool.pytest.ini_options]
+testpaths = ["concordantmodes/tests"]

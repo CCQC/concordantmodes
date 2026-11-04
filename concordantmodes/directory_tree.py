@@ -1,6 +1,15 @@
 from pathlib import Path
+import logging
 import shutil
 import copy
+
+from concordantmodes import programs
+from concordantmodes.errors import CMAError
+
+logger = logging.getLogger(__name__)
+
+GEOMETRY_MARKER = "{geometry}"
+NATOMS_MARKER = "{natoms}"
 
 
 class DirectoryTree:
@@ -16,7 +25,10 @@ class DirectoryTree:
 
     Supported quantum chemistry programs include Molpro, Psi4, CFOUR,
     and ORCA. Geometry coordinates are inserted into a user-provided
-    template file at a configurable location.
+    template file, either in place of a line containing ``{geometry}`` or
+    after the line number given by ``cart_insert_*``. ``{natoms}`` anywhere
+    in the template is replaced by the number of atoms. For Psi4 with the
+    built-in energy preset, a line printing ``CMA_ENERGY`` is appended.
 
     Depending on the derivative level, the class generates inputs for:
 
@@ -160,10 +172,9 @@ class DirectoryTree:
         self.dir_name = Path(dir_name)
         self.deriv_level = deriv_level
 
-        try:
-            self.insertion_index = getattr(self.options, self.INSERTION_MAP[cma_level])
-        except KeyError:
-            raise RuntimeError("cma_level must be A, B, or C")
+        if cma_level not in self.INSERTION_MAP:
+            raise CMAError("Internal error: cma_level must be 'A', 'B' or 'C'.")
+        self.insertion_index = getattr(self.options, self.INSERTION_MAP[cma_level])
 
     def run(self):
         """
@@ -188,13 +199,33 @@ class DirectoryTree:
             If an unsupported derivative level is requested.
         """
         root = Path.cwd()
+        self.root = root
 
         if self.prog_name not in self.PROG_LIST:
-            raise RuntimeError(f"Unsupported program: {self.prog_name}")
+            raise CMAError(
+                "Unsupported program '{}'. Supported: {}.".format(
+                    self.prog_name, ", ".join(sorted(self.PROG_LIST))
+                )
+            )
+        if not self.template.exists():
+            raise CMAError(
+                "Template file {} not found in {}. Level {} needs it: a {} input with "
+                "a {{geometry}} line where the coordinates go.".format(
+                    self.template, root, self.cma_level, self.prog_name
+                )
+            )
 
-        print(root)
+        logger.debug(
+            "Writing level-%s inputs into %s", self.cma_level, root / self.dir_name
+        )
         data = self.template.read_text().splitlines(keepends=True)
         n_atoms = len(self.zmat.atom_list)
+        self.marker_line = self._find_marker(data)
+        energy_pattern = self.options.regexes(self.cma_level)[0]
+        self.append_psi4_energy = (
+            self.deriv_level == 0
+            and programs.needs_psi4_energy_line(self.prog_name, energy_pattern)
+        )
 
         # Detect optional files
         self.init = (root / "initden.dat").exists()
@@ -212,7 +243,6 @@ class DirectoryTree:
             shutil.rmtree(self.dir_name)
 
         self.dir_name.mkdir()
-        Path.chdir = lambda p: None  # avoid lint complaints
 
         inp = "ZMAT" if self.prog_name == "cfour" else "input.dat"
 
@@ -222,7 +252,10 @@ class DirectoryTree:
         elif self.deriv_level == 1:
             self._run_gradient(data, n_atoms, inp)
         else:
-            raise RuntimeError("Only energy and gradient derivatives supported")
+            raise CMAError(
+                "deriv_level_{} = {}: only 0 (energies) and 1 (gradients) are "
+                "supported.".format(self.cma_level.lower(), self.deriv_level)
+            )
 
     def _run_energy(self, data, n_atoms, inp):
         self.make_input(data, self.ref_geom, n_atoms, inp, "1")
@@ -254,22 +287,69 @@ class DirectoryTree:
 
         return self.indices
 
+    def _find_marker(self, data):
+        """Index of the template line holding {geometry}, or None when the
+        cart_insert_* line number is used instead."""
+        hits = [i for i, line in enumerate(data) if GEOMETRY_MARKER in line]
+        lv = self.cma_level.lower()
+        if len(hits) > 1:
+            raise CMAError(
+                "{} contains {} more than once (lines {}); keep exactly one.".format(
+                    self.template, GEOMETRY_MARKER, ", ".join(str(h + 1) for h in hits)
+                )
+            )
+        if hits and self.insertion_index != -1:
+            raise CMAError(
+                "{} has a {} line and cart_insert_{} = {} is also set. Use one or the "
+                "other: remove the cart_insert_{} option or the marker line.".format(
+                    self.template, GEOMETRY_MARKER, lv, self.insertion_index, lv
+                )
+            )
+        if not hits and self.insertion_index == -1:
+            raise CMAError(
+                "CMA does not know where to put the geometry in {}. Add a line "
+                "containing {} where the atom lines should go (or set cart_insert_{} "
+                "to the line number to insert after).".format(
+                    self.template, GEOMETRY_MARKER, lv
+                )
+            )
+        if not hits and not 0 <= self.insertion_index <= len(data):
+            raise CMAError(
+                "cart_insert_{} = {} but {} has {} lines.".format(
+                    lv, self.insertion_index, self.template, len(data)
+                )
+            )
+        return hits[0] if hits else None
+
     def make_input(self, data, geom, n_atoms, inp, direc):
         path = self.dir_name / str(direc)
         path.mkdir(parents=True, exist_ok=True)
 
         space = "" if self.prog_name == "cfour" else " "
 
-        new_data = data.copy()
+        new_data = [line.replace(NATOMS_MARKER, str(n_atoms)) for line in data]
 
-        if self.insertion_index == -1:
-            raise RuntimeError("Invalid insertion index")
-
+        geom_lines = []
         for i in range(n_atoms):
             atom = self.zmat.atom_list[i]
             x, y, z = geom[i]
-            line = f"{space}{atom}{x:16.10f}{y:16.10f}{z:16.10f}\n"
-            new_data.insert(self.insertion_index + i, line)
+            geom_lines.append(f"{space}{atom}{x:16.10f}{y:16.10f}{z:16.10f}\n")
+
+        marker = getattr(self, "marker_line", None)
+        if marker is not None:
+            new_data[marker : marker + 1] = geom_lines
+        else:
+            if self.insertion_index == -1:
+                raise CMAError(
+                    "No geometry position for {}: add a {} line.".format(
+                        self.template, GEOMETRY_MARKER
+                    )
+                )
+            for i, line in enumerate(geom_lines):
+                new_data.insert(self.insertion_index + i, line)
+
+        if getattr(self, "append_psi4_energy", False):
+            new_data.append(programs.PSI4_ENERGY_LINE)
 
         (path / inp).write_text("".join(new_data))
 
@@ -278,7 +358,7 @@ class DirectoryTree:
         self._copy_support_files(path)
 
     def _copy_support_files(self, path):
-        root = Path.cwd().parent
+        root = getattr(self, "root", Path.cwd())
 
         files = {
             "initden.dat": self.init,

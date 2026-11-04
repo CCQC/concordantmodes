@@ -118,7 +118,7 @@ psi4 -n $THREADS -o output.dat
 #SBATCH --output="%x.%j".out     # Standard output log
 #SBATCH --error="%x.%j".err      # Standard error log
 #SBATCH --mail-user="%u"@uga.edu
-#SBTACH --mail-type=END,FAIL
+##SBATCH --mail-type=END,FAIL    # disabled: would email for every displacement job
 
 cd $SLURM_SUBMIT_DIR
 export NSLOTS=4
@@ -151,7 +151,7 @@ cd $scratch_dir
 echo " Saving data and cleaning up..."
 # delete any temporary files that my be hanging around.
 rm -f *.tmp*
-find . -type f -size +50M -exec rm -f {silly} \;
+find . -type f -size +50M -exec rm -f {silly} \\;
 tar --exclude='*tmp*' --transform "s,^,Job_Data_$SLURM_JOB_ID/," -vzcf $SLURM_SUBMIT_DIR/Job_Data_$SLURM_JOB_ID.tar.gz *
 
 echo " Job complete on `hostname`."
