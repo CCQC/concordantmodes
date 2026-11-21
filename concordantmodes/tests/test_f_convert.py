@@ -37,9 +37,6 @@ def test_f_convert2int():
     FCintR = FcRead(suite.path + "/fc_int.dat")
     FCintR.run()
     os.chdir(suite.root)
-    print(FCint.F)
-    print(FCintR.fc_mat)
-    print(FCint.F-FCintR.fc_mat)
     assert np.allclose(FCint.F, FCintR.fc_mat, rtol=0, atol=1e-10)
 
 

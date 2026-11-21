@@ -115,6 +115,7 @@ _SPECS = [
     OptionSpec("gradient_regex_b", "", G_LEVEL, "Same as gradient_regex_a, for level B.", check=_regex_pair),
     OptionSpec("gradient_regex_c", "", G_LEVEL, "Same as gradient_regex_a, for level C.", check=_regex_pair),
     # --- Displacements and force constants ---------------------------------
+    OptionSpec("aux_F", "", G_DISP, "Auxiliary matrix for off-diagonals, used in benchmarker. Needs to be improved.", types=S),
     OptionSpec("deriv_level_a", 0, G_DISP, "0: level-A force constants from energies; 1: from gradients.", types=I, check=_deriv_level),
     OptionSpec("deriv_level_b", 0, G_DISP, "0: level-B force constants from energies; 1: from gradients.", types=I, check=_deriv_level),
     OptionSpec("deriv_level_c", 0, G_DISP, "Same as deriv_level_a, for level C.", types=I, check=_deriv_level),
@@ -124,6 +125,7 @@ _SPECS = [
     OptionSpec("off_diag", 0, G_DISP, "Off-diagonal level-A force constants: 0 = diagonal only (CMA-0); 2 = CMA-2 couplings chosen by xi_tol (experimental).", types=I),
     OptionSpec("xi_tol", 0.02, G_DISP, "CMA-2: couple modes i,j when |F_ij|/sqrt(|F_ii F_jj|) exceeds this.", types=F, check=_non_negative),
     OptionSpec("de_novo_C", False, G_DISP, "CMA-2: compute level C from new calculations instead of reusing level-B outputs.", types=B),
+    OptionSpec("other_F_matrix", "", G_DISP, "Essentially the level C matrix for the benchmarker, to be improved.", types=S),
     OptionSpec("reduced_disp", False, G_DISP, "Adapt the level-A step sizes to each mode's curvature using the level-B force constants (see reduced_disp_size).", types=B),
     OptionSpec("reduced_disp_size", 0.0025, G_DISP, "Scale s in the reduced_disp step size Delta_i = s / |F_ii|^(1/4).", types=F, check=_positive),
     OptionSpec("scaled_disp", False, G_DISP, "Divide each level-B displacement by the largest component of its projection vector, so the most-displaced primitive coordinate moves by disp_b.", types=B),
