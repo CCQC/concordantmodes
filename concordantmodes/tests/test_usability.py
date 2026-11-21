@@ -247,25 +247,50 @@ def test_manual_workflow_matches_reference(water_run):
     assert status == "finished"
 
 
+# def test_final_frequencies(water_run, caplog):
+    # root, fake = water_run
+    # import logging
+
+    # for _ in range(2):
+        # _cma()
+        # for level in ("DispsB", "DispsA"):
+            # if (root / level).exists():
+                # _run_all(fake, root / level)
+    # with caplog.at_level(logging.INFO, logger="concordantmodes"):
+        # cma = ConcordantModes(Options(coords="Delocalized", log_file=""))
+        # assert cma.run() == "finished"
+    # text = caplog.text
+    # final = text[text.index("Final (CMA) harmonic frequencies") :]
+    # freqs = [
+        # float(x) for x in re.findall(r"frequency #\s*\d+:\s+(-?\d+\.\d+)", final)[:3]
+    # ]
+    # assert freqs == pytest.approx(REFERENCE_FREQS, abs=0.01)
+
 def test_final_frequencies(water_run, caplog):
     root, fake = water_run
     import logging
-
+    
     for _ in range(2):
         _cma()
         for level in ("DispsB", "DispsA"):
             if (root / level).exists():
                 _run_all(fake, root / level)
-    with caplog.at_level(logging.INFO, logger="concordantmodes"):
-        cma = ConcordantModes(Options(coords="Delocalized", log_file=""))
-        assert cma.run() == "finished"
+    
+    cma_logger = logging.getLogger("concordantmodes")
+    cma_logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.INFO, logger="concordantmodes"):
+            cma = ConcordantModes(Options(coords="Delocalized", log_file=""))
+            assert cma.run() == "finished"
+    finally:
+        cma_logger.removeHandler(caplog.handler)
+    
     text = caplog.text
     final = text[text.index("Final (CMA) harmonic frequencies") :]
     freqs = [
-        float(x) for x in re.findall(r"frequency #\s*\d+:\s+(-?\d+\.\d+)", final)[:3]
+    	float(x) for x in re.findall(r"frequency #\s*\d+:\s+(-?\d+\.\d+)", final)[:3]
     ]
     assert freqs == pytest.approx(REFERENCE_FREQS, abs=0.01)
-
 
 def test_changed_template_is_detected(water_run):
     root, fake = water_run
