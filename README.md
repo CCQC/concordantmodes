@@ -75,6 +75,39 @@ pip install -e ".[tests]"
 pytest
 ```
 
+### Building the documentation
+
+The manual is written with [Sphinx](https://www.sphinx-doc.org) and lives in `docs/source`.
+
+1. Install CMA with the documentation extras (Sphinx and the PyData theme), from the repository root:
+
+   ```bash
+   pip install -e ".[docs]"
+   ```
+
+2. Build the HTML pages:
+
+   ```bash
+   cd docs
+   make html SPHINXOPTS=-W     # on Windows: make.bat html
+   ```
+
+   Without `make`, run the same build directly from the repository root:
+
+   ```bash
+   sphinx-build -W -b html docs/source docs/build/html
+   ```
+
+3. Open `docs/build/html/index.html` in a browser.
+
+Notes:
+
+- `-W` treats warnings as errors, as the Read the Docs build does. Fix any warning before pushing, or the online build fails.
+- The options reference (`docs/source/reference/options.rst`) is generated from `concordantmodes/options.py` on every build. Don't edit it by hand; it is not tracked by git.
+- MolSym is not needed to build the docs.
+- If pages look stale after renaming or deleting files, run `make clean` (or delete `docs/build/`) and build again.
+- The online manual is rebuilt by Read the Docs from `.readthedocs.yaml` on every push, once the repository is connected at https://readthedocs.org.
+
 ### Upgrading from older versions
 
 - `gen_disps_a/b` and `calc_a/b` are gone: CMA works out the stage from the files on disk. Remove them from `main.py`; CMA says so if they are still there.
