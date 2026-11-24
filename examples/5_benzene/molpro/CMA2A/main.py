@@ -15,7 +15,8 @@ options_kwargs = {
     "success_regex_a": r"Molpro calculation terminated",
     "success_regex_b": r"Molpro calculation terminated",
     "success_regex_c": r"Molpro calculation terminated",
-    "symmetry": True,
+    # "symmetry": True was never a CMA option and had no effect;
+    # use "molsym_symmetry": True to turn symmetry on.
     "autosalcs": True,
     "off_diag": 2,
     "xi_tol": 0.14,

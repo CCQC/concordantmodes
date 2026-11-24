@@ -55,7 +55,7 @@ SCRATCH_DIR="/scratch/$USER/$SLURM_JOB_ID"
 srun --cpu-bind=verbose psi4 -i input.dat -o output.dat
 
 
-echo "Job \$SLURM_JOB_ID running on \$HOSTNAME"
+echo "Job \\$SLURM_JOB_ID running on \\$HOSTNAME"
 echo "CPU affinity:"
 taskset -cp $$
 """
@@ -105,7 +105,7 @@ SCRATCH_DIR="/scratch/$USER/$SLURM_JOB_ID"
 srun --cpu-bind=verbose gxtb -c input.coord
 
 
-echo "Job \$SLURM_JOB_ID running on \$HOSTNAME"
+echo "Job \\$SLURM_JOB_ID running on \\$HOSTNAME"
 echo "CPU affinity:"
 taskset -cp $$
 """
@@ -134,7 +134,7 @@ SCRATCH_DIR="/scratch/$USER/$SLURM_JOB_ID"
 srun --cpu-bind=verbose {xtb_variant} {cline} {xtb_addtl_opts}
 
 
-echo "Job \$SLURM_JOB_ID running on \$HOSTNAME"
+echo "Job \\$SLURM_JOB_ID running on \\$HOSTNAME"
 echo "CPU affinity:"
 taskset -cp $$
 """

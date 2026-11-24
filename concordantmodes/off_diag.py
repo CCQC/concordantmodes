@@ -2,6 +2,10 @@ import numpy as np
 from numpy.linalg import inv
 from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
+import logging
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class OffDiagonal:
@@ -19,5 +23,5 @@ class OffDiagonal:
         od_inds = self.od_inds
         temp = copy.copy(f_diag)
         if off_diag == 1:
-            print("Adding on these off-diagonals:")
-            print(od_inds)
+            debug_print(logger, "Adding on these off-diagonals:")
+            debug_print(logger, od_inds)

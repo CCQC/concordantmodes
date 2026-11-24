@@ -5,6 +5,11 @@ from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
 from . import masses
 from concordantmodes.s_vectors import SVectors as s_vec
+import logging
+from concordantmodes.errors import CMAError
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 np.set_printoptions(precision=8, linewidth=240)
 
@@ -152,7 +157,6 @@ class TransfDisp:
         self.ref_carts = self.zmat.cartesians_a.copy()
         self.ref_carts = np.array(self.ref_carts).astype(float)
         self.u = np.identity(3 * len(zmat.atom_list))
-        self.disp = self.options.disp
         self.proj = proj
         self.eigs = eigs
         self.disp_cart = {}
@@ -162,13 +166,21 @@ class TransfDisp:
         self.deriv_level = deriv_level
         self.coord_type = coord_type
         self.cma_level = cma_level
+        if cma_level.upper() == "A":
+            self.disp = self.options.disp_a
+        elif cma_level.upper() == "B":
+            self.disp = self.options.disp_b
+        elif cma_level.upper() == "C":
+            self.disp = self.options.disp_c
+        else:
+            raise CMAError("Internal error: cma_level must be 'A', 'B' or 'C'.")
 
     def run(self, fc=None):
         np.set_printoptions(precision=8, linewidth=240)
 
         fc = np.asarray(fc) if fc is not None else np.array([])
 
-        self._build_eig_inv()
+        self.eig_inv = self._build_eig_inv(self.eigs)
 
         if self.coord_type == "internal":
             self._run_internal(fc)
@@ -179,21 +191,23 @@ class TransfDisp:
         else:
             raise RuntimeError("coord_type must be either 'cartesian' or 'internal'.")
 
-    def _build_eig_inv(self, proj_tol=1.0e-3):
+    def _build_eig_inv(self, eigs, proj_tol=1.0e-3):
         """
         Invert and normalize the eigenvector matrix.
         """
 
-        self.eig_inv = LA.inv(self.eigs)
+        eig_inv = LA.inv(eigs)
 
-        for i, row in enumerate(self.eig_inv):
+        for i, row in enumerate(eig_inv):
 
             row /= LA.norm(row)
 
             thresh = np.max(np.abs(row)) * proj_tol
             row[np.abs(row) < thresh] = 0.0
 
-            self.eig_inv[i] = row
+            eig_inv[i] = row
+
+        return eig_inv
 
     def _build_mass_matrix(self):
         """
@@ -246,10 +260,10 @@ class TransfDisp:
 
     def _print_normal_coordinates(self):
 
-        print("Normal Coordinate Values:")
+        debug_print(logger, "Normal Coordinate Values:")
 
         for i, value in enumerate(self.n_coord, start=1):
-            print(f"Normal Coordinate #{i:<4}: {value: 3.5f}")
+            debug_print(logger, f"Normal Coordinate #{i:<4}: {value: 3.5f}")
 
     def _build_displacements(self, fc):
 
@@ -267,19 +281,15 @@ class TransfDisp:
                 [scale / abs(fc[i, i]) ** 0.25 for i in range(len(self.disp))]
             )
 
-            print("Reduced displacements")
-            print(self.disp)
-
         #
-        # CMA scaling
+        # Scaling the initial disps such that the largest displaced coordinate
+        # is normalized to the target displacement size
         #
         elif self.options.scaled_disp and self.cma_level == "B":
 
             for i in range(len(self.disp)):
 
                 self.disp[i] /= np.max(self.proj.T[i])
-                self.disp[i] /= np.max(self.eig_inv[i])
-                self.disp[i] *= LA.norm(self.eig_inv[i])
 
     def _build_second_order_A2(self):
 
@@ -313,6 +323,7 @@ class TransfDisp:
 
             disp = np.zeros(n)
             disp[i] = self.disp[i]
+            debug_print(logger, disp)
 
             p_disp[i] = self.coord_convert(
                 disp,
@@ -381,7 +392,7 @@ class TransfDisp:
     # Now we have the cartesian functions.
     def _run_cartesian(self):
 
-        self.disp_mag = self.options.disp
+        self.disp_mag = self.options.disp_b
         if self.deriv_level == 1:
             self._generate_cartesian_first_deriv()
 
@@ -426,10 +437,10 @@ class TransfDisp:
             minus = ref.copy()
 
             plus[i] += self.disp
-            plus[j] += self.disp
-
             minus[i] -= self.disp
-            minus[j] -= self.disp
+            if i != j:
+                plus[j] += self.disp
+                minus[j] -= self.disp
 
             p_disp[i, j] = plus.reshape(-1, 3)
             m_disp[i, j] = minus.reshape(-1, 3)
@@ -685,22 +696,23 @@ class TransfDisp:
             new_carts += cart_disp_shaped
             coord_check = self.int_c(new_carts, self.eig_inv, self.proj)
             n_disp = new_n - coord_check
+            # debug_print(logger, n_disp)
 
-            if tight_disp:
-                sVec = s_vec(zmat, options)
-                sVec.run(new_carts, False)
-                A = self.compute_A(
-                    sVec.B, self.proj, self.eig_inv, self.zmat.mass_weight
-                )
+            # if tight_disp:
+            # sVec = s_vec(zmat, options)
+            # sVec.run(new_carts, False)
+            # A = self.compute_A(
+            # sVec.B, self.proj, self.eig_inv, self.zmat.mass_weight
+            # )
             if LA.norm(n_disp) < tolerance:
                 break
         if LA.norm(n_disp) > tolerance:
-            print("This displacement did not converge.")
-            print(np.where(abs(disp) == self.Disp))
-            print("Norm:")
-            print(LA.norm(n_disp))
-            print("Tolerance:")
-            print(tolerance)
+            debug_print(logger, "This displacement did not converge.")
+            debug_print(logger, np.where(abs(disp) == self.Disp))
+            debug_print(logger, "Norm:")
+            debug_print(logger, LA.norm(n_disp))
+            debug_print(logger, "Tolerance:")
+            debug_print(logger, tolerance)
         return new_carts
 
     def compute_A(self, B, proj, eig_inv, u, cma_level="B"):
@@ -712,20 +724,26 @@ class TransfDisp:
 
         L = inv(eig_inv)
 
-        A = LA.pinv(B)  # (3N x s)
-        A = np.dot(A, proj)  # (3N x S)
-        A = A.T  # (S x 3N)
+        # A = LA.pinv(B)  # (3N x s)
+        # A = np.dot(A, proj)  # (3N x S)
+        # A = A.T  # (S x 3N)
 
         # This could be necessary
         # for intensities.
-        # B = np.dot(proj.T,B)
+        B = np.dot(proj.T, B)
+
+        # Toggle this
         # u = np.eye(len(B.T))
-        # # A = inv(B.dot(np.sqrt(u)).dot(B.T)) # (s x s)
-        # A = inv(B.dot(u).dot(B.T)) # (s x s)
-        # A = (B.T).dot(A) # (3N x s)
-        # # A = np.sqrt(u).dot(A)
-        # # A = u.dot(A)
-        # A = A.T  # (S x 3N)
+
+        # A = inv(B.dot(np.sqrt(u)).dot(B.T)) # (s x s)
+        A = inv(B.dot(u).dot(B.T))  # (s x s)
+        # debug_print(logger, u)
+        # debug_print(logger, "inv G-mat:")
+        # debug_print(logger, A)
+        A = (B.T).dot(A)  # (3N x s)
+        # A = np.sqrt(u).dot(A)
+        A = u.dot(A)
+        A = A.T  # (S x 3N)
 
         # This step modifies A to convert from normal coords to carts.
         A = np.dot(L.T, A)  # (Q x 3N)

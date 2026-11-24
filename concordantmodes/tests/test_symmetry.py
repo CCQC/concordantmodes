@@ -155,7 +155,7 @@ def test_symmetry():
         # iterate over zmats to test symmetry projection on
         for t, test in enumerate(test_subjects):
             options = Options()
-            options.cart_insert = 9
+            options.cart_insert_b = 9
             options.molsym_symmetry = True
             options.coords = coord
             options.second_order = False

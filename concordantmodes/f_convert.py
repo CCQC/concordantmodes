@@ -1,6 +1,11 @@
+import os
 import numpy as np
 from numpy.linalg import inv
 from numpy import linalg as LA
+import logging
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class FcConv:
@@ -126,9 +131,11 @@ class FcConv:
     # MDYNE_HART: Standard uncertainty of 0.0000000000085
     # BOHR_ANG: Standard uncertainty of 0.00000000080
 
-    def __init__(self, fc_mat, s_vec, zmat, coord, print_f, proj, options):
+    def __init__(self, fc_mat, s_vec, zmat, coord, print_f, proj, options, out_dir=""):
+        # out_dir: folder the files written by print_const go to ("" = cwd).
+        self.out_dir = out_dir
         self.coord = coord
-        self.F = fc_mat
+        self.F = fc_mat.copy()
         self.print_f = print_f
         self.s_vec = s_vec
         self.proj = proj
@@ -171,8 +178,10 @@ class FcConv:
                 B = self.s_vec.B
             else:
                 B = np.dot(self.proj.T, self.s_vec.B)
+
             G = np.dot(B, B.T)
             self.A_T = np.dot(LA.inv(G), B)
+
             if self.options.units == "MdyneAng":
                 self.F /= self.BOHR_ANG
                 self.F *= self.MDYNE_HART
@@ -193,12 +202,14 @@ class FcConv:
                 C2 = np.einsum("rpj,qj->rpq", C2, self.A_T)
                 V2 = np.einsum("q,qpr->pr", self.v_q, C2)
 
-                grad = np.dot(grad, self.A_T.T)
+                self.grad = np.dot(grad, self.A_T.T)
 
             self.F -= V2
 
             if self.print_f:
-                self.print_const(fc_name="fc_int.dat", grad=grad)
+                self.print_const(
+                    fc_name="fc_int.dat", grad=self.grad, grad_name="fc_int.grad"
+                )
         elif self.coord.lower() == "cartesian":
 
             if not len(self.proj):
@@ -225,7 +236,7 @@ class FcConv:
             if self.print_f:
                 self.print_const(grad=grad)
 
-    def print_const(self, fc_name="fc_a.dat", grad=np.array([])):
+    def print_const(self, fc_name="fc_cart_a.dat", grad=np.array([]), grad_name=None):
         """
         Write transformed force constants and gradients to disk.
 
@@ -236,7 +247,7 @@ class FcConv:
         Parameters
         ----------
         fc_name : str, optional
-            Output force-constant filename.
+            Output force-constant filename (inside ``out_dir`` if set).
 
         grad : ndarray, optional
             Gradient vector to be written alongside the force constants.
@@ -248,7 +259,7 @@ class FcConv:
         self.N = len(self.F)
         fc_output = ""
         fc_output += "{:5d}{:5d}\n".format(len(self.zmat.atom_list), self.N)
-        print("print_const has run")
+        debug_print(logger, "print_const has run")
         self.F_print = self.F.copy()
         self.F_print = self.F_print.flatten()
         for i in range(len(self.F_print) // 3):
@@ -262,6 +273,9 @@ class FcConv:
                     self.F_print[3 * (len(self.F_print) // 3) + i]
                 )
             fc_output += "\n"
+        if self.out_dir:
+            os.makedirs(self.out_dir, exist_ok=True)
+            fc_name = os.path.join(self.out_dir, os.path.basename(fc_name))
         with open(fc_name, "w+") as file:
             file.write(fc_output)
 
@@ -278,7 +292,25 @@ class FcConv:
                     gr_output += "{:20.10f}".format(
                         g_print[3 * (len(g_print) // 3) + i]
                     )
-                fc_output += "\n"
-            # Introduce grad_name
-            with open("fc_a.grad", "w+") as file:
+                gr_output += "\n"
+            if grad_name is None:
+                grad_name = os.path.splitext(fc_name)[0] + ".grad"
+            elif self.out_dir:
+                grad_name = os.path.join(self.out_dir, os.path.basename(grad_name))
+            with open(grad_name, "w+") as file:
                 file.write(gr_output)
+
+    def _build_mass_matrix(self):
+        """
+        Construct inverse mass-weight matrix.
+        """
+
+        masses = np.asarray(self.zmat.masses, dtype=float)
+
+        inv_masses = np.where(
+            np.asarray(self.zmat.atom_list) == "X",
+            0.0,
+            1.0 / masses,
+        )
+
+        return np.diag(np.repeat(inv_masses, 3))

@@ -5,15 +5,33 @@ from numpy import linalg as LA
 import numpy as np
 import scipy
 
+from concordantmodes.errors import CMAError
+import logging
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
+
+# MolSym is only needed for molsym_symmetry = True; without it everything
+# else still works.
 try:
     import molsym
     from molsym.salcs.internal_coordinates import InternalCoordinates
     from molsym.salcs.cartesian_coordinates import CartesianCoordinates
     from molsym.salcs.projection_op import ProjectionOp
 
-    print("imported")
+    HAVE_MOLSYM = True
 except ImportError:
-    raise ImportError("MolSym library not detected in your environment")
+    molsym = None
+    HAVE_MOLSYM = False
+
+
+def _require_molsym():
+    if not HAVE_MOLSYM:
+        raise CMAError(
+            "molsym_symmetry = True needs the MolSym package, which is not installed. "
+            'Install it with  pip install "concordantmodes[symmetry]"  (or from '
+            "https://github.com/CCQC/MolSym), or set molsym_symmetry = False."
+        )
 
 
 class Symmetry:
@@ -115,19 +133,26 @@ class Symmetry:
         pass
 
     def run(self):
+        _require_molsym()
         schema = self.make_schema()
         mol = molsym.Molecule.from_schema(schema)
 
         self.symtext = molsym.Symtext.from_molecule(mol)
         if self.options.subgroup:
-            print(f"The symmetry code is running in subgroup {self.options.subgroup}")
+            debug_print(
+                logger,
+                f"The symmetry code is running in subgroup {self.options.subgroup}",
+            )
             self.symtext = self.symtext.subgroup_symtext(self.options.subgroup)
-        print(self.options.second_order)
+        debug_print(logger, self.options.second_order)
         if not self.options.second_order:
-            print("internal coordinate salcs")
+            debug_print(logger, "internal coordinate salcs")
             self.molsym_salcs_ic()
         else:
-            raise ValueError
+            raise CMAError(
+                "molsym_symmetry = True cannot be combined with second_order = True yet "
+                "(Cartesian SALCs are not implemented correctly). Turn one of them off."
+            )
             # this hasn't been implemented correctly yet. Its advisable to make it work within the C1 subgroup first...
             # self.molsym_salcs_cartesian()
 
@@ -138,11 +163,12 @@ class Symmetry:
         self.CDsalcs.sort_to("blocks")
 
     def molsym_salcs_ic(self):
-        print(
+        debug_print(
+            logger,
             """
               Warning: A bug in MolSym has rendered the following code faulty if any
               type of linear coordinate is used. See https://github.com/NASymmetry/MolSym/issues/47
-              """
+              """,
         )
         zmat_coords = (
             self.zmat.bond_variables
@@ -160,7 +186,7 @@ class Symmetry:
         ics = []
         for i in range(len(self.ic_list)):
             ics.append([self.ic_list[i], zmat_coords[i]])
-        print(f"The Internal Coordinates for MolSym {ics}")
+        debug_print(logger, f"The Internal Coordinates for MolSym {ics}")
         if not self.options.man_proj:
             ICs = InternalCoordinates(self.symtext, ics)
             self.salcs = ProjectionOp(self.symtext, ICs)
@@ -264,7 +290,9 @@ class Symmetry:
 
     def make_proj(self, s_vec):
         np.set_printoptions(threshold=np.inf, precision=10)
-        print("Project out redundant coordinates to make the nonredundant set")
+        debug_print(
+            logger, "Project out redundant coordinates to make the nonredundant set"
+        )
         self.b = []
         for h, s in enumerate(self.salcs.salc_sets):
             self.b.append(np.dot(s[: self.irreplength[h]], s_vec.B))
@@ -287,17 +315,22 @@ class Symmetry:
         self.salc_proj = np.vstack(newsblock).T
 
     def create_flat_sym_sort(self, sym_sort):
-        print("sym_sort: ")
-        print(sym_sort)
+        debug_print(logger, "sym_sort: ")
+        debug_print(logger, sym_sort)
         self.flat_sym_sort = np.array([])
         self.flat_sym_sort_inv = np.array([])
         for i in range(len(sym_sort)):
-            self.flat_sym_sort = np.append(self.flat_sym_sort, sym_sort[i])
+            irrep = sym_sort[i].copy()
+            if len(np.array(sym_sort[i]).shape) > 1:
+                debug_print(logger, np.transpose(irrep))
+                irrep = np.transpose(irrep)
+            self.flat_sym_sort = np.append(self.flat_sym_sort, irrep)
 
         self.flat_sym_sort = self.flat_sym_sort.astype(int)
 
-        print("Flattened sym_sort: ")
-        print(self.flat_sym_sort)
+        debug_print(logger, "Flattened sym_sort: ")
+        debug_print(logger, self.flat_sym_sort)
+        debug_print(logger, sym_sort)
         for i in range(len(self.flat_sym_sort)):
             self.flat_sym_sort_inv = np.append(
                 self.flat_sym_sort_inv, np.where(self.flat_sym_sort == i)[0][0]
@@ -305,58 +338,90 @@ class Symmetry:
         # flat_sym_sort_inv = flat_sym_sort_inv[flat_sym_sort]
         self.flat_sym_sort_inv = self.flat_sym_sort_inv.astype(int)
 
-    def GF_sym_sort(self, F, g_mat, sym_sort):
+    # Need to include degenerate logic
+    def GF_sym_sort(self, F, G, sym_sort):
         Fbuff1 = np.array([])
         Fbuff2 = {}
         Gbuff1 = np.array([])
         Gbuff2 = {}
-        for i in range(len(sym_sort)):
-            Fbuff1 = F.copy()
-            Fbuff1 = Fbuff1[sym_sort[i]]
-            Fbuff1 = np.array([Fbuff1[:, sym_sort[i]]])
-            Fbuff2[str(i)] = Fbuff1.copy()
-            Gbuff1 = g_mat.G.copy()
-            Gbuff1 = Gbuff1[sym_sort[i]]
-            Gbuff1 = np.array([Gbuff1[:, sym_sort[i]]])
-            Gbuff2[str(i)] = Gbuff1.copy()
-        Fbuff3 = Fbuff2[str(0)][0].copy()
-        Gbuff3 = Gbuff2[str(0)][0].copy()
-        for i in range(len(sym_sort) - 1):
-            Fbuff3 = np.block(
-                [
-                    [Fbuff3, np.zeros((len(Fbuff3), len(Fbuff2[str(i + 1)][0])))],
-                    [
-                        np.zeros((len(Fbuff2[str(i + 1)][0]), len(Fbuff3))),
-                        Fbuff2[str(i + 1)][0],
-                    ],
-                ]
-            )
-            Gbuff3 = np.block(
-                [
-                    [Gbuff3, np.zeros((len(Gbuff3), len(Gbuff2[str(i + 1)][0])))],
-                    [
-                        np.zeros((len(Gbuff2[str(i + 1)][0]), len(Gbuff3))),
-                        Gbuff2[str(i + 1)][0],
-                    ],
-                ]
-            )
-        F = Fbuff3[self.flat_sym_sort_inv]
-        F = F[:, self.flat_sym_sort_inv]
-        g_mat.G = Gbuff3[self.flat_sym_sort_inv]
-        g_mat.G = g_mat.G[:, self.flat_sym_sort_inv]
 
         F_sym = F[self.flat_sym_sort].copy()
         F_sym = F_sym[:, self.flat_sym_sort]
-        print("Sym Force Constants:")
-        print(F_sym)
+        np.set_printoptions(threshold=np.inf, precision=8, linewidth=1000)
+        debug_print(logger, "Sym Force Constants:")
+        debug_print(logger, F_sym)
 
-        g_sym = g_mat.G[self.flat_sym_sort].copy()
+        g_sym = G[self.flat_sym_sort].copy()
         g_sym = g_sym[:, self.flat_sym_sort]
         g_sym[np.abs(g_sym) < 1e-9] = 0
-        print("Sym G-Matrix:")
-        print(sym_sort)
-        print(g_sym)
-        return F, g_mat.G
+        debug_print(logger, "Sym G-Matrix:")
+        debug_print(logger, sym_sort)
+        debug_print(logger, g_sym)
+
+        for i, irrep in enumerate(sym_sort):
+            Fbuff1 = F.copy()
+            Gbuff1 = G.copy()
+            # Separate logic here to average the FC blocks of degenerate blocks
+            if len(np.shape(irrep)) > 1:
+                debug_print(logger, "F averaging:")
+                Fbuff2[str(i)] = self._average_blocks(Fbuff1, F, irrep)
+                debug_print(logger, "G averaging:")
+                Gbuff2[str(i)] = self._average_blocks(Gbuff1, G, irrep)
+            else:
+                sym_int = np.array(irrep).astype(int)
+                debug_print(logger, "sym_int: ")
+                debug_print(logger, sym_int)
+
+                Fbuff1 = F.copy()
+                Fbuff1 = Fbuff1[sym_int]
+                Fbuff1 = np.array(Fbuff1[:, sym_int])
+                debug_print(logger, "Sym block F:")
+                debug_print(logger, Fbuff1)
+                Fbuff2[str(i)] = Fbuff1.copy()
+                Gbuff1 = G.copy()
+                Gbuff1 = Gbuff1[sym_int]
+                Gbuff1 = np.array(Gbuff1[:, sym_int])
+                Gbuff2[str(i)] = Gbuff1.copy()
+        Fbuff3 = Fbuff2[str(0)].copy()
+        Gbuff3 = Gbuff2[str(0)].copy()
+        for i in range(len(sym_sort) - 1):
+            if len(sym_sort[i + 1]):
+                Fbuff3 = np.block(
+                    [
+                        [Fbuff3, np.zeros((len(Fbuff3), len(Fbuff2[str(i + 1)])))],
+                        [
+                            np.zeros((len(Fbuff2[str(i + 1)]), len(Fbuff3))),
+                            Fbuff2[str(i + 1)],
+                        ],
+                    ]
+                )
+                Gbuff3 = np.block(
+                    [
+                        [Gbuff3, np.zeros((len(Gbuff3), len(Gbuff2[str(i + 1)])))],
+                        [
+                            np.zeros((len(Gbuff2[str(i + 1)]), len(Gbuff3))),
+                            Gbuff2[str(i + 1)],
+                        ],
+                    ]
+                )
+        F = Fbuff3[self.flat_sym_sort_inv]
+        F = F[:, self.flat_sym_sort_inv]
+        G = Gbuff3[self.flat_sym_sort_inv]
+        G = G[:, self.flat_sym_sort_inv]
+
+        F_sym = F[self.flat_sym_sort].copy()
+        F_sym = F_sym[:, self.flat_sym_sort]
+        np.set_printoptions(threshold=np.inf, precision=8, linewidth=1000)
+        debug_print(logger, "Sym Force Constants:")
+        debug_print(logger, F_sym)
+
+        g_sym = G[self.flat_sym_sort].copy()
+        g_sym = g_sym[:, self.flat_sym_sort]
+        g_sym[np.abs(g_sym) < 1e-9] = 0
+        debug_print(logger, "Sym G-Matrix:")
+        debug_print(logger, sym_sort)
+        debug_print(logger, g_sym)
+        return F, G
 
     def cma2_sym_sort(self, sym_sort, od_inds, irreps_b, F_inter, xi, xi_tol_i):
         total_off_diags_buff = 0
@@ -376,41 +441,90 @@ class Symmetry:
                 total_off_diags_buff += (len(irrep) ** 2 - len(irrep)) / 2
         return od_inds, total_off_diags_buff
 
+    def _average_blocks(self, Mbuff, M, irrep):
+
+        sym_sort_T = np.array(irrep).T
+        Mbuff_degen = np.zeros(len(sym_sort_T), dtype=object)
+        M_sign = {}
+
+        for j in range(len(sym_sort_T)):
+            Mbuff = Mbuff[sym_sort_T[j].astype(int)]
+            Mbuff = Mbuff[:, sym_sort_T[j].astype(int)]
+            Mbuff_degen[j] = Mbuff
+            M_sign[str(j)] = np.sign(Mbuff)
+            Mbuff = M.copy()
+
+        np.set_printoptions(threshold=np.inf, precision=6, linewidth=1000)
+
+        M_ave = np.sum(np.abs(Mbuff_degen), axis=0) / len(sym_sort_T)
+
+        for j in range(len(sym_sort_T)):
+            Mbuff_degen[j] = np.multiply(M_ave, M_sign[str(j)])
+
+        Mbuff = Mbuff_degen[0].copy()
+
+        for j in range(len(sym_sort_T) - 1):
+            Mbuff = np.block(
+                [
+                    [Mbuff, np.zeros((len(Mbuff), len(Mbuff_degen[j + 1])))],
+                    [
+                        np.zeros((len(Mbuff_degen[j + 1]), len(Mbuff))),
+                        Mbuff_degen[j + 1],
+                    ],
+                ]
+            )
+
+        return Mbuff
+
     def create_sym_sort_disps(self, sym_sort, indices):
         sym_disps = []
         for i in sym_sort:
+            if len(np.array(i).shape) > 1:
+                i = np.array(i).flatten()
             for j in indices:
                 if j[0] in i and j[1] in i:
                     sym_disps.append([j[0], j[1]])
         return sym_disps
 
-    def mode_symmetry_sort(self, TED, sym_sort, freqs):
+    def mode_symmetry_sort(self, TED, sym_sort, freqs, percent_tol=90.0):
         ref_TED_b = TED
         sym_modes = []
         for irrep in sym_sort:
             irrep_modes = []
+            if len(np.array(irrep).shape) > 1:
+                buff_irrep = np.array(irrep).flatten()
+            else:
+                buff_irrep = irrep
             for i in range(len(ref_TED_b.T)):
                 Sum = 0
-                for j in irrep:
+                for j in buff_irrep:
                     Sum += ref_TED_b.T[i, j]
-                if Sum > 80.0:
+                if Sum > percent_tol:
                     irrep_modes.append(i)
-            if len(irrep_modes) != len(irrep):
-                print("Something's wrong with the irrep symmetry sorter:")
-                raise RuntimeError
+            if len(irrep_modes) != len(buff_irrep):
+                raise CMAError(
+                    "The irrep symmetry sorter could not assign the level-B modes of one "
+                    "irrep (found {} modes above {}% TED, expected {}). Check sym_sort, or "
+                    "run without it.".format(
+                        len(irrep_modes), percent_tol, len(buff_irrep)
+                    )
+                )
             sym_modes.append(irrep_modes)
 
         sym_freqs = copy.deepcopy(sym_modes)
         del_list = []
         for i in range(len(sym_modes)):
-            for j in range(len(sym_modes[i])):
-                index = sym_modes[i][j]
-                sym_freqs[i][j] = freqs[index].copy()
-            sym_freqs[i].reverse()
+            if len(sym_modes[i]) > 0:
+                for j in range(len(sym_modes[i])):
+                    index = sym_modes[i][j]
+                    sym_freqs[i][j] = freqs[index].copy()
+                sym_freqs[i].reverse()
+            else:
+                pass
         del_list.reverse()
         if len(del_list):
             for i in del_list:
-                print(freqs[sym_modes[i][0]])
+                debug_print(logger, freqs[sym_modes[i][0]])
         flat_sym_freqs = [x for xs in sym_freqs for x in xs]
         flat_sym_freqs = np.array(flat_sym_freqs)
 

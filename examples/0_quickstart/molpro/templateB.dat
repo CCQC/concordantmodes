@@ -1,0 +1,13 @@
+***,CMA displacement
+memory,500,m
+geomtyp=xyz
+bohr
+geometry={
+{natoms}
+CMA displacement
+{geometry}
+}
+
+basis=cc-pvdz
+{rhf}
+{ccsd(t)}

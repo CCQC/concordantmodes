@@ -1,6 +1,11 @@
 import numpy as np
 from numpy.linalg import inv
 from numpy import linalg as LA
+import logging
+from concordantmodes.errors import CMAError
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class ForceConstant:
@@ -14,14 +19,11 @@ class ForceConstant:
 
     Two differentiation schemes are supported:
 
-    * Energy finite differences (``deriv_level=0``)
-      - Computes first derivatives (gradients) and second derivatives
-        (force constants) from displaced energies.
-      - Includes diagonal and off-diagonal Hessian elements.
-
-    * Gradient finite differences (``deriv_level=1``)
-      - Computes force constants directly from displaced gradients.
-      - Produces a symmetric Hessian matrix.
+    * Energy finite differences (``deriv_level=0``): first derivatives
+      (gradients) and second derivatives (force constants, diagonal and
+      off-diagonal) from displaced energies.
+    * Gradient finite differences (``deriv_level=1``): force constants
+      directly from displaced gradients, symmetrised.
 
     The resulting force-constant matrix is expressed in the displacement
     coordinate basis used by the Concordant Modes Algorithm (CMA), which may
@@ -215,8 +217,11 @@ class ForceConstant:
                     self.FC[i + 1, j] = (self.FC[i + 1, j] + self.FC[j, i + 1]) / 2
                     self.FC[j, i + 1] = self.FC[i + 1, j]
         else:
-            print("Higher order deriv_level computations aren't yet supported")
-            raise RuntimeError
+            raise CMAError(
+                "deriv_level = {}: only 0 (energies) and 1 (gradients) are supported.".format(
+                    self.deriv_level
+                )
+            )
 
     # I might want to shift the above computation in the deriv_level == 1 down here, though it is only one line
     def first_deriv(self, e_p, e_m, disp):

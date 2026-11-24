@@ -5,6 +5,10 @@ from numpy import linalg as LA
 from scipy.linalg import fractional_matrix_power
 from scipy.linalg import block_diag
 import copy
+import logging
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class GFMethod:
@@ -80,10 +84,6 @@ class GFMethod:
         analysis routines. Required when symmetry block
         diagonalization is enabled.
 
-    cma : bool, optional
-        Indicates whether the calculation is being performed within
-        the Concordant Modes Algorithm workflow.
-
     sym_sort : list, optional
         User-defined symmetry sorting information.
 
@@ -149,14 +149,13 @@ class GFMethod:
     internal coordinate to every normal mode.
     """
 
-    def __init__(self, G, F, zmat, ted, options, symtext=None, cma=None, sym_sort=[]):
+    def __init__(self, G, F, zmat, ted, options, symtext=None, sym_sort=[]):
         self.G = G
         self.F = F
         self.zmat = zmat
         self.ted = ted
         self.options = options
         self.symtext = symtext
-        self.cma = cma
         self.sym_sort = sym_sort
         self.AMU_ELMASS = 5.48579909065 * (10 ** (-4))
         self.HARTREE_WAVENUM = 219474.6313708
@@ -217,34 +216,36 @@ class GFMethod:
             else:
                 self.freq[i] = -np.imag(self.freq[i])
 
-        # This seems to fix the constant warning I get about casting out imaginary values from the complex numbers,
-        # however I will need to test it on transition states to see if it captures the imaginary frequencies.
-        self.freq = self.freq.astype(float)
+        # Every entry is real by now (imaginary modes were stored as negative
+        # numbers above), so dropping the zero imaginary parts loses nothing.
+        self.freq = np.real(self.freq).astype(float)
 
         # Convert from Hartrees to wavenumbers.
         self.freq *= self.HARTREE_WAVENUM
         if self.options.molsym_symmetry:
             for i in range(len(self.freq)):
-                print(
+                info_print(
+                    logger,
                     "frequency #"
                     + "{:3d}".format(i + 1)
                     + ": "
                     + "{:10.2f}".format(self.freq[i])
                     + " {}".format(self.irrep_degen[i])
-                    + " x {}".format(self.irrep_labels[i])
+                    + " x {}".format(self.irrep_labels[i]),
                 )
         else:
             for i in range(len(self.freq)):
-                print(
+                info_print(
+                    logger,
                     "frequency #"
                     + "{:3d}".format(i + 1)
                     + ": "
-                    + "{:10.2f}".format(self.freq[i])
+                    + "{:10.2f}".format(self.freq[i]),
                 )
         # Compute and then print the TED.
-        print("////////////////////////////////////////////")
-        print("//{:^40s}//".format("Total Energy Distribution (TED)"))
-        print("////////////////////////////////////////////")
+        debug_print(logger, "////////////////////////////////////////////")
+        debug_print(logger, "//{:^40s}//".format("Total Energy Distribution (TED)"))
+        debug_print(logger, "////////////////////////////////////////////")
         if self.options.molsym_symmetry:
             self.ted.run(self.L, self.freq, self.symtext, rect_print=False)
         else:

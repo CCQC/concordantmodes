@@ -1,0 +1,8 @@
+/* Small adjustments on top of pydata-sphinx-theme. */
+.bd-content table.docutils td,
+.bd-content table.docutils th {
+  vertical-align: top;
+}
+dl.option-entry dt code {
+  font-weight: 600;
+}

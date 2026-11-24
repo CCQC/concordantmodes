@@ -8,7 +8,7 @@ import shutil
 
 
 class MoldenWriter:
-    """
+    r"""
     Write vibrational frequencies and normal-mode displacement vectors to
     a Molden-format file.
 

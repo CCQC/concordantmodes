@@ -8,8 +8,6 @@ options_kwargs = {
     "energy_regex_b": r"\(T\) total energy\s+(\-\d+\.\d+)",
     "cart_insert_b": 9,
     "cart_insert_a": 9,
-    "gen_disps_b": False,
-    "calc_b": False,
     "coords": "Delocalized",
     "success_regex_b": r"Molpro calculation terminated",
     "success_regex_a": r"Molpro calculation terminated",

@@ -7,6 +7,11 @@ from . import masses
 from qcelemental.covalent_radii import CovalentRadii
 from concordantmodes.int2cart import Int2Cart
 from concordantmodes.transf_disp import TransfDisp
+import logging
+from concordantmodes.errors import CMAError
+from concordantmodes.log import debug_print, info_print
+
+logger = logging.getLogger(__name__)
 
 
 class Zmat:
@@ -229,8 +234,17 @@ class Zmat:
         s = r"([A-Za-z]+[0-9]*)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+-?\d+\.\d+\s*\n"
         self.cartesian_atom_regex = re.compile(s)
         self.divider_regex = re.compile(r"^\s*\-\-\-\s*\n")
+        if not os.path.exists(zmat_name):
+            raise CMAError(
+                "The geometry file '{}' was not found in {}.".format(
+                    zmat_name, os.getcwd()
+                )
+            )
         with open(zmat_name, "r") as file:
             output = file.readlines()
+        # Every regex below expects a trailing newline, including on the last line.
+        output = [line if line.endswith("\n") else line + "\n" for line in output]
+        self.check_input(output, zmat_name)
         # Read in the input cartesian coordinates
         self.cartesians_b = []
         self.cartesians_a = []
@@ -268,7 +282,7 @@ class Zmat:
                 temp = re.findall(self.cartesian_regex, cart_output_b[i])
                 atom = re.findall(self.cartesian_atom_regex, cart_output_b[i])
                 self.cartesians_b.append(temp[0])
-                self.atom_list.append(atom[0])
+                self.atom_list.append(atom[0].upper())
         self.cartesians_b = np.array(self.cartesians_b).astype(float)
 
         # The masses are assigned to the respective atom from the masses.py file
@@ -311,7 +325,158 @@ class Zmat:
 
         return zmat_output
 
+    def check_input(self, output, zmat_name="zmat"):
+        """Check the zmat file's layout before parsing and report the first
+        problem with its line number (instead of failing deep in the parser)."""
+
+        def where(i):
+            return "{} line {} ({!r})".format(zmat_name, i + 1, output[i].rstrip("\n"))
+
+        def find(regex, start=0):
+            for i in range(start, len(output)):
+                if regex.search(output[i]):
+                    return i
+            return None
+
+        if not any(line.strip() for line in output):
+            raise CMAError(
+                "{} is empty. It needs a 'cart begin' ... 'cart end' block with "
+                "the geometry and a 'ZMAT begin' ... 'ZMAT end' block with the "
+                "coordinates; see the examples directory.".format(zmat_name)
+            )
+
+        cb = find(self.cart_begin_regex)
+        if cb is None:
+            raise CMAError(
+                "{} has no 'cart begin' line. Put the Cartesian geometry between "
+                "'cart begin' and 'cart end' lines.".format(zmat_name)
+            )
+        ce = find(self.cart_end_regex, cb + 1)
+        if ce is None:
+            raise CMAError(
+                "{}: 'cart begin' on line {} is never closed by a 'cart end' "
+                "line.".format(zmat_name, cb + 1)
+            )
+
+        n_atoms = [0]
+        for i in range(cb + 1, ce):
+            line = output[i]
+            if not line.strip():
+                continue
+            if self.divider_regex.search(line):
+                n_atoms.append(0)
+                continue
+            if not self.cartesian_regex.search(line):
+                raise CMAError(
+                    "{} is not a valid Cartesian line. Expected an element symbol and "
+                    "three coordinates written with a decimal point, e.g. "
+                    "'O  0.000000  0.000000  -0.125505'.".format(where(i))
+                )
+            n_atoms[-1] += 1
+        if n_atoms[0] == 0:
+            raise CMAError(
+                "{}: the cart block (lines {}-{}) contains no atoms.".format(
+                    zmat_name, cb + 1, ce + 1
+                )
+            )
+        if len(n_atoms) > 2:
+            raise CMAError(
+                "{}: the cart block has more than one '---' divider; use at "
+                "most one (level-B geometry, ---, level-A geometry).".format(zmat_name)
+            )
+        if len(n_atoms) == 2 and n_atoms[1] != n_atoms[0]:
+            raise CMAError(
+                "{}: the two geometries in the cart block have different numbers of atoms "
+                "({} before '---', {} after).".format(zmat_name, n_atoms[0], n_atoms[1])
+            )
+        natom = n_atoms[0]
+
+        if self.options.covalent_radii:
+            return
+
+        zb = find(self.zmat_begin_regex)
+        if zb is None:
+            raise CMAError(
+                "{} has no 'ZMAT begin' line. List the internal coordinates "
+                "between 'ZMAT begin' and 'ZMAT end' (or set covalent_radii = "
+                "True to find bonds automatically).".format(zmat_name)
+            )
+        ze = find(self.zmat_end_regex, zb + 1)
+        if ze is None:
+            raise CMAError(
+                "{}: 'ZMAT begin' on line {} is never closed by a 'ZMAT end' "
+                "line.".format(zmat_name, zb + 1)
+            )
+
+        # Remembered for check_coordinate_lines (run when the block is parsed).
+        self._check_ctx = (zmat_name, zb, natom)
+
+    def check_coordinate_lines(self, zmat_output):
+        """Check every line of the ZMAT block against the forms valid for the
+        chosen coords mode, and every atom number against the cart block."""
+        ctx = getattr(self, "_check_ctx", None)
+        if ctx is None:
+            return
+        zmat_name, zb, natom = ctx
+
+        def where(i, line):
+            return "{} line {} ({!r})".format(zmat_name, i + 1, line.rstrip("\n"))
+
+        if self.options.coords.upper() == "ZMAT":
+            forms = [
+                self.first_atom_regex,
+                self.second_atom_regex,
+                self.third_atom_regex,
+                self.full_atom_regex,
+            ]
+            hint = (
+                "In coords = 'ZMAT' mode each line is an atom and the atoms it is "
+                "connected to, e.g. 'O', 'H 1', 'H 1 2'."
+            )
+        else:
+            forms = [
+                self.bond_regex,
+                self.angle_regex,
+                self.torsion_regex,
+                self.oop_regex,
+                self.lin_regex,
+                self.linx_regex,
+                self.liny_regex,
+                self.rcom_regex1,
+                self.bond_centroid_regex,
+                self.angle_centroid_regex,
+                self.torsion_centroid_regex,
+                self.oop_centroid_regex,
+                self.lin_centroid_regex,
+                self.linx_centroid_regex,
+                self.liny_centroid_regex,
+            ]
+            hint = (
+                "Valid lines are 'i j' (bond), 'i j k' (angle), 'i j k l T' (torsion), "
+                "'i j k l O' (out-of-plane), 'i j k l L|Lx|Ly' (linear bends), with "
+                "atom numbers from the cart block; groups of atoms start with ';', e.g. "
+                "'; 1 ; 3 4 5' for a bond to the centroid of atoms 3-5."
+            )
+        for k, line in enumerate(zmat_output):
+            i = zb + 1 + k
+            if not line.strip():
+                continue
+            if not any(f.search(line) for f in forms):
+                raise CMAError(
+                    "{} is not a recognised coordinate line. {}".format(
+                        where(i, line), hint
+                    )
+                )
+            numbers = [int(x) for x in re.findall(r"\b\d+\b", line)]
+            bad = [n for n in numbers if n < 1 or n > natom]
+            if bad:
+                raise CMAError(
+                    "{} refers to atom {} but the cart block has {} atoms (atoms are "
+                    "numbered from 1).".format(where(i, line), bad[0], natom)
+                )
+
     def zmat_process(self, zmat_output):
+        self.check_coordinate_lines(zmat_output)
         # Initialize necessary lists
         self.bond_indices = np.array([], dtype=object)
         self.bond_variables = []
@@ -386,241 +551,20 @@ class Zmat:
                     )
                     self.torsion_variables.append("D" + str(i - first_index))
         elif self.options.coords.upper() == "DELOCALIZED":
-            count = 0
-            if self.options.covalent_radii:
-                c_r = CovalentRadii()
-                indices = []
-                transdisp_inter = TransfDisp(
-                    None,
-                    self,
-                    1,
-                    False,
-                    np.array([]),
-                    self.options,
-                    indices,
-                )
-                inter_atomic_len = np.zeros(
-                    (len(self.cartesians_b), len(self.cartesians_b))
-                )
-                N = len(self.cartesians_b)
-                adj_mat = np.zeros((N, N))
-                for i in range(len(self.cartesians_b)):
-                    for j in range(i):
-                        inter_atomic_len[j, i] = transdisp_inter.calc_bond(
-                            self.cartesians_b[i], self.cartesians_b[j]
-                        )
-                        if inter_atomic_len[j, i] < self.options.bond_threshold * (
-                            c_r.get(self.atom_list[i]) + c_r.get(self.atom_list[j])
-                        ):
-                            count += 1
-                            adj_mat[i, j] = 1
-                            adj_mat[j, i] = 1
-                            self.bond_indices = np.append(self.bond_indices, 0)
-                            self.bond_indices[-1] = np.array(
-                                [str(j + 1), str(i + 1)], dtype=object
-                            )
-                            self.bond_variables.append("R" + str(count))
-                print("Interatomic Distance Matrix:")
-                print(inter_atomic_len)
-                print("Adjacency Matrix:")
-                print(adj_mat)
-                for i in range(len(adj_mat)):
-                    print("Degree of vertex " + str(i))
-                    print(np.sum(adj_mat[i]))
-                adj_mat2 = np.dot(adj_mat, adj_mat)
-                for i in range(len(adj_mat2)):
-                    adj_mat2[i, i] = 0
-                print("Covalent Radius Scale Factor:")
-                print(self.options.bond_threshold)
-                print("Resulting bond indices:")
-                print(self.bond_indices)
-            else:
-                for i in range(len(zmat_output)):
-                    if re.search(self.bond_regex, zmat_output[i]):
-                        count += 1
-                        List = re.findall(self.bond_regex, zmat_output[i])[0]
-                        self.bond_indices = np.append(self.bond_indices, 0)
-                        self.bond_indices[-1] = np.array(List, dtype=object)
-                        self.bond_variables.append("R" + str(count))
+
+            # Form all possible bonds, whether from qcelemental or manually input
+            self._build_bonds(zmat_output)
 
             # Form all possible angles from bonds
-            count = 0
-            for i in range(len(self.bond_indices)):
-                for j in range(len(self.bond_indices) - i - 1):
-                    a = np.setdiff1d(self.bond_indices[i], self.bond_indices[i + j + 1])
-                    b = np.intersect1d(
-                        self.bond_indices[i], self.bond_indices[i + j + 1]
-                    )
-                    c = np.setdiff1d(self.bond_indices[i + j + 1], self.bond_indices[i])
-                    if len(a) and len(b) and len(c):
-                        d = np.array([a[0], b[0], c[0]])
-                        self.angle_indices = np.append(self.angle_indices, 0)
-                        self.angle_indices[-1] = np.array(d, dtype=object)
-                        count += 1
-                        self.angle_variables.append("A" + str(count))
+            self._build_angles()
 
             # Form all possible torsions from angles
-            tor_count = 0
-            oop_count = 0
-            for i in range(len(self.angle_indices)):
-                for j in range(len(self.bond_indices)):
-                    a = np.setdiff1d(self.angle_indices[i], self.bond_indices[j])
-                    b = np.intersect1d(self.angle_indices[i], self.bond_indices[j])
-                    c = np.setdiff1d(self.bond_indices[j], self.angle_indices[i])
-                    if len(c) == 1:
-                        d = np.where(self.bond_indices[j] == c)[0][0]
-                        f = 1 - d
-                        g = self.bond_indices[j][f]
-                        h = np.where(self.angle_indices[i] == g)[0][0]
-                        if h == 1:
-                            # This is an out of plane bend
-                            oop = np.array(
-                                [
-                                    self.bond_indices[j][d],
-                                    self.bond_indices[j][f],
-                                    a[0],
-                                    a[1],
-                                ],
-                                dtype=object,
-                            )
+            self._build_four_center()
 
-                            cont_bool = self.np_contains(self.oop_indices, oop)
-                            if not cont_bool:
-                                self.oop_indices = np.append(self.oop_indices, 0)
-                                self.oop_indices[-1] = np.array(oop, dtype=object)
-                        else:
-                            # This is a torsion
-                            if h:
-                                tor = np.append(
-                                    self.angle_indices[i].copy(),
-                                    self.bond_indices[j][d],
-                                )
-                            else:
-                                tor = np.append(
-                                    self.bond_indices[j][d],
-                                    self.angle_indices[i].copy(),
-                                )
-                            cont_bool = self.np_contains(
-                                self.torsion_indices, tor, tor=True
-                            )
-                            if not cont_bool:
-                                self.torsion_indices = np.append(
-                                    self.torsion_indices, 0
-                                )
-                                self.torsion_indices[-1] = np.array(tor, dtype=object)
-
-            for i in range(len(self.torsion_indices)):
-                self.torsion_variables.append("D" + str(i + 1))
-            for i in range(len(self.oop_indices)):
-                self.oop_variables.append("O" + str(i + 1))
-
+            # Perform a topological analysis, this is the first step to the
+            # automatic generation of Natural Internal Coordinates
             if self.options.topo_analysis:
-                X_len_walks_dict = {}
-                X_len_walks_dict["2_length_walks"] = self.bond_indices.copy()
-                X_len_walks_dict["3_length_walks"] = self.angle_indices.copy()
-                X_len_walks_dict["4_length_walks"] = self.torsion_indices.copy()
-
-                count = 4
-
-                prev_walks = self.torsion_indices.copy()
-
-                while True:
-                    new_walks = np.array([])
-                    for i in range(len(prev_walks)):
-                        for j in range(len(self.bond_indices)):
-                            a = np.where(prev_walks[i] == self.bond_indices[j][0])[0]
-                            b = np.where(prev_walks[i] == self.bond_indices[j][1])[0]
-                            if len(a) and not len(b):
-                                if not a[0]:
-                                    new_walk = np.append(
-                                        self.bond_indices[j][1], prev_walks[i].copy()
-                                    )
-                                    new_walks = np.append(new_walks, new_walk)
-                                elif a[0] == count - 1:
-                                    new_walk = np.append(
-                                        prev_walks[i].copy(), self.bond_indices[j][1]
-                                    )
-                                    new_walks = np.append(new_walks, new_walk)
-                            if len(b) and not len(a):
-                                if not b[0]:
-                                    new_walk = np.append(
-                                        self.bond_indices[j][0], prev_walks[i].copy()
-                                    )
-                                    new_walks = np.append(new_walks, new_walk)
-                                elif b[0] == count - 1:
-                                    new_walk = np.append(
-                                        prev_walks[i].copy(), self.bond_indices[j][0]
-                                    )
-                                    new_walks = np.append(new_walks, new_walk)
-
-                    count += 1
-                    new_walks = new_walks.reshape((-1, count))
-                    print(new_walks)
-                    new_walks = np.unique(new_walks, axis=0)
-
-                    del_list = np.array([])
-                    for i in range(len(new_walks)):
-                        for j in range(len(new_walks) - i - 1):
-                            a = np.array([new_walks[i], np.flip(new_walks[i + j + 1])])
-                            a = np.unique(a, axis=0)
-                            if len(a) == 1:
-                                del_list = np.append(del_list, [i + j + 1])
-
-                    del_list = del_list.astype(int)
-                    new_walks = np.delete(new_walks, del_list, axis=0)
-                    prev_walks = new_walks
-                    if count > self.options.topo_max_it or not len(new_walks):
-                        print(
-                            "Walk generator has terminated at walk lengths of "
-                            + str(count)
-                        )
-                        break
-                    X_len_walks_dict[str(count) + "_length_walks"] = new_walks
-                    print(str(count) + "_length_walks")
-                    print(len(new_walks))
-                    print(new_walks)
-
-                dict_len = len(X_len_walks_dict) - 1
-
-                cycles_dict = {}
-                for i in range(dict_len):
-                    print(str(i + 3))
-                    cycles_dict[str(i + 3)] = np.array([])
-                    for j in range(len(X_len_walks_dict[str(i + 3) + "_length_walks"])):
-                        a = np.array(
-                            [
-                                X_len_walks_dict[str(i + 3) + "_length_walks"][j][0],
-                                X_len_walks_dict[str(i + 3) + "_length_walks"][j][-1],
-                            ]
-                        )
-                        for k in range(len(self.bond_indices)):
-                            b = np.intersect1d(a, self.bond_indices[k])
-                            if len(b) == 2:
-                                cycle = X_len_walks_dict[str(i + 3) + "_length_walks"][
-                                    j
-                                ].copy()
-                                cycles_dict[str(i + 3)] = np.append(
-                                    cycles_dict[str(i + 3)], cycle
-                                )
-                    cycles_dict[str(i + 3)] = cycles_dict[str(i + 3)].reshape(
-                        (-1, i + 3)
-                    )
-                    del_array = np.array([])
-                    if len(cycles_dict[str(i + 3)]):
-                        for j in range(len(cycles_dict[str(i + 3)])):
-                            for k in range(len(cycles_dict[str(i + 3)]) - j - 1):
-                                a = np.intersect1d(
-                                    cycles_dict[str(i + 3)][j],
-                                    cycles_dict[str(i + 3)][k + j + 1],
-                                )
-                                if len(a) == len(cycles_dict[str(i + 3)][0]):
-                                    del_array = np.append(del_array, [k + j + 1])
-                        del_array = del_array.astype(int)
-                        del_array = np.unique(del_array)
-                        cycles_dict[str(i + 3)] = np.delete(
-                            cycles_dict[str(i + 3)], del_array, axis=0
-                        )
-                        print(cycles_dict[str(i + 3)])
+                self._generate_topology()
 
         elif self.options.coords.upper() == "CUSTOM":
             # This option will allow the user to specify a custom array of
@@ -774,8 +718,8 @@ class Zmat:
                     List1 = re.findall(self.rcom_regex2, List[0])
                     List2 = re.findall(self.rcom_regex2, List[2])
                     List = [List1, List2]
-                    print("RCOM List:")
-                    print(List)
+                    debug_print(logger, "RCOM List:")
+                    debug_print(logger, List)
                     self.rcom_indices = np.append(self.rcom_indices, 0)
                     self.rcom_indices[-1] = np.array(List, dtype=object)
                     self.rcom_variables.append(
@@ -964,48 +908,96 @@ class Zmat:
 
     def zmat_print(self):
         # Print off the internal coordinate and its value in Bohr/Degree
-        print("Initial Geometric Internal Coordinate Values:")
+        debug_print(logger, "Initial Geometric Internal Coordinate Values:")
         for i in range(len(self.variables)):
-            print(
+            debug_print(
+                logger,
                 str(self.index_dictionary[self.variables[i]])
                 + " "
                 + self.variables[i]
                 + " = "
-                + str(self.variable_dictionary_b[self.variables[i]])
+                + str(self.variable_dictionary_b[self.variables[i]]),
             )
-        print("Final Geometric Internal Coordinate Values:")
+        debug_print(logger, "Final Geometric Internal Coordinate Values:")
         for i in range(len(self.variables)):
-            print(
+            debug_print(
+                logger,
                 str(self.index_dictionary[self.variables[i]])
                 + " "
                 + self.variables[i]
                 + " = "
-                + str(self.variable_dictionary_a[self.variables[i]])
+                + str(self.variable_dictionary_a[self.variables[i]]),
             )
-        print("Final - Initial Geometric Internal Coordinate Values:")
+        debug_print(logger, "Final - Initial Geometric Internal Coordinate Values:")
         for i in range(len(self.variables)):
-            print(
+            debug_print(
+                logger,
                 self.variables[i]
                 + " = "
                 + str(
                     self.variable_dictionary_a[self.variables[i]]
                     - self.variable_dictionary_b[self.variables[i]]
-                )
+                ),
+            )
+        debug_print(logger, "Angstrom Bond Length Values:")
+        for i in range(len(self.bond_indices)):
+            debug_print(
+                logger,
+                str(self.index_dictionary[self.variables[i]])
+                + " "
+                + self.variables[i]
+                + " = "
+                + str(self.variable_dictionary_a[self.variables[i]] * self.Bohr_Ang),
             )
         if self.options.geom_check:
             Sum = 0
+            bond_diff = []
             for i in range(len(self.bond_indices)):
-                Sum += (
+                diff = (
                     self.variable_dictionary_a[self.variables[i]]
                     - self.variable_dictionary_b[self.variables[i]]
-                ) ** 2
+                )
+                Sum += diff**2
+                bond_diff.append(diff)
+            ang_diff = []
+            for i in range(len(self.variables) - len(self.bond_indices)):
+                diff = (
+                    self.variable_dictionary_a[
+                        self.variables[i + len(self.bond_indices)]
+                    ]
+                    - self.variable_dictionary_b[
+                        self.variables[i + len(self.bond_indices)]
+                    ]
+                )
+                # Sum += diff**2
+                ang_diff.append(diff)
+            debug_print(logger, "max signed bond diff angstrom")
+            debug_print(logger, np.max(bond_diff) * self.Bohr_Ang)
+            debug_print(logger, "max signed bond diff bohr")
+            debug_print(logger, np.max(bond_diff))
+            debug_print(logger, "min signed bond diff angstrom")
+            debug_print(logger, np.min(bond_diff) * self.Bohr_Ang)
+            debug_print(logger, "min signed bond diff bohr")
+            debug_print(logger, np.min(bond_diff))
+            debug_print(logger, "max abs bond diff angstrom")
+            debug_print(logger, np.max(np.abs(bond_diff)) * self.Bohr_Ang)
+            debug_print(logger, "max abs bond diff bohr")
+            debug_print(logger, np.max(np.abs(bond_diff)))
+            debug_print(logger, bond_diff)
+            debug_print(logger, "max signed ang diff")
+            debug_print(logger, np.max(ang_diff))
+            debug_print(logger, "min signed ang diff")
+            debug_print(logger, np.min(ang_diff))
+            debug_print(logger, "max abs ang diff")
+            debug_print(logger, np.max(np.abs(ang_diff)))
+            debug_print(logger, ang_diff)
 
-            # print("squared sum: ")
-            # print(Sum)
-            # print("# of bonds:")
-            # print(len(self.bond_indices))
-            # print("RMSD:")
-            # print(np.sqrt(Sum / len(self.bond_indices)))
+            # debug_print(logger, "squared sum: ")
+            # debug_print(logger, Sum)
+            # debug_print(logger, "# of bonds:")
+            # debug_print(logger, len(self.bond_indices))
+            # debug_print(logger, "RMSD:")
+            # debug_print(logger, np.sqrt(Sum / len(self.bond_indices)))
 
     def red_mass(self, indices):
         r = 0
@@ -1025,3 +1017,235 @@ class Zmat:
                     cont_bool = True
 
         return cont_bool
+
+    def _build_bonds(self, zmat_output):
+        bond_count = 0
+        if self.options.covalent_radii:
+            c_r = CovalentRadii()
+            indices = []
+            transdisp_inter = TransfDisp(
+                None,
+                self,
+                1,
+                False,
+                np.array([]),
+                self.options,
+                indices,
+            )
+            inter_atomic_len = np.zeros(
+                (len(self.cartesians_b), len(self.cartesians_b))
+            )
+            N = len(self.cartesians_b)
+            adj_mat = np.zeros((N, N))
+            for i in range(len(self.cartesians_b)):
+                for j in range(i):
+                    inter_atomic_len[j, i] = transdisp_inter.calc_bond(
+                        self.cartesians_b[i], self.cartesians_b[j]
+                    )
+                    if inter_atomic_len[j, i] < self.options.bond_threshold * (
+                        c_r.get(self.atom_list[i]) + c_r.get(self.atom_list[j])
+                    ):
+                        bond_count += 1
+                        adj_mat[i, j] = 1
+                        adj_mat[j, i] = 1
+                        self.bond_indices = np.append(self.bond_indices, 0)
+                        self.bond_indices[-1] = np.array(
+                            [str(j + 1), str(i + 1)], dtype=object
+                        )
+                        self.bond_variables.append("R" + str(bond_count))
+            debug_print(logger, "Interatomic Distance Matrix:")
+            debug_print(logger, inter_atomic_len)
+            debug_print(logger, "Adjacency Matrix:")
+            debug_print(logger, adj_mat)
+            for i in range(len(adj_mat)):
+                debug_print(logger, "Degree of vertex " + str(i))
+                debug_print(logger, np.sum(adj_mat[i]))
+            adj_mat2 = np.dot(adj_mat, adj_mat)
+            for i in range(len(adj_mat2)):
+                adj_mat2[i, i] = 0
+            debug_print(logger, "Covalent Radius Scale Factor:")
+            debug_print(logger, self.options.bond_threshold)
+        else:
+            for i in range(len(zmat_output)):
+                if re.search(self.bond_regex, zmat_output[i]):
+                    bond_count += 1
+                    List = re.findall(self.bond_regex, zmat_output[i])[0]
+                    self.bond_indices = np.append(self.bond_indices, 0)
+                    self.bond_indices[-1] = np.array(List, dtype=object)
+                    self.bond_variables.append("R" + str(bond_count))
+
+    def _build_angles(self):
+        ang_count = 0
+        for i in range(len(self.bond_indices)):
+            for j in range(len(self.bond_indices) - i - 1):
+                a = np.setdiff1d(self.bond_indices[i], self.bond_indices[i + j + 1])
+                b = np.intersect1d(self.bond_indices[i], self.bond_indices[i + j + 1])
+                c = np.setdiff1d(self.bond_indices[i + j + 1], self.bond_indices[i])
+                if len(a) and len(b) and len(c):
+                    d = np.array([a[0], b[0], c[0]])
+                    self.angle_indices = np.append(self.angle_indices, 0)
+                    self.angle_indices[-1] = np.array(d, dtype=object)
+                    ang_count += 1
+                    self.angle_variables.append("A" + str(ang_count))
+
+    def _build_four_center(self):
+        for i in range(len(self.angle_indices)):
+            for j in range(len(self.bond_indices)):
+                a = np.setdiff1d(self.angle_indices[i], self.bond_indices[j])
+                b = np.intersect1d(self.angle_indices[i], self.bond_indices[j])
+                c = np.setdiff1d(self.bond_indices[j], self.angle_indices[i])
+                if len(c) == 1:
+                    d = np.where(self.bond_indices[j] == c)[0][0]
+                    f = 1 - d
+                    g = self.bond_indices[j][f]
+                    h = np.where(self.angle_indices[i] == g)[0][0]
+                    if h == 1:
+                        # This is an out of plane bend
+                        oop = np.array(
+                            [
+                                self.bond_indices[j][d],
+                                self.bond_indices[j][f],
+                                a[0],
+                                a[1],
+                            ],
+                            dtype=object,
+                        )
+
+                        cont_bool = self.np_contains(self.oop_indices, oop)
+                        if not cont_bool:
+                            self.oop_indices = np.append(self.oop_indices, 0)
+                            self.oop_indices[-1] = np.array(oop, dtype=object)
+                    else:
+                        # This is a torsion
+                        if h:
+                            tor = np.append(
+                                self.angle_indices[i].copy(),
+                                self.bond_indices[j][d],
+                            )
+                        else:
+                            tor = np.append(
+                                self.bond_indices[j][d],
+                                self.angle_indices[i].copy(),
+                            )
+                        cont_bool = self.np_contains(
+                            self.torsion_indices, tor, tor=True
+                        )
+                        if not cont_bool:
+                            self.torsion_indices = np.append(self.torsion_indices, 0)
+                            self.torsion_indices[-1] = np.array(tor, dtype=object)
+
+        for i in range(len(self.torsion_indices)):
+            self.torsion_variables.append("D" + str(i + 1))
+        for i in range(len(self.oop_indices)):
+            self.oop_variables.append("O" + str(i + 1))
+
+    def _generate_topology(self):
+        X_len_walks_dict = {}
+        X_len_walks_dict["2_length_walks"] = self.bond_indices.copy()
+        X_len_walks_dict["3_length_walks"] = self.angle_indices.copy()
+        X_len_walks_dict["4_length_walks"] = self.torsion_indices.copy()
+
+        count = 4
+
+        prev_walks = self.torsion_indices.copy()
+
+        while True:
+            new_walks = np.array([])
+            for i in range(len(prev_walks)):
+                for j in range(len(self.bond_indices)):
+                    a = np.where(prev_walks[i] == self.bond_indices[j][0])[0]
+                    b = np.where(prev_walks[i] == self.bond_indices[j][1])[0]
+                    if len(a) and not len(b):
+                        if not a[0]:
+                            new_walk = np.append(
+                                self.bond_indices[j][1], prev_walks[i].copy()
+                            )
+                            new_walks = np.append(new_walks, new_walk)
+                        elif a[0] == count - 1:
+                            new_walk = np.append(
+                                prev_walks[i].copy(), self.bond_indices[j][1]
+                            )
+                            new_walks = np.append(new_walks, new_walk)
+                    if len(b) and not len(a):
+                        if not b[0]:
+                            new_walk = np.append(
+                                self.bond_indices[j][0], prev_walks[i].copy()
+                            )
+                            new_walks = np.append(new_walks, new_walk)
+                        elif b[0] == count - 1:
+                            new_walk = np.append(
+                                prev_walks[i].copy(), self.bond_indices[j][0]
+                            )
+                            new_walks = np.append(new_walks, new_walk)
+
+            count += 1
+            new_walks = new_walks.reshape((-1, count)).tolist()
+            debug_print(logger, new_walks)
+            new_walks = np.unique(new_walks, axis=0)
+
+            del_list = np.array([])
+            for i in range(len(new_walks)):
+                for j in range(len(new_walks) - i - 1):
+                    a = np.array([new_walks[i], np.flip(new_walks[i + j + 1])])
+                    a = np.unique(a, axis=0)
+                    if len(a) == 1:
+                        del_list = np.append(del_list, [i + j + 1])
+
+            del_list = del_list.astype(int)
+            new_walks = np.delete(new_walks, del_list, axis=0)
+            prev_walks = new_walks
+            if count > self.options.topo_max_it or not len(new_walks):
+                debug_print(
+                    logger,
+                    "Walk generator has terminated at walk lengths of " + str(count),
+                )
+                break
+            X_len_walks_dict[str(count) + "_length_walks"] = new_walks
+            debug_print(logger, str(count) + "_length_walks")
+            debug_print(logger, len(new_walks))
+            debug_print(logger, new_walks)
+
+        dict_len = len(X_len_walks_dict) - 1
+
+        debug_print(logger, "Looking for rings")
+        cycles_dict = {}
+        for i in range(dict_len):
+            cycles_dict[str(i + 3)] = np.array([])
+            for j in range(len(X_len_walks_dict[str(i + 3) + "_length_walks"])):
+                a = np.array(
+                    [
+                        X_len_walks_dict[str(i + 3) + "_length_walks"][j][0],
+                        X_len_walks_dict[str(i + 3) + "_length_walks"][j][-1],
+                    ]
+                )
+                for k in range(len(self.bond_indices)):
+                    b = np.intersect1d(a, self.bond_indices[k])
+                    if len(b) == 2:
+                        cycle = X_len_walks_dict[str(i + 3) + "_length_walks"][j].copy()
+                        cycles_dict[str(i + 3)] = np.append(
+                            cycles_dict[str(i + 3)], cycle
+                        )
+            cycles_dict[str(i + 3)] = cycles_dict[str(i + 3)].reshape((-1, i + 3))
+            del_array = np.array([])
+            if len(cycles_dict[str(i + 3)]):
+                for j in range(len(cycles_dict[str(i + 3)])):
+                    for k in range(len(cycles_dict[str(i + 3)]) - j - 1):
+                        a = np.intersect1d(
+                            cycles_dict[str(i + 3)][j],
+                            cycles_dict[str(i + 3)][k + j + 1],
+                        )
+                        if len(a) == len(cycles_dict[str(i + 3)][0]):
+                            del_array = np.append(del_array, [k + j + 1])
+                del_array = del_array.astype(int)
+                del_array = np.unique(del_array)
+                cycles_dict[str(i + 3)] = np.delete(
+                    cycles_dict[str(i + 3)], del_array, axis=0
+                )
+                debug_print(logger, f"{i+3}-membered ring detected!")
+                debug_print(logger, cycles_dict[str(i + 3)])
+
+    def _generate_walks(self):
+        pass
+
+    def _find_cycles(self):
+        pass
