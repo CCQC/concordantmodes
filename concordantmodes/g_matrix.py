@@ -138,4 +138,3 @@ class GMatrix:
 
         if len(self.proj) and self.options.coords != "ZMAT":
             self.G = np.dot(self.proj.T, np.dot(self.G, self.proj))
-

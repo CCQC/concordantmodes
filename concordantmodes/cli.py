@@ -176,10 +176,14 @@ def cmd_init(args):
         else:
             path.write_text(text)
             print("wrote {}".format(name))
-    print(textwrap.dedent("""
+    print(
+        textwrap.dedent(
+            """
             Next: edit zmat (your molecule) and the two templates (method, basis,
             memory), check cma.toml, then run 'cma run'. The {geometry} line in each
-            template is replaced by the coordinates of every displacement."""))
+            template is replaced by the coordinates of every displacement."""
+        )
+    )
     return EXIT_FINISHED
 
 
