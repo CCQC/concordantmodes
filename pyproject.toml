@@ -30,7 +30,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # MolSym is only needed for molsym_symmetry = True.
-symmetry = ["MolSym @ git+https://github.com/CCQC/MolSym.git"]
+symmetry = ["molsym>=1.3"]
 tests = ["pytest"]
 docs = [
     "sphinx>=7",
@@ -49,8 +49,8 @@ source = "vcs"
 # Used when building outside a git checkout (e.g. from a copied folder).
 raw-options = { fallback_version = "0.2.0" }
 
-[tool.hatch.metadata]
-allow-direct-references = true
+#[tool.hatch.metadata]
+#allow-direct-references = true
 
 [tool.hatch.build.targets.sdist]
 include = ["/concordantmodes", "/README.md", "/LICENSE", "/docs/source", "/examples"]
